@@ -1,8 +1,14 @@
+import asyncio
+import html
+import logging
 import re
-import time as time_mod
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
-import asyncpraw
+import feedparser
+import httpx
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_SUBREDDITS = [
     "wallstreetbets",
@@ -10,6 +16,12 @@ DEFAULT_SUBREDDITS = [
     "stocks",
     "EuropeanStocks",
     "Euronext",
+    "eupersonalfinance",
+    "SecurityAnalysis",
+    "stockmarket",
+    "ValueInvesting",
+    "dividends",
+    "options",
 ]
 
 TICKER_PATTERN = re.compile(r"\$?([A-Z]{2,5}(?:\.[A-Z]{1,2})?)\b")
@@ -135,6 +147,9 @@ BEARISH_KEYWORDS = [
     "exit",
 ]
 
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"\s+")
+
 
 def extract_tickers(text: str) -> list[str]:
     matches = TICKER_PATTERN.findall(text)
@@ -160,134 +175,156 @@ def score_sentiment(text: str, upvotes: int = 1) -> float:
     return max(-1.0, min(1.0, raw_score * weight))
 
 
-class RedditScraper:
-    def __init__(self, client_id: str, client_secret: str, user_agent: str):
-        self._reddit: asyncpraw.Reddit | None = None
-        self._client_id = client_id
-        self._client_secret = client_secret
-        self._user_agent = user_agent
+def strip_html(text: str) -> str:
+    text = _HTML_TAG_RE.sub(" ", text)
+    text = html.unescape(text)
+    text = _WHITESPACE_RE.sub(" ", text)
+    return text.strip()
 
-    async def _get_reddit(self) -> asyncpraw.Reddit:
-        if self._reddit is None:
-            self._reddit = asyncpraw.Reddit(
-                client_id=self._client_id,
-                client_secret=self._client_secret,
-                user_agent=self._user_agent,
-            )
-        return self._reddit
 
-    async def close(self):
-        if self._reddit is not None:
-            await self._reddit.close()
-            self._reddit = None
+def extract_post_id(entry: dict) -> str:
+    atom_id = entry.get("id", "")
+    if atom_id.startswith("t3_"):
+        return atom_id
+    # Try extracting from link
+    link = entry.get("link", "")
+    parts = link.rstrip("/").split("/")
+    # Reddit comment URLs: .../comments/<id>/...
+    if "comments" in parts:
+        idx = parts.index("comments")
+        if idx + 1 < len(parts):
+            return f"t3_{parts[idx + 1]}"
+    return atom_id or link
 
-    async def search_subreddit(self, subreddit: str, query: str, limit: int = 25) -> list[dict]:
-        reddit = await self._get_reddit()
-        sub = await reddit.subreddit(subreddit)
-        posts = []
-        async for submission in sub.search(query, sort="relevance", limit=limit):
+
+@dataclass
+class RedditPost:
+    id: str
+    title: str
+    body: str
+    author: str
+    subreddit: str
+    url: str
+    published: datetime
+
+
+@dataclass
+class RSSCollector:
+    user_agent: str = "trading-bot/1.0"
+    _posts: dict[str, RedditPost] = field(default_factory=dict)
+    _collection_rounds: int = 0
+
+    async def _fetch_feed(
+        self, client: httpx.AsyncClient, subreddit: str, sort: str, semaphore: asyncio.Semaphore
+    ) -> list[RedditPost]:
+        url = f"https://www.reddit.com/r/{subreddit}/{sort}.rss"
+        posts: list[RedditPost] = []
+        async with semaphore:
+            await asyncio.sleep(0.2)
+            try:
+                resp = await client.get(url)
+                resp.raise_for_status()
+            except httpx.HTTPError as e:
+                logger.warning("Failed to fetch %s: %s", url, e)
+                return posts
+
+        feed = feedparser.parse(resp.text)
+        for entry in feed.entries:
+            post_id = extract_post_id(entry)
+            # Get body from content or summary
+            body_html = ""
+            if hasattr(entry, "content") and entry.content:
+                body_html = entry.content[0].get("value", "")
+            elif hasattr(entry, "summary"):
+                body_html = entry.summary or ""
+
+            author = getattr(entry, "author", "").removeprefix("/u/")
+
+            published = datetime.now(UTC)
+            if hasattr(entry, "published_parsed") and entry.published_parsed:
+                published = datetime(*entry.published_parsed[:6], tzinfo=UTC)
+            elif hasattr(entry, "updated_parsed") and entry.updated_parsed:
+                published = datetime(*entry.updated_parsed[:6], tzinfo=UTC)
+
             posts.append(
-                {
-                    "id": submission.id,
-                    "title": submission.title,
-                    "score": submission.score,
-                    "url": f"https://reddit.com{submission.permalink}",
-                    "num_comments": submission.num_comments,
-                    "created_utc": datetime.fromtimestamp(
-                        submission.created_utc, tz=UTC
-                    ).isoformat(),
-                    "selftext_preview": (submission.selftext or "")[:500],
-                }
+                RedditPost(
+                    id=post_id,
+                    title=entry.get("title", ""),
+                    body=strip_html(body_html),
+                    author=author,
+                    subreddit=subreddit,
+                    url=entry.get("link", ""),
+                    published=published,
+                )
             )
         return posts
 
-    async def get_trending_tickers(
-        self, subreddits: list[str] | None = None, hours: int = 24
-    ) -> list[dict]:
+    async def collect(self, subreddits: list[str] | None = None) -> dict:
         subreddits = subreddits or DEFAULT_SUBREDDITS
-        cutoff = time_mod.time() - hours * 3600
+        semaphore = asyncio.Semaphore(5)
+        new_count = 0
+
+        async with httpx.AsyncClient(
+            headers={"User-Agent": self.user_agent},
+            timeout=15.0,
+        ) as client:
+            tasks = [
+                self._fetch_feed(client, sub, sort, semaphore)
+                for sub in subreddits
+                for sort in ("hot", "new", "top")
+            ]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for result in results:
+            if isinstance(result, BaseException):
+                logger.warning("Feed fetch error: %s", result)
+                continue
+            for post in result:
+                if post.id not in self._posts:
+                    self._posts[post.id] = post
+                    new_count += 1
+
+        self._collection_rounds += 1
+        return {
+            "round": self._collection_rounds,
+            "new_posts": new_count,
+            "total_posts": len(self._posts),
+            "subreddits": subreddits,
+        }
+
+    def get_daily_digest(self, subreddits: list[str] | None = None) -> dict:
         ticker_data: dict[str, dict] = {}
+        posts = self._posts.values()
 
-        for sub_name in subreddits:
-            reddit = await self._get_reddit()
-            sub = await reddit.subreddit(sub_name)
-            async for submission in sub.hot(limit=100):
-                if submission.created_utc < cutoff:
-                    continue
-                text = f"{submission.title} {submission.selftext or ''}"
-                tickers = extract_tickers(text)
-                for ticker in tickers:
-                    if ticker not in ticker_data:
-                        ticker_data[ticker] = {
-                            "ticker": ticker,
-                            "mention_count": 0,
-                            "subreddits": {},
-                            "total_score": 0,
+        if subreddits:
+            sub_set = set(subreddits)
+            posts = [p for p in posts if p.subreddit in sub_set]
+
+        for post in posts:
+            text = f"{post.title} {post.body}"
+            tickers = extract_tickers(text)
+            for ticker in tickers:
+                if ticker not in ticker_data:
+                    ticker_data[ticker] = {
+                        "ticker": ticker,
+                        "mentions": 0,
+                        "sentiment_total": 0.0,
+                        "sentiment_count": 0,
+                        "top_posts": [],
+                    }
+                entry = ticker_data[ticker]
+                entry["mentions"] += 1
+                sentiment = score_sentiment(text)
+                entry["sentiment_total"] += sentiment
+                entry["sentiment_count"] += 1
+                if len(entry["top_posts"]) < 3:
+                    entry["top_posts"].append(
+                        {
+                            "title": post.title,
+                            "url": post.url,
+                            "subreddit": post.subreddit,
                         }
-                    ticker_data[ticker]["mention_count"] += 1
-                    ticker_data[ticker]["total_score"] += submission.score
-                    sub_counts = ticker_data[ticker]["subreddits"]
-                    sub_counts[sub_name] = sub_counts.get(sub_name, 0) + 1
-
-        result = sorted(ticker_data.values(), key=lambda x: x["mention_count"], reverse=True)
-        for item in result:
-            count = item["mention_count"]
-            item["avg_score"] = round(item.pop("total_score") / count, 1) if count else 0
-        return result
-
-    async def get_post_comments(self, post_id: str, limit: int = 50) -> list[dict]:
-        reddit = await self._get_reddit()
-        submission = await reddit.submission(id=post_id)
-        await submission.load()
-        submission.comments.replace_more(limit=0)
-        comments = []
-        for comment in submission.comments[:limit]:
-            comments.append(
-                {
-                    "id": comment.id,
-                    "body": comment.body,
-                    "score": comment.score,
-                    "author": str(comment.author) if comment.author else "[deleted]",
-                    "created_utc": datetime.fromtimestamp(comment.created_utc, tz=UTC).isoformat(),
-                }
-            )
-        return comments
-
-    async def get_daily_digest(self, subreddits: list[str] | None = None) -> dict:
-        subreddits = subreddits or DEFAULT_SUBREDDITS
-        ticker_data: dict[str, dict] = {}
-        total_posts = 0
-
-        for sub_name in subreddits:
-            reddit = await self._get_reddit()
-            sub = await reddit.subreddit(sub_name)
-            async for submission in sub.hot(limit=100):
-                total_posts += 1
-                text = f"{submission.title} {submission.selftext or ''}"
-                tickers = extract_tickers(text)
-                for ticker in tickers:
-                    if ticker not in ticker_data:
-                        ticker_data[ticker] = {
-                            "ticker": ticker,
-                            "mentions": 0,
-                            "sentiment_total": 0.0,
-                            "sentiment_count": 0,
-                            "top_posts": [],
-                        }
-                    entry = ticker_data[ticker]
-                    entry["mentions"] += 1
-                    sentiment = score_sentiment(text, submission.score)
-                    entry["sentiment_total"] += sentiment
-                    entry["sentiment_count"] += 1
-                    if len(entry["top_posts"]) < 3:
-                        entry["top_posts"].append(
-                            {
-                                "title": submission.title,
-                                "score": submission.score,
-                                "url": f"https://reddit.com{submission.permalink}",
-                                "subreddit": sub_name,
-                            }
-                        )
+                    )
 
         tickers_list = []
         for data in sorted(ticker_data.values(), key=lambda x: x["mentions"], reverse=True):
@@ -302,9 +339,24 @@ class RedditScraper:
                 }
             )
 
+        scraped_subs = subreddits or list({p.subreddit for p in self._posts.values()})
         return {
             "date": datetime.now(UTC).strftime("%Y-%m-%d"),
-            "subreddits_scraped": subreddits,
-            "total_posts": total_posts,
+            "subreddits_scraped": scraped_subs,
+            "total_posts": len(list(posts)),
             "tickers": tickers_list,
         }
+
+    def get_collection_stats(self) -> dict:
+        per_sub: dict[str, int] = {}
+        for post in self._posts.values():
+            per_sub[post.subreddit] = per_sub.get(post.subreddit, 0) + 1
+        return {
+            "collection_rounds": self._collection_rounds,
+            "total_posts": len(self._posts),
+            "per_subreddit": per_sub,
+        }
+
+    def reset(self):
+        self._posts.clear()
+        self._collection_rounds = 0

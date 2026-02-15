@@ -1,13 +1,17 @@
-import time as time_mod
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, patch
 
+import httpx
 import pytest
 
 from src.mcp_servers.reddit.scraper import (
     TICKER_BLACKLIST,
-    RedditScraper,
+    RedditPost,
+    RSSCollector,
+    extract_post_id,
     extract_tickers,
     score_sentiment,
+    strip_html,
 )
 
 # --- extract_tickers ---
@@ -111,209 +115,294 @@ class TestScoreSentiment:
         assert -1.0 <= score <= 1.0
 
 
-# --- RedditScraper (mocked asyncpraw) ---
+# --- strip_html ---
 
 
-def _make_mock_submission(
-    post_id: str = "abc123",
-    title: str = "ASML is going to the moon",
-    selftext: str = "Very bullish on ASML.AS",
-    score: int = 100,
-    num_comments: int = 50,
-    created_utc: float | None = None,
-    permalink: str = "/r/stocks/comments/abc123/asml_moon/",
-):
-    sub = MagicMock()
-    sub.id = post_id
-    sub.title = title
-    sub.selftext = selftext
-    sub.score = score
-    sub.num_comments = num_comments
-    sub.created_utc = created_utc or time_mod.time()
-    sub.permalink = permalink
-    return sub
+class TestStripHTML:
+    def test_removes_tags(self):
+        assert strip_html("<p>hello</p>") == "hello"
+
+    def test_nested_tags(self):
+        assert strip_html("<div><b>bold</b> text</div>") == "bold text"
+
+    def test_unescapes_entities(self):
+        assert strip_html("&amp; &lt; &gt; &quot;") == '& < > "'
+
+    def test_collapses_whitespace(self):
+        assert strip_html("  too   many   spaces  ") == "too many spaces"
+
+    def test_empty_string(self):
+        assert strip_html("") == ""
+
+    def test_plain_text_passthrough(self):
+        assert strip_html("no html here") == "no html here"
 
 
-def _make_mock_comment(
-    comment_id: str = "com1",
-    body: str = "Great analysis!",
-    score: int = 10,
-    author: str = "testuser",
-    created_utc: float | None = None,
-):
-    comment = MagicMock()
-    comment.id = comment_id
-    comment.body = body
-    comment.score = score
-    comment.author = MagicMock(__str__=lambda self: author)
-    comment.created_utc = created_utc or time_mod.time()
-    return comment
+# --- extract_post_id ---
 
 
-class _AsyncSubmissionIterator:
-    """Async iterator over a list of mock submissions."""
+class TestExtractPostId:
+    def test_t3_prefix(self):
+        assert extract_post_id({"id": "t3_abc123"}) == "t3_abc123"
 
-    def __init__(self, items: list):
-        self._items = items
-        self._index = 0
+    def test_url_fallback(self):
+        entry = {
+            "id": "some-atom-id",
+            "link": "https://www.reddit.com/r/stocks/comments/xyz789/some_title/",
+        }
+        assert extract_post_id(entry) == "t3_xyz789"
 
-    def __aiter__(self):
-        return self
+    def test_no_id_uses_link(self):
+        entry = {"link": "https://www.reddit.com/r/stocks/comments/abc/title/"}
+        assert extract_post_id(entry) == "t3_abc"
 
-    async def __anext__(self):
-        if self._index >= len(self._items):
-            raise StopAsyncIteration
-        item = self._items[self._index]
-        self._index += 1
-        return item
+    def test_bare_atom_id_no_comments_in_link(self):
+        entry = {"id": "some-id", "link": "https://example.com/no-comments-path"}
+        assert extract_post_id(entry) == "some-id"
+
+    def test_empty_entry(self):
+        assert extract_post_id({}) == ""
 
 
-class TestRedditScraperSearch:
+# --- RSSCollector ---
+
+SAMPLE_ATOM_XML = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>t3_post1</id>
+    <title>ASML is going to the moon bullish buy</title>
+    <link href="https://www.reddit.com/r/stocks/comments/post1/asml_moon/"/>
+    <author><name>/u/trader1</name></author>
+    <content type="html">&lt;p&gt;Very bullish on ASML.AS, breakout incoming&lt;/p&gt;</content>
+    <updated>2026-02-15T10:00:00+00:00</updated>
+  </entry>
+  <entry>
+    <id>t3_post2</id>
+    <title>SAP.DE crash sell overvalued bearish</title>
+    <link href="https://www.reddit.com/r/stocks/comments/post2/sap_crash/"/>
+    <author><name>/u/trader2</name></author>
+    <content type="html">&lt;p&gt;SAP is way overvalued, crash coming&lt;/p&gt;</content>
+    <updated>2026-02-15T11:00:00+00:00</updated>
+  </entry>
+</feed>"""
+
+SAMPLE_ATOM_XML_2 = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry>
+    <id>t3_post3</id>
+    <title>NVDA strong growth rally</title>
+    <link href="https://www.reddit.com/r/investing/comments/post3/nvda/"/>
+    <author><name>/u/trader3</name></author>
+    <content type="html">&lt;p&gt;NVDA looking strong&lt;/p&gt;</content>
+    <updated>2026-02-15T12:00:00+00:00</updated>
+  </entry>
+</feed>"""
+
+
+def _mock_response(text: str, status_code: int = 200) -> httpx.Response:
+    return httpx.Response(
+        status_code=status_code, text=text, request=httpx.Request("GET", "http://x")
+    )
+
+
+class TestRSSCollectorCollect:
     @pytest.mark.asyncio
-    async def test_search_subreddit_returns_posts(self):
-        submissions = [
-            _make_mock_submission(post_id="1", title="ASML bullish"),
-            _make_mock_submission(post_id="2", title="SAP.DE analysis"),
-        ]
+    async def test_collect_accumulates_posts(self):
+        collector = RSSCollector()
 
-        mock_sub = MagicMock()
-        mock_sub.search = MagicMock(return_value=_AsyncSubmissionIterator(submissions))
+        async def mock_get(url, **kwargs):
+            return _mock_response(SAMPLE_ATOM_XML)
 
-        mock_reddit = AsyncMock()
-        mock_reddit.subreddit = AsyncMock(return_value=mock_sub)
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            client = AsyncMock()
+            client.get = mock_get
+            client.__aenter__ = AsyncMock(return_value=client)
+            client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = client
 
-        scraper = RedditScraper("id", "secret", "agent")
-        scraper._reddit = mock_reddit
+            result = await collector.collect(subreddits=["stocks"])
 
-        results = await scraper.search_subreddit("stocks", "ASML", limit=10)
-        assert len(results) == 2
-        assert results[0]["id"] == "1"
-        assert results[0]["title"] == "ASML bullish"
-        assert "url" in results[0]
-        assert "created_utc" in results[0]
-
-
-class TestRedditScraperTrending:
-    @pytest.mark.asyncio
-    async def test_get_trending_tickers(self):
-        submissions = [
-            _make_mock_submission(title="ASML to the moon!", selftext="Buy ASML.AS now"),
-            _make_mock_submission(title="ASML is amazing", selftext="Very bullish"),
-            _make_mock_submission(title="SAP.DE earnings", selftext="Looking at SAP"),
-        ]
-
-        mock_sub = MagicMock()
-        mock_sub.hot = MagicMock(return_value=_AsyncSubmissionIterator(submissions))
-
-        mock_reddit = AsyncMock()
-        mock_reddit.subreddit = AsyncMock(return_value=mock_sub)
-
-        scraper = RedditScraper("id", "secret", "agent")
-        scraper._reddit = mock_reddit
-
-        results = await scraper.get_trending_tickers(subreddits=["stocks"], hours=24)
-        assert isinstance(results, list)
-        assert len(results) > 0
-        # ASML should be most mentioned
-        tickers = [r["ticker"] for r in results]
-        assert "ASML" in tickers
+        assert result["round"] == 1
+        assert result["total_posts"] >= 2
+        assert result["new_posts"] >= 2
 
     @pytest.mark.asyncio
-    async def test_filters_old_posts(self):
-        old_time = time_mod.time() - 48 * 3600  # 48 hours ago
-        submissions = [
-            _make_mock_submission(title="ASML old post", created_utc=old_time),
-        ]
+    async def test_collect_deduplicates_across_rounds(self):
+        collector = RSSCollector()
 
-        mock_sub = MagicMock()
-        mock_sub.hot = MagicMock(return_value=_AsyncSubmissionIterator(submissions))
+        async def mock_get(url, **kwargs):
+            return _mock_response(SAMPLE_ATOM_XML)
 
-        mock_reddit = AsyncMock()
-        mock_reddit.subreddit = AsyncMock(return_value=mock_sub)
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            client = AsyncMock()
+            client.get = mock_get
+            client.__aenter__ = AsyncMock(return_value=client)
+            client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = client
 
-        scraper = RedditScraper("id", "secret", "agent")
-        scraper._reddit = mock_reddit
+            r1 = await collector.collect(subreddits=["stocks"])
+            r2 = await collector.collect(subreddits=["stocks"])
 
-        results = await scraper.get_trending_tickers(subreddits=["stocks"], hours=24)
-        assert results == []
+        assert r2["round"] == 2
+        assert r2["new_posts"] == 0  # Same posts, all deduped
+        assert r2["total_posts"] == r1["total_posts"]
 
-
-class TestRedditScraperComments:
     @pytest.mark.asyncio
-    async def test_get_post_comments(self):
-        comments = [
-            _make_mock_comment(comment_id="c1", body="Great DD!"),
-            _make_mock_comment(comment_id="c2", body="I disagree"),
-        ]
+    async def test_collect_handles_http_errors(self):
+        collector = RSSCollector()
 
-        mock_comments = MagicMock()
-        mock_comments.replace_more = MagicMock()
-        mock_comments.__getitem__ = lambda self, key: comments[key]
+        async def mock_get(url, **kwargs):
+            raise httpx.HTTPStatusError(
+                "429", request=httpx.Request("GET", url), response=_mock_response("", 429)
+            )
 
-        mock_submission = AsyncMock()
-        mock_submission.load = AsyncMock()
-        mock_submission.comments = mock_comments
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            client = AsyncMock()
+            client.get = mock_get
+            client.__aenter__ = AsyncMock(return_value=client)
+            client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = client
 
-        mock_reddit = AsyncMock()
-        mock_reddit.submission = AsyncMock(return_value=mock_submission)
+            result = await collector.collect(subreddits=["stocks"])
 
-        scraper = RedditScraper("id", "secret", "agent")
-        scraper._reddit = mock_reddit
-
-        results = await scraper.get_post_comments("abc123", limit=50)
-        assert len(results) == 2
-        assert results[0]["id"] == "c1"
-        assert results[0]["body"] == "Great DD!"
-        assert results[1]["author"] == "testuser"
+        assert result["round"] == 1
+        assert result["total_posts"] == 0
 
 
-class TestRedditScraperDailyDigest:
-    @pytest.mark.asyncio
-    async def test_daily_digest_structure(self):
-        submissions = [
-            _make_mock_submission(title="ASML bullish moon buy", score=200),
-            _make_mock_submission(title="SAP.DE crash sell", score=50),
-        ]
+class TestRSSCollectorDigest:
+    def _make_collector_with_posts(self) -> RSSCollector:
+        collector = RSSCollector()
+        collector._posts = {
+            "t3_1": RedditPost(
+                id="t3_1",
+                title="ASML bullish moon buy rocket",
+                body="Very bullish breakout on ASML.AS",
+                author="user1",
+                subreddit="stocks",
+                url="https://reddit.com/r/stocks/comments/1/asml/",
+                published=datetime(2026, 2, 15, 10, 0, tzinfo=UTC),
+            ),
+            "t3_2": RedditPost(
+                id="t3_2",
+                title="SAP.DE crash sell overvalued",
+                body="SAP is dumping avoid",
+                author="user2",
+                subreddit="investing",
+                url="https://reddit.com/r/investing/comments/2/sap/",
+                published=datetime(2026, 2, 15, 11, 0, tzinfo=UTC),
+            ),
+        }
+        collector._collection_rounds = 1
+        return collector
 
-        mock_sub = MagicMock()
-        mock_sub.hot = MagicMock(return_value=_AsyncSubmissionIterator(submissions))
+    def test_digest_structure(self):
+        collector = self._make_collector_with_posts()
+        digest = collector.get_daily_digest()
 
-        mock_reddit = AsyncMock()
-        mock_reddit.subreddit = AsyncMock(return_value=mock_sub)
-
-        scraper = RedditScraper("id", "secret", "agent")
-        scraper._reddit = mock_reddit
-
-        digest = await scraper.get_daily_digest(subreddits=["stocks"])
         assert "date" in digest
         assert "subreddits_scraped" in digest
         assert "total_posts" in digest
         assert "tickers" in digest
         assert digest["total_posts"] == 2
-        assert digest["subreddits_scraped"] == ["stocks"]
         assert isinstance(digest["tickers"], list)
 
-    @pytest.mark.asyncio
-    async def test_daily_digest_sentiment_direction(self):
-        submissions = [
-            _make_mock_submission(
-                title="BULL stock buy bullish moon rocket calls",
-                selftext="Very bullish breakout long",
-                score=100,
+    def test_digest_sentiment_direction(self):
+        collector = self._make_collector_with_posts()
+        digest = collector.get_daily_digest()
+
+        asml_tickers = [t for t in digest["tickers"] if t["ticker"] == "ASML"]
+        assert len(asml_tickers) == 1
+        assert asml_tickers[0]["sentiment_score"] > 0
+
+    def test_digest_bearish_sentiment(self):
+        collector = self._make_collector_with_posts()
+        digest = collector.get_daily_digest()
+
+        sap_tickers = [t for t in digest["tickers"] if t["ticker"] == "SAP"]
+        assert len(sap_tickers) == 1
+        assert sap_tickers[0]["sentiment_score"] < 0
+
+    def test_digest_subreddit_filter(self):
+        collector = self._make_collector_with_posts()
+        digest = collector.get_daily_digest(subreddits=["stocks"])
+
+        assert digest["total_posts"] == 1
+        assert digest["subreddits_scraped"] == ["stocks"]
+
+    def test_digest_empty_collection(self):
+        collector = RSSCollector()
+        digest = collector.get_daily_digest()
+
+        assert digest["total_posts"] == 0
+        assert digest["tickers"] == []
+
+
+class TestRSSCollectorStats:
+    def test_stats_empty(self):
+        collector = RSSCollector()
+        stats = collector.get_collection_stats()
+
+        assert stats["collection_rounds"] == 0
+        assert stats["total_posts"] == 0
+        assert stats["per_subreddit"] == {}
+
+    def test_stats_after_collection(self):
+        collector = RSSCollector()
+        collector._posts = {
+            "t3_1": RedditPost(
+                id="t3_1",
+                title="Post 1",
+                body="body",
+                author="u1",
+                subreddit="stocks",
+                url="http://x",
+                published=datetime(2026, 1, 1, tzinfo=UTC),
             ),
-        ]
+            "t3_2": RedditPost(
+                id="t3_2",
+                title="Post 2",
+                body="body",
+                author="u2",
+                subreddit="investing",
+                url="http://x",
+                published=datetime(2026, 1, 1, tzinfo=UTC),
+            ),
+            "t3_3": RedditPost(
+                id="t3_3",
+                title="Post 3",
+                body="body",
+                author="u3",
+                subreddit="stocks",
+                url="http://x",
+                published=datetime(2026, 1, 1, tzinfo=UTC),
+            ),
+        }
+        collector._collection_rounds = 2
 
-        mock_sub = MagicMock()
-        mock_sub.hot = MagicMock(return_value=_AsyncSubmissionIterator(submissions))
+        stats = collector.get_collection_stats()
 
-        mock_reddit = AsyncMock()
-        mock_reddit.subreddit = AsyncMock(return_value=mock_sub)
+        assert stats["collection_rounds"] == 2
+        assert stats["total_posts"] == 3
+        assert stats["per_subreddit"]["stocks"] == 2
+        assert stats["per_subreddit"]["investing"] == 1
 
-        scraper = RedditScraper("id", "secret", "agent")
-        scraper._reddit = mock_reddit
 
-        digest = await scraper.get_daily_digest(subreddits=["stocks"])
-        # BULL ticker should have positive sentiment
-        bull_tickers = [t for t in digest["tickers"] if t["ticker"] == "BULL"]
-        assert len(bull_tickers) == 1
-        assert bull_tickers[0]["sentiment_score"] > 0
+class TestRSSCollectorReset:
+    def test_reset_clears_state(self):
+        collector = RSSCollector()
+        collector._posts["t3_1"] = RedditPost(
+            id="t3_1",
+            title="x",
+            body="y",
+            author="u",
+            subreddit="s",
+            url="http://x",
+            published=datetime(2026, 1, 1, tzinfo=UTC),
+        )
+        collector._collection_rounds = 3
+
+        collector.reset()
+
+        assert len(collector._posts) == 0
+        assert collector._collection_rounds == 0
+        assert collector.get_collection_stats()["total_posts"] == 0

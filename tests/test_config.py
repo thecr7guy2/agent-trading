@@ -7,8 +7,6 @@ class TestSettings:
     def test_loads_from_env_vars(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         monkeypatch.setenv("MINIMAX_API_KEY", "mm-test")
-        monkeypatch.setenv("REDDIT_CLIENT_ID", "reddit-id")
-        monkeypatch.setenv("REDDIT_CLIENT_SECRET", "reddit-secret")
         monkeypatch.setenv("T212_API_KEY", "t212-test")
         monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
 
@@ -22,8 +20,6 @@ class TestSettings:
     def test_defaults(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
         monkeypatch.setenv("MINIMAX_API_KEY", "x")
-        monkeypatch.setenv("REDDIT_CLIENT_ID", "x")
-        monkeypatch.setenv("REDDIT_CLIENT_SECRET", "x")
         monkeypatch.setenv("T212_API_KEY", "x")
 
         settings = Settings()
@@ -36,13 +32,20 @@ class TestSettings:
         assert settings.claude_sonnet_model == "claude-sonnet-4-5-20250929"
         assert settings.claude_haiku_model == "claude-haiku-4-5-20251001"
 
+    def test_reddit_credentials_optional(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
+        monkeypatch.setenv("MINIMAX_API_KEY", "x")
+        monkeypatch.setenv("T212_API_KEY", "x")
+
+        settings = Settings()
+
+        assert settings.reddit_client_id is None
+        assert settings.reddit_client_secret is None
+
     def test_missing_required_key_raises(self, monkeypatch):
-        # Clear all env vars that could satisfy required fields
         for key in [
             "ANTHROPIC_API_KEY",
             "MINIMAX_API_KEY",
-            "REDDIT_CLIENT_ID",
-            "REDDIT_CLIENT_SECRET",
             "T212_API_KEY",
         ]:
             monkeypatch.delenv(key, raising=False)

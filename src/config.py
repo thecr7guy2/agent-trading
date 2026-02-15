@@ -10,9 +10,9 @@ class Settings(BaseSettings):
     minimax_api_key: str
     minimax_base_url: str = "https://api.minimaxi.chat/v1"
 
-    # Reddit
-    reddit_client_id: str
-    reddit_client_secret: str
+    # Reddit (optional — RSS feeds don't require API credentials)
+    reddit_client_id: str | None = None
+    reddit_client_secret: str | None = None
     reddit_user_agent: str = "trading-bot/1.0"
 
     # Broker
