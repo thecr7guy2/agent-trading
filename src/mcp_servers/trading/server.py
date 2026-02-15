@@ -37,12 +37,19 @@ async def _get_portfolio() -> PortfolioManager:
 
 
 @mcp.tool()
-async def place_buy_order(ticker: str, amount_eur: float) -> dict:
+async def place_buy_order(llm_name: str, ticker: str, amount_eur: float) -> dict:
     """Place a real buy order via Trading 212 for a specified EUR amount.
     Uses value-based ordering so Trading 212 handles fractional share calculation."""
     try:
         t212 = await _get_t212()
-        result = await t212.place_value_order(ticker, amount_eur)
+        broker_ticker = await t212.resolve_ticker(ticker)
+        if not broker_ticker:
+            return {
+                "error": "Ticker not tradable on Trading 212",
+                "llm_name": llm_name,
+                "ticker": ticker,
+            }
+        result = await t212.place_value_order(broker_ticker, amount_eur)
 
         # Record in DB
         pm = await _get_portfolio()
@@ -50,7 +57,7 @@ async def place_buy_order(ticker: str, amount_eur: float) -> dict:
         filled_value = Decimal(str(result.get("filledValue", amount_eur)))
         filled_price = filled_value / filled_qty if filled_qty else Decimal("0")
         await pm.record_trade(
-            llm_name="real",
+            llm_name=llm_name,
             ticker=ticker,
             action="buy",
             quantity=filled_qty,
@@ -59,28 +66,47 @@ async def place_buy_order(ticker: str, amount_eur: float) -> dict:
             broker_order_id=str(result.get("id", "")),
         )
 
-        return {"status": "filled", "ticker": ticker, "amount_eur": amount_eur, "order": result}
+        return {
+            "status": "filled",
+            "llm_name": llm_name,
+            "ticker": ticker,
+            "broker_ticker": broker_ticker,
+            "amount_eur": amount_eur,
+            "order": result,
+        }
     except T212Error as e:
         logger.exception("place_buy_order failed for %s", ticker)
-        return {"error": e.message, "status_code": e.status_code, "ticker": ticker}
+        return {
+            "error": e.message,
+            "status_code": e.status_code,
+            "llm_name": llm_name,
+            "ticker": ticker,
+        }
     except Exception as e:
         logger.exception("place_buy_order failed for %s", ticker)
-        return {"error": str(e), "ticker": ticker}
+        return {"error": str(e), "llm_name": llm_name, "ticker": ticker}
 
 
 @mcp.tool()
-async def place_sell_order(ticker: str, quantity: float) -> dict:
+async def place_sell_order(llm_name: str, ticker: str, quantity: float) -> dict:
     """Place a real sell order via Trading 212 for a specified share quantity."""
     try:
         t212 = await _get_t212()
-        result = await t212.place_market_order(ticker, -abs(quantity))
+        broker_ticker = await t212.resolve_ticker(ticker)
+        if not broker_ticker:
+            return {
+                "error": "Ticker not tradable on Trading 212",
+                "llm_name": llm_name,
+                "ticker": ticker,
+            }
+        result = await t212.place_market_order(broker_ticker, -abs(quantity))
 
         pm = await _get_portfolio()
         filled_qty = Decimal(str(abs(result.get("filledQuantity", quantity))))
         filled_value = Decimal(str(result.get("filledValue", 0)))
         filled_price = filled_value / filled_qty if filled_qty else Decimal("0")
         await pm.record_trade(
-            llm_name="real",
+            llm_name=llm_name,
             ticker=ticker,
             action="sell",
             quantity=filled_qty,
@@ -89,13 +115,25 @@ async def place_sell_order(ticker: str, quantity: float) -> dict:
             broker_order_id=str(result.get("id", "")),
         )
 
-        return {"status": "filled", "ticker": ticker, "quantity": quantity, "order": result}
+        return {
+            "status": "filled",
+            "llm_name": llm_name,
+            "ticker": ticker,
+            "broker_ticker": broker_ticker,
+            "quantity": quantity,
+            "order": result,
+        }
     except T212Error as e:
         logger.exception("place_sell_order failed for %s", ticker)
-        return {"error": e.message, "status_code": e.status_code, "ticker": ticker}
+        return {
+            "error": e.message,
+            "status_code": e.status_code,
+            "llm_name": llm_name,
+            "ticker": ticker,
+        }
     except Exception as e:
         logger.exception("place_sell_order failed for %s", ticker)
-        return {"error": str(e), "ticker": ticker}
+        return {"error": str(e), "llm_name": llm_name, "ticker": ticker}
 
 
 @mcp.tool()

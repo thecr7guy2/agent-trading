@@ -3,6 +3,8 @@ from decimal import Decimal
 
 import asyncpg
 
+from src.db.models import DailyPicks, Position
+
 
 class PortfolioManager:
     def __init__(self, pool: asyncpg.Pool):
@@ -308,6 +310,84 @@ class PortfolioManager:
                 "total_proceeds": str(r["total_proceeds"]),
                 "realized_pnl": str(r["total_proceeds"] - r["total_invested"]),
             }
+            for r in rows
+        ]
+
+    async def trade_exists(
+        self,
+        llm_name: str,
+        trade_date: date,
+        ticker: str,
+        action: str,
+        is_real: bool,
+    ) -> bool:
+        async with self._pool.acquire() as conn:
+            value = await conn.fetchval(
+                """
+                SELECT 1
+                FROM trades
+                WHERE llm_name = $1
+                  AND trade_date = $2
+                  AND ticker = $3
+                  AND action = $4
+                  AND is_real = $5
+                LIMIT 1
+                """,
+                llm_name,
+                trade_date,
+                ticker,
+                action,
+                is_real,
+            )
+        return value is not None
+
+    async def save_daily_picks(self, picks: DailyPicks, is_main: bool) -> None:
+        async with self._pool.acquire() as conn:
+            for pick in picks.picks:
+                await conn.execute(
+                    """
+                    INSERT INTO daily_picks
+                        (llm_name, pick_date, is_main_trader, ticker, exchange,
+                         allocation_pct, reasoning, confidence)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    ON CONFLICT (llm_name, pick_date, ticker)
+                    DO UPDATE SET
+                        is_main_trader = EXCLUDED.is_main_trader,
+                        exchange = EXCLUDED.exchange,
+                        allocation_pct = EXCLUDED.allocation_pct,
+                        reasoning = EXCLUDED.reasoning,
+                        confidence = EXCLUDED.confidence
+                    """,
+                    picks.llm.value,
+                    picks.pick_date,
+                    is_main,
+                    pick.ticker,
+                    pick.exchange,
+                    pick.allocation_pct,
+                    pick.reasoning,
+                    picks.confidence,
+                )
+
+    async def get_positions_typed(self, llm_name: str) -> list[Position]:
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, llm_name, ticker, quantity, avg_buy_price, is_real, opened_at
+                FROM positions WHERE llm_name = $1
+                ORDER BY opened_at DESC
+                """,
+                llm_name,
+            )
+        return [
+            Position(
+                id=r["id"],
+                llm_name=r["llm_name"],
+                ticker=r["ticker"],
+                quantity=r["quantity"],
+                avg_buy_price=r["avg_buy_price"],
+                is_real=r["is_real"],
+                opened_at=r["opened_at"],
+            )
             for r in rows
         ]
 

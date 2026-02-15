@@ -11,6 +11,14 @@ class T212Error(Exception):
 class T212Client:
     LIVE_BASE_URL = "https://live.trading212.com/api/v0"
     DEMO_BASE_URL = "https://demo.trading212.com/api/v0"
+    EU_SUFFIX_TO_COUNTRY = {
+        "AS": "NL",
+        "PA": "FR",
+        "DE": "DE",
+        "MI": "IT",
+        "MC": "ES",
+        "L": "GB",
+    }
 
     def __init__(self, api_key: str, use_demo: bool = False):
         self._base_url = self.DEMO_BASE_URL if use_demo else self.LIVE_BASE_URL
@@ -22,6 +30,8 @@ class T212Client:
             },
             timeout=30.0,
         )
+        self._instruments_cache: list[dict] | None = None
+        self._resolved_ticker_cache: dict[str, str | None] = {}
 
     async def close(self):
         await self._client.aclose()
@@ -69,6 +79,61 @@ class T212Client:
     async def cancel_order(self, order_id: str) -> dict:
         return await self._request("DELETE", f"/equity/orders/{order_id}")
 
-    async def get_instruments(self) -> list:
+    async def get_instruments(self, force_refresh: bool = False) -> list:
         """Get list of all tradable instruments on Trading 212."""
-        return await self._request("GET", "/equity/metadata/instruments")
+        if self._instruments_cache is None or force_refresh:
+            instruments = await self._request("GET", "/equity/metadata/instruments")
+            self._instruments_cache = instruments if isinstance(instruments, list) else []
+        return self._instruments_cache
+
+    async def resolve_ticker(self, ticker: str) -> str | None:
+        normalized = ticker.strip().upper()
+        if not normalized:
+            return None
+        if normalized.endswith("_EQ"):
+            return normalized
+        if normalized in self._resolved_ticker_cache:
+            return self._resolved_ticker_cache[normalized]
+
+        instruments = await self.get_instruments()
+        symbols: set[str] = set()
+        for instrument in instruments:
+            for key in ("ticker", "symbol", "instrumentCode", "code"):
+                value = instrument.get(key)
+                if isinstance(value, str) and value:
+                    symbols.add(value.upper())
+
+        for candidate in self._build_candidates(normalized):
+            if candidate in symbols:
+                self._resolved_ticker_cache[normalized] = candidate
+                return candidate
+
+        self._resolved_ticker_cache[normalized] = None
+        return None
+
+    def _build_candidates(self, ticker: str) -> list[str]:
+        candidates: list[str] = []
+
+        def _push(value: str):
+            value = value.upper()
+            if value and value not in candidates:
+                candidates.append(value)
+
+        _push(ticker)
+        _push(ticker.replace(".", "_"))
+
+        if "." in ticker:
+            base, suffix = ticker.split(".", maxsplit=1)
+            suffix = suffix.upper()
+            _push(base)
+            _push(f"{base}_EQ")
+            _push(f"{base}_{suffix}")
+            country = self.EU_SUFFIX_TO_COUNTRY.get(suffix)
+            if country:
+                _push(f"{base}_{country}")
+                _push(f"{base}_{country}_EQ")
+
+        if "_" in ticker and not ticker.endswith("_EQ"):
+            _push(f"{ticker}_EQ")
+
+        return candidates

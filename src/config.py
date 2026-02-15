@@ -23,6 +23,15 @@ class Settings(BaseSettings):
 
     # Trading
     daily_budget_eur: float = 10.0
+    market_data_ticker_limit: int = 12
+
+    # Orchestration
+    orchestrator_timezone: str = "Europe/Berlin"
+    approval_timeout_seconds: int = 120
+    approval_timeout_action: str = "approve_all"
+    scheduler_collect_times: str = "08:00,12:00,16:30"
+    scheduler_execute_time: str = "17:10"
+    scheduler_eod_time: str = "17:35"
 
     # Optional: Telegram
     telegram_bot_token: str | None = None

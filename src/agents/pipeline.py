@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 
 from src.agents.market_agent import MarketAgent
 from src.agents.providers.claude import ClaudeProvider
@@ -40,6 +41,7 @@ class AgentPipeline:
         market_data: dict,
         portfolio: list,
         budget_eur: float = 10.0,
+        run_date: date | None = None,
     ) -> DailyPicks:
         logger.info("[%s] Stage 1: Sentiment analysis", self._llm)
         sentiment = await self._sentiment.run(reddit_digest)
@@ -67,6 +69,9 @@ class AgentPipeline:
                 "budget_eur": budget_eur,
             }
         )
+        picks.llm = self._llm
+        if run_date is not None:
+            picks.pick_date = run_date
         logger.info(
             "[%s] Trading done — %d picks, confidence %.2f",
             self._llm,

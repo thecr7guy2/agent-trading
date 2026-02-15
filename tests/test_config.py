@@ -31,6 +31,9 @@ class TestSettings:
         assert settings.claude_opus_model == "claude-opus-4-6"
         assert settings.claude_sonnet_model == "claude-sonnet-4-5-20250929"
         assert settings.claude_haiku_model == "claude-haiku-4-5-20251001"
+        assert settings.orchestrator_timezone == "Europe/Berlin"
+        assert settings.approval_timeout_seconds == 120
+        assert settings.approval_timeout_action == "approve_all"
 
     def test_reddit_credentials_optional(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "x")

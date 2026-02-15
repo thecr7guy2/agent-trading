@@ -1,10 +1,12 @@
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from src.db.models import DailyPicks, LLMProvider, Position, StockPick
+from src.mcp_servers.trading import server as trading_server
 from src.mcp_servers.trading.portfolio import PortfolioManager
 from src.mcp_servers.trading.t212_client import T212Client, T212Error
 
@@ -121,6 +123,94 @@ class TestT212Client:
     def test_live_base_url(self):
         client = T212Client(api_key="key", use_demo=False)
         assert client._base_url == T212Client.LIVE_BASE_URL
+
+    @pytest.mark.asyncio
+    async def test_resolve_ticker_from_eu_suffix(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [
+            {"ticker": "ASML_NL_EQ"},
+            {"ticker": "SAP_DE_EQ"},
+        ]
+
+        client = T212Client(api_key="test-key")
+        client._client = AsyncMock()
+        client._client.request = AsyncMock(return_value=mock_response)
+
+        resolved = await client.resolve_ticker("ASML.AS")
+        assert resolved == "ASML_NL_EQ"
+
+    @pytest.mark.asyncio
+    async def test_resolve_ticker_uses_cache(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [{"ticker": "ASML_NL_EQ"}]
+
+        client = T212Client(api_key="test-key")
+        client._client = AsyncMock()
+        client._client.request = AsyncMock(return_value=mock_response)
+
+        first = await client.resolve_ticker("ASML.AS")
+        second = await client.resolve_ticker("ASML.AS")
+
+        assert first == "ASML_NL_EQ"
+        assert second == "ASML_NL_EQ"
+        client._client.request.assert_called_once_with("GET", "/equity/metadata/instruments")
+
+    @pytest.mark.asyncio
+    async def test_resolve_ticker_returns_none_when_missing(self):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [{"ticker": "OTHER_US_EQ"}]
+
+        client = T212Client(api_key="test-key")
+        client._client = AsyncMock()
+        client._client.request = AsyncMock(return_value=mock_response)
+
+        resolved = await client.resolve_ticker("ASML.AS")
+        assert resolved is None
+
+
+class TestTradingServerOrders:
+    @pytest.mark.asyncio
+    async def test_place_buy_order_records_llm_name(self, monkeypatch):
+        mock_t212 = AsyncMock()
+        mock_t212.resolve_ticker = AsyncMock(return_value="ASML_NL_EQ")
+        mock_t212.place_value_order = AsyncMock(
+            return_value={"id": "order-1", "filledQuantity": 0.01, "filledValue": 10.0}
+        )
+        mock_portfolio = AsyncMock()
+        mock_portfolio.record_trade = AsyncMock(return_value={"id": 1})
+
+        monkeypatch.setattr(trading_server, "_get_t212", AsyncMock(return_value=mock_t212))
+        monkeypatch.setattr(
+            trading_server, "_get_portfolio", AsyncMock(return_value=mock_portfolio)
+        )
+
+        result = await trading_server.place_buy_order("claude", "ASML.AS", 10.0)
+        assert result["status"] == "filled"
+        assert result["llm_name"] == "claude"
+        assert result["broker_ticker"] == "ASML_NL_EQ"
+
+        record_call = mock_portfolio.record_trade.await_args.kwargs
+        assert record_call["llm_name"] == "claude"
+        assert record_call["ticker"] == "ASML.AS"
+        assert record_call["is_real"] is True
+
+    @pytest.mark.asyncio
+    async def test_place_buy_order_rejects_unmapped_ticker(self, monkeypatch):
+        mock_t212 = AsyncMock()
+        mock_t212.resolve_ticker = AsyncMock(return_value=None)
+        mock_portfolio = AsyncMock()
+
+        monkeypatch.setattr(trading_server, "_get_t212", AsyncMock(return_value=mock_t212))
+        monkeypatch.setattr(
+            trading_server, "_get_portfolio", AsyncMock(return_value=mock_portfolio)
+        )
+
+        result = await trading_server.place_buy_order("claude", "UNKNOWN", 10.0)
+        assert "error" in result
+        assert result["ticker"] == "UNKNOWN"
 
 
 # --- PortfolioManager ---
@@ -383,3 +473,77 @@ class TestPortfolioManagerQueries:
         conn.execute.assert_called_once()
         call_sql = conn.execute.call_args[0][0]
         assert "ON CONFLICT" in call_sql
+
+
+class TestPortfolioManagerDailyPicks:
+    @pytest.mark.asyncio
+    async def test_save_daily_picks(self):
+        pool, conn = _make_mock_pool()
+        pm = PortfolioManager(pool)
+        picks = DailyPicks(
+            llm=LLMProvider.CLAUDE,
+            pick_date=date(2026, 2, 16),
+            picks=[
+                StockPick(ticker="ASML.AS", allocation_pct=60.0, action="buy", exchange="AMS"),
+                StockPick(ticker="SAP.DE", allocation_pct=40.0, action="buy", exchange="FRA"),
+            ],
+            confidence=0.85,
+            market_summary="test",
+        )
+
+        await pm.save_daily_picks(picks, is_main=True)
+
+        assert conn.execute.call_count == 2
+        first_call_args = conn.execute.call_args_list[0][0]
+        assert "INSERT INTO daily_picks" in first_call_args[0]
+        assert first_call_args[1] == "claude"
+        assert first_call_args[4] == "ASML.AS"
+        assert first_call_args[5] == "AMS"
+
+    @pytest.mark.asyncio
+    async def test_trade_exists_true(self):
+        pool, conn = _make_mock_pool()
+        conn.fetchval.return_value = 1
+        pm = PortfolioManager(pool)
+
+        result = await pm.trade_exists("claude", date(2026, 2, 16), "ASML.AS", "buy", True)
+
+        assert result is True
+        call_args = conn.fetchval.call_args[0]
+        assert "SELECT 1" in call_args[0]
+        assert call_args[1] == "claude"
+        assert call_args[3] == "ASML.AS"
+
+    @pytest.mark.asyncio
+    async def test_trade_exists_false(self):
+        pool, conn = _make_mock_pool()
+        conn.fetchval.return_value = None
+        pm = PortfolioManager(pool)
+
+        result = await pm.trade_exists("claude", date(2026, 2, 16), "ASML.AS", "buy", True)
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_get_positions_typed(self):
+        pool, conn = _make_mock_pool()
+        conn.fetch.return_value = [
+            {
+                "id": 1,
+                "llm_name": "claude",
+                "ticker": "ASML.AS",
+                "quantity": Decimal("0.5"),
+                "avg_buy_price": Decimal("850"),
+                "is_real": False,
+                "opened_at": datetime(2026, 2, 15, 10, 0, 0),
+            }
+        ]
+
+        pm = PortfolioManager(pool)
+        result = await pm.get_positions_typed("claude")
+
+        assert len(result) == 1
+        assert isinstance(result[0], Position)
+        assert result[0].ticker == "ASML.AS"
+        assert isinstance(result[0].quantity, Decimal)
+        assert result[0].quantity == Decimal("0.5")
