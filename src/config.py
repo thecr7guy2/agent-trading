@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     # LLM APIs
     anthropic_api_key: str
     minimax_api_key: str
-    minimax_base_url: str = "https://api.minimaxi.chat/v1"
+    minimax_base_url: str = "https://api.minimax.io/v1"
 
     # Reddit (optional — RSS feeds don't require API credentials)
     reddit_client_id: str | None = None
@@ -58,7 +58,7 @@ class Settings(BaseSettings):
     screener_exchanges: str = "AMS,PAR,GER,MIL,MCE,LSE"
 
     # MiniMax model ID
-    minimax_model: str = Field(default="MiniMax-Text-01")
+    minimax_model: str = "MiniMax-M2.5"
 
 
 def get_settings() -> Settings:

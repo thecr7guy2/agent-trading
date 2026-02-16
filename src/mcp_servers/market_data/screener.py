@@ -18,9 +18,9 @@ EXCHANGE_MAP = {
 }
 
 QUERY_CONFIGS = {
-    "day_gainers": {"sort_field": "percentchange", "sort_asc": False},
-    "day_losers": {"sort_field": "percentchange", "sort_asc": True},
-    "most_active": {"sort_field": "dayvolume", "sort_asc": False},
+    "day_gainers": {"sortField": "percentchange", "sort_asc": False},
+    "day_losers": {"sortField": "percentchange", "sort_asc": True},
+    "most_active": {"sortField": "dayvolume", "sort_asc": False},
 }
 
 
@@ -49,8 +49,8 @@ async def screen_eu_exchange(
             )
             result = yf.screen(
                 query,
-                sort_field=config["sort_field"],
-                sort_asc=config["sort_asc"],
+                sortField=config["sortField"],
+                sortAsc=config["sort_asc"],
                 size=count,
             )
             rows = []

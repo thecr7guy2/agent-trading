@@ -29,6 +29,15 @@ def _extract_json(text: str) -> str:
     return text.strip()
 
 
+def _repair_json(text: str) -> str:
+    text = text.strip()
+    open_braces = text.count("{") - text.count("}")
+    open_brackets = text.count("[") - text.count("]")
+    text = re.sub(r",\s*$", "", text)
+    text += "]" * open_brackets + "}" * open_braces
+    return text
+
+
 class ClaudeProvider:
     def __init__(self, api_key: str):
         self._client = AsyncAnthropic(api_key=api_key)
@@ -67,6 +76,10 @@ class ClaudeProvider:
             return output_model.model_validate_json(cleaned)
         except (ValidationError, json.JSONDecodeError):
             logger.warning("Direct JSON parse failed, attempting relaxed parse")
-            # Try parsing as dict first to handle type coercion
-            data = json.loads(cleaned)
+            try:
+                data = json.loads(cleaned)
+            except json.JSONDecodeError:
+                logger.warning("JSON parse failed, attempting repair")
+                repaired = _repair_json(cleaned)
+                data = json.loads(repaired)
             return output_model.model_validate(data)

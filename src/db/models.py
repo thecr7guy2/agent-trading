@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 # --- Enums ---
 
@@ -70,6 +70,25 @@ class TickerAnalysis(BaseModel):
     )
     risk_score: float = Field(default=0.0, ge=0.0, le=10.0, description="0-10 risk level")
     summary: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_nulls(cls, data: dict) -> dict:
+        if not isinstance(data, dict):
+            return data
+        defaults = {
+            "exchange": "",
+            "current_price": "0",
+            "currency": "EUR",
+            "fundamental_score": 0.0,
+            "technical_score": 0.0,
+            "risk_score": 0.0,
+            "summary": "",
+        }
+        for field, default in defaults.items():
+            if data.get(field) is None:
+                data[field] = default
+        return data
 
 
 class MarketAnalysis(BaseModel):

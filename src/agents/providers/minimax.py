@@ -13,7 +13,9 @@ T = TypeVar("T", bound=BaseModel)
 
 JSON_INSTRUCTION = (
     "\n\nYou MUST respond with valid JSON only. No markdown, no code fences, "
-    "no explanation outside the JSON object."
+    "no explanation outside the JSON object. "
+    'NEVER use null values — use "" for strings, 0 for numbers, and [] for arrays. '
+    "Keep summaries short (1 sentence max) to stay within output limits."
 )
 
 
@@ -25,6 +27,17 @@ def _extract_json(text: str) -> str:
     if match:
         return match.group(0)
     return text.strip()
+
+
+def _repair_json(text: str) -> str:
+    text = text.strip()
+    # Count unclosed braces/brackets and close them
+    open_braces = text.count("{") - text.count("}")
+    open_brackets = text.count("[") - text.count("]")
+    # Remove trailing comma before closing
+    text = re.sub(r",\s*$", "", text)
+    text += "]" * open_brackets + "}" * open_braces
+    return text
 
 
 class MiniMaxProvider:
@@ -46,7 +59,7 @@ class MiniMaxProvider:
         system_prompt: str,
         user_message: str,
         output_model: type[T],
-        max_tokens: int = 4096,
+        max_tokens: int = 18192,
     ) -> T:
         full_system = system_prompt + JSON_INSTRUCTION
         response = await self._client.chat.completions.create(
@@ -67,5 +80,10 @@ class MiniMaxProvider:
             return output_model.model_validate_json(cleaned)
         except (ValidationError, json.JSONDecodeError):
             logger.warning("Direct JSON parse failed, attempting relaxed parse")
-            data = json.loads(cleaned)
+            try:
+                data = json.loads(cleaned)
+            except json.JSONDecodeError:
+                logger.warning("JSON parse failed, attempting repair")
+                repaired = _repair_json(cleaned)
+                data = json.loads(repaired)
             return output_model.model_validate(data)
