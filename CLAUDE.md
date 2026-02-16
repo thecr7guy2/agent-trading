@@ -6,7 +6,7 @@ Multi-LLM agentic trading system for European stocks. Two LLMs (Claude and MiniM
 
 ## Tech Stack
 
-- **Language:** Python 3.12+
+- **Language:** Python 3.13+
 - **Package Manager:** `uv` (use `uv add` for deps, `uv run` to execute)
 - **Async:** asyncio native (`async/await`, `asyncio.run()` entrypoint)
 - **Database:** PostgreSQL + `asyncpg`

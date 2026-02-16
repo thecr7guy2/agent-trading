@@ -6,7 +6,7 @@ Complete guide for deploying the autonomous trading bot to a Linux server.
 
 1. [Prerequisites](#prerequisites)
 2. [Server Setup](#server-setup)
-3. [Database Setup](#database-setup)
+3. [Database Setup (Docker)](#database-setup-docker)
 4. [Application Installation](#application-installation)
 5. [Environment Configuration](#environment-configuration)
 6. [Systemd Service Setup](#systemd-service-setup)
@@ -26,8 +26,8 @@ Complete guide for deploying the autonomous trading bot to a Linux server.
 - **Network:** Static IP or domain name (optional but recommended)
 
 **Required services:**
-- PostgreSQL 14+
-- Python 3.12+
+- Docker (for PostgreSQL)
+- Python 3.13+
 - systemd (for service management)
 
 ---
@@ -40,26 +40,44 @@ Complete guide for deploying the autonomous trading bot to a Linux server.
 sudo apt update && sudo apt upgrade -y
 ```
 
-### 2. Install dependencies
+### 2. Install system dependencies
 
 ```bash
-# System packages
 sudo apt install -y \
     git \
     curl \
     build-essential \
     libssl-dev \
-    libpq-dev \
-    postgresql \
-    postgresql-contrib
-
-# Python 3.12 (if not available, use deadsnakes PPA)
-sudo add-apt-repository ppa:deadsnakes/ppa -y
-sudo apt update
-sudo apt install -y python3.12 python3.12-venv python3.12-dev
+    libpq-dev
 ```
 
-### 3. Install uv (Python package manager)
+### 3. Install Docker
+
+```bash
+# Install Docker
+curl -fsSL https://get.docker.com | sh
+
+# Add your user to the docker group
+sudo usermod -aG docker $USER
+
+# Enable and start Docker
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# Log out and back in for group changes to take effect, then verify:
+docker --version
+```
+
+### 4. Install Python 3.13
+
+```bash
+# Use deadsnakes PPA if not available in your distro
+sudo add-apt-repository ppa:deadsnakes/ppa -y
+sudo apt update
+sudo apt install -y python3.13 python3.13-venv python3.13-dev
+```
+
+### 5. Install uv (Python package manager)
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -69,71 +87,72 @@ source $HOME/.cargo/env  # Add to PATH
 Verify installation:
 ```bash
 uv --version
-python3.12 --version
+python3.13 --version
 ```
 
-### 4. Create a dedicated user (recommended)
+### 6. Create a dedicated user (recommended)
 
 ```bash
 sudo useradd -m -s /bin/bash tradingbot
-sudo usermod -aG sudo tradingbot  # Optional: if you need sudo access
+sudo usermod -aG docker tradingbot
 sudo su - tradingbot
 ```
 
 ---
 
-## Database Setup
+## Database Setup (Docker)
 
-### 1. Configure PostgreSQL
-
-```bash
-sudo systemctl start postgresql
-sudo systemctl enable postgresql
-```
-
-### 2. Create database and user
+### 1. Start PostgreSQL in Docker
 
 ```bash
-sudo -u postgres psql
-
--- In PostgreSQL shell:
-CREATE DATABASE trading_bot;
-CREATE USER tradingbot WITH ENCRYPTED PASSWORD 'your_secure_password_here';
-GRANT ALL PRIVILEGES ON DATABASE trading_bot TO tradingbot;
-
--- Grant schema permissions (PostgreSQL 15+)
-\c trading_bot
-GRANT ALL ON SCHEMA public TO tradingbot;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO tradingbot;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO tradingbot;
-
-\q
+docker run -d \
+    --name trading-bot-postgres \
+    -e POSTGRES_USER=tradingbot \
+    -e POSTGRES_PASSWORD=your_secure_password_here \
+    -e POSTGRES_DB=trading_bot \
+    -p 5432:5432 \
+    -v trading_bot_pgdata:/var/lib/postgresql/data \
+    --restart unless-stopped \
+    postgres:16-alpine
 ```
 
-### 3. Allow local connections
+This creates a PostgreSQL 16 container with:
+- A named volume (`trading_bot_pgdata`) for persistent data
+- Automatic restart on crash or server reboot
+- Port 5432 exposed to localhost
 
-Edit `/etc/postgresql/14/main/pg_hba.conf` (adjust version number):
+### 2. Verify the container is running
 
 ```bash
-sudo nano /etc/postgresql/14/main/pg_hba.conf
+docker ps | grep trading-bot-postgres
 ```
 
-Add this line before other rules:
-```
-local   trading_bot     tradingbot                              md5
-```
+### 3. Test the connection
 
-Restart PostgreSQL:
 ```bash
-sudo systemctl restart postgresql
+docker exec -it trading-bot-postgres psql -U tradingbot -d trading_bot -c "SELECT 1;"
 ```
 
-### 4. Test connection
-
+Or from the host (requires `libpq-dev`):
 ```bash
 psql -U tradingbot -d trading_bot -h localhost
 # Enter password when prompted
-\q
+```
+
+### 4. Useful Docker commands
+
+```bash
+# View logs
+docker logs trading-bot-postgres
+
+# Stop the container
+docker stop trading-bot-postgres
+
+# Start the container
+docker start trading-bot-postgres
+
+# Access psql shell
+docker exec -it trading-bot-postgres psql -U tradingbot -d trading_bot
 ```
 
 ---
@@ -167,7 +186,7 @@ uv sync
 ### 3. Create required directories
 
 ```bash
-mkdir -p logs reports/daily reports/backtests
+mkdir -p logs reports reports/backtests
 ```
 
 ### 4. Run database migrations
@@ -195,15 +214,13 @@ ANTHROPIC_API_KEY=sk-ant-...
 MINIMAX_API_KEY=your-minimax-key
 MINIMAX_BASE_URL=https://api.minimaxi.chat/v1
 
-# Reddit (optional for RSS-only mode)
-REDDIT_CLIENT_ID=
-REDDIT_CLIENT_SECRET=
+# Reddit (optional — RSS feeds don't require credentials)
 REDDIT_USER_AGENT=trading-bot/1.0
 
 # Trading 212
 T212_API_KEY=your-t212-api-key
 
-# Database
+# Database (matches Docker container credentials)
 DATABASE_URL=postgresql://tradingbot:your_secure_password_here@localhost:5432/trading_bot
 
 # Trading settings
@@ -213,14 +230,19 @@ MARKET_DATA_TICKER_LIMIT=12
 # Orchestration
 ORCHESTRATOR_TIMEZONE=Europe/Berlin
 APPROVAL_TIMEOUT_SECONDS=120
-APPROVAL_TIMEOUT_ACTION=approve_all  # autonomous mode
+APPROVAL_TIMEOUT_ACTION=approve_all
 SCHEDULER_COLLECT_TIMES=08:00,12:00,16:30
 SCHEDULER_EXECUTE_TIME=17:10
 SCHEDULER_EOD_TIME=17:35
 
-# Telegram (optional - for Phase 6 notifications)
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
+# Sell automation
+SELL_STOP_LOSS_PCT=10.0
+SELL_TAKE_PROFIT_PCT=15.0
+SELL_MAX_HOLD_DAYS=5
+SELL_CHECK_SCHEDULE=09:30,12:30,16:45
+
+# Backtesting
+BACKTEST_DAILY_BUDGET_EUR=10.0
 
 # Claude models
 CLAUDE_HAIKU_MODEL=claude-haiku-4-5-20251001
@@ -229,6 +251,11 @@ CLAUDE_OPUS_MODEL=claude-opus-4-6
 
 # MiniMax model
 MINIMAX_MODEL=MiniMax-Text-01
+
+# Telegram (optional — no-op if disabled)
+TELEGRAM_ENABLED=false
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
 ```
 
 ### 3. Secure the `.env` file
@@ -252,8 +279,8 @@ Paste this configuration:
 ```ini
 [Unit]
 Description=Trading Bot Autonomous Scheduler
-After=network.target postgresql.service
-Wants=postgresql.service
+After=network.target docker.service
+Wants=docker.service
 
 [Service]
 Type=simple
@@ -366,14 +393,14 @@ crontab -e
 
 Daily reports are saved to:
 ```
-/home/tradingbot/trading-bot/reports/daily/YYYY-MM-DD.md
+/home/tradingbot/trading-bot/reports/YYYY-MM-DD.md
 ```
 
-You can set up a simple web server or sync them to your local machine:
+You can sync them to your local machine:
 
 ```bash
 # From your LOCAL machine:
-rsync -avz tradingbot@your-server-ip:/home/tradingbot/trading-bot/reports/daily/ \
+rsync -avz tradingbot@your-server-ip:/home/tradingbot/trading-bot/reports/ \
     ~/trading-bot-reports/
 ```
 
@@ -395,7 +422,8 @@ BACKUP_DIR="/home/tradingbot/backups"
 DATE=$(date +%Y%m%d_%H%M%S)
 mkdir -p $BACKUP_DIR
 
-pg_dump -U tradingbot -d trading_bot -h localhost \
+docker exec trading-bot-postgres \
+    pg_dump -U tradingbot trading_bot \
     > $BACKUP_DIR/trading_bot_$DATE.sql
 
 # Keep only last 30 days of backups
@@ -417,7 +445,21 @@ crontab -e
 0 23 * * * /home/tradingbot/backup_db.sh
 ```
 
-### 2. Application state backups
+### 2. Restore from backup
+
+```bash
+# Stop the trading bot first
+sudo systemctl stop trading-bot.service
+
+# Restore
+cat /home/tradingbot/backups/trading_bot_YYYYMMDD_HHMMSS.sql | \
+    docker exec -i trading-bot-postgres psql -U tradingbot -d trading_bot
+
+# Restart
+sudo systemctl start trading-bot.service
+```
+
+### 3. Application state backups
 
 ```bash
 # Backup .env and reports weekly
@@ -437,7 +479,7 @@ crontab -e
 sudo journalctl -u trading-bot.service -n 50 --no-pager
 
 # Check if port conflicts exist
-sudo netstat -tulpn | grep python
+sudo ss -tulpn | grep python
 
 # Verify environment
 sudo -u tradingbot bash -c "cd /home/tradingbot/trading-bot && uv run python -c 'from src.config import get_settings; print(get_settings())'"
@@ -446,14 +488,17 @@ sudo -u tradingbot bash -c "cd /home/tradingbot/trading-bot && uv run python -c 
 ### Database connection errors
 
 ```bash
+# Check Docker container is running
+docker ps | grep trading-bot-postgres
+
+# If stopped, start it
+docker start trading-bot-postgres
+
+# View container logs
+docker logs trading-bot-postgres --tail 50
+
 # Test connection manually
-psql -U tradingbot -d trading_bot -h localhost
-
-# Check PostgreSQL status
-sudo systemctl status postgresql
-
-# Review PostgreSQL logs
-sudo tail -f /var/log/postgresql/postgresql-14-main.log
+docker exec -it trading-bot-postgres psql -U tradingbot -d trading_bot -c "SELECT 1;"
 ```
 
 ### Scheduler not executing jobs
@@ -485,8 +530,8 @@ grep -i "error\|exception" logs/scheduler.log | tail -20
 ## Security Checklist
 
 - [ ] `.env` file has 600 permissions (not world-readable)
-- [ ] PostgreSQL user has strong password
-- [ ] PostgreSQL only accepts local connections (or firewall-restricted)
+- [ ] PostgreSQL container uses a strong password
+- [ ] PostgreSQL port (5432) not exposed to the internet (only localhost)
 - [ ] SSH key-based authentication enabled (disable password auth)
 - [ ] Firewall configured (ufw or iptables)
 - [ ] API keys rotated periodically
@@ -494,6 +539,7 @@ grep -i "error\|exception" logs/scheduler.log | tail -20
 - [ ] Backups tested and verified
 - [ ] Non-root user running the service
 - [ ] systemd service hardening enabled
+- [ ] Docker daemon access restricted to `tradingbot` user
 
 ### Basic firewall setup (UFW)
 
@@ -557,8 +603,15 @@ sudo systemctl restart trading-bot.service
 # Run manual report
 uv run python scripts/report.py --period week
 
+# Run manual sell checks
+uv run python scripts/run_sell_checks.py
+
+# Run a backtest
+uv run python scripts/backtest.py --start 2025-01-01 --end 2025-01-31
+
 # Check database size
-psql -U tradingbot -d trading_bot -c "SELECT pg_size_pretty(pg_database_size('trading_bot'));"
+docker exec trading-bot-postgres psql -U tradingbot -d trading_bot \
+    -c "SELECT pg_size_pretty(pg_database_size('trading_bot'));"
 ```
 
 ---
@@ -569,42 +622,20 @@ Before shutting down your local instance:
 
 - [ ] Push latest code to git repository
 - [ ] Export local `.env` settings
-- [ ] Backup local PostgreSQL database: `pg_dump trading_bot > local_backup.sql`
+- [ ] Backup local PostgreSQL database
 - [ ] Verify all API keys are valid
 - [ ] Test one manual run on server before enabling scheduler
 - [ ] Confirm daily reports are being generated
-- [ ] Set up email/Telegram alerts for failures
+- [ ] Set up Telegram alerts for failures (optional)
 - [ ] Document any custom configurations
 
 After server deployment:
 
-- [ ] Verify service is running: `systemctl status trading-bot`
+- [ ] Docker PostgreSQL container is running: `docker ps`
+- [ ] Service is running: `systemctl status trading-bot`
 - [ ] Check logs for errors: `journalctl -u trading-bot -f`
 - [ ] Wait for first scheduled job execution
 - [ ] Verify trades appear in Trading 212
-- [ ] Confirm daily reports are written to `reports/daily/`
-- [ ] Test backup restoration process
+- [ ] Confirm daily reports are written to `reports/`
+- [ ] Test backup and restoration process
 - [ ] Monitor for 3-5 days before trusting fully
-
----
-
-## Support
-
-If you encounter issues:
-
-1. Check logs: `sudo journalctl -u trading-bot.service -n 100`
-2. Verify environment: `uv run python -c "from src.config import get_settings; print(get_settings())"`
-3. Test database: `psql -U tradingbot -d trading_bot -c 'SELECT COUNT(*) FROM trades;'`
-4. Review this guide's troubleshooting section
-
----
-
-## Next Steps (Phase 6)
-
-Once the base system is stable, you can add:
-- Automated sell triggers (stop-loss, take-profit)
-- Telegram notifications (optional)
-- Backtesting engine
-- Performance dashboards
-
-See `plans/phase-6-polish-optional.md` for details.
