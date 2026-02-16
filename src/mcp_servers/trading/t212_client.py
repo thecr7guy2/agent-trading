@@ -1,4 +1,9 @@
+import logging
+
 import httpx
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+
+logger = logging.getLogger(__name__)
 
 
 class T212Error(Exception):
@@ -6,6 +11,14 @@ class T212Error(Exception):
         self.status_code = status_code
         self.message = message
         super().__init__(f"Trading 212 API error {status_code}: {message}")
+
+
+def _is_retryable(exc: BaseException) -> bool:
+    if isinstance(exc, httpx.HTTPError):
+        return True
+    if isinstance(exc, T212Error) and exc.status_code >= 500:
+        return True
+    return False
 
 
 class T212Client:
@@ -36,6 +49,15 @@ class T212Client:
     async def close(self):
         await self._client.aclose()
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        retry=retry_if_exception(_is_retryable),
+        reraise=True,
+        before_sleep=lambda rs: logger.warning(
+            "T212 request retry #%d after %s", rs.attempt_number, rs.outcome.exception()
+        ),
+    )
     async def _request(self, method: str, path: str, **kwargs) -> dict | list:
         response = await self._client.request(method, path, **kwargs)
         if response.status_code >= 400:

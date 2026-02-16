@@ -6,6 +6,7 @@ import signal
 import sys
 from pathlib import Path
 
+from src.db.connection import close_pool
 from src.orchestrator.scheduler import OrchestratorScheduler
 
 logging.basicConfig(
@@ -57,6 +58,8 @@ class SchedulerDaemon:
             logger.info("Shutting down scheduler...")
             if self.scheduler:
                 self.scheduler.shutdown(wait=True)
+            logger.info("Closing database connection pool...")
+            await close_pool()
             logger.info("Scheduler stopped cleanly")
 
 

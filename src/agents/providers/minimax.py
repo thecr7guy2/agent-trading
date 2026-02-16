@@ -3,8 +3,9 @@ import logging
 import re
 from typing import TypeVar
 
-from openai import AsyncOpenAI
-from pydantic import BaseModel
+from openai import APIConnectionError, APITimeoutError, AsyncOpenAI, InternalServerError
+from pydantic import BaseModel, ValidationError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,15 @@ class MiniMaxProvider:
     def __init__(self, api_key: str, base_url: str):
         self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        retry=retry_if_exception_type((APIConnectionError, APITimeoutError, InternalServerError)),
+        reraise=True,
+        before_sleep=lambda rs: logger.warning(
+            "MiniMax API retry #%d after %s", rs.attempt_number, rs.outcome.exception()
+        ),
+    )
     async def generate(
         self,
         model: str,
@@ -48,12 +58,14 @@ class MiniMaxProvider:
             ],
         )
 
+        if not response.choices or not response.choices[0].message.content:
+            raise ValueError("MiniMax returned empty response")
         raw_text = response.choices[0].message.content
         cleaned = _extract_json(raw_text)
 
         try:
             return output_model.model_validate_json(cleaned)
-        except Exception:
+        except (ValidationError, json.JSONDecodeError):
             logger.warning("Direct JSON parse failed, attempting relaxed parse")
             data = json.loads(cleaned)
             return output_model.model_validate(data)

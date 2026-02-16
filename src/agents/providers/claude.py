@@ -3,8 +3,9 @@ import logging
 import re
 from typing import TypeVar
 
-from anthropic import AsyncAnthropic
-from pydantic import BaseModel
+from anthropic import APIConnectionError, APITimeoutError, AsyncAnthropic, InternalServerError
+from pydantic import BaseModel, ValidationError
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,15 @@ class ClaudeProvider:
     def __init__(self, api_key: str):
         self._client = AsyncAnthropic(api_key=api_key)
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        retry=retry_if_exception_type((APIConnectionError, APITimeoutError, InternalServerError)),
+        reraise=True,
+        before_sleep=lambda rs: logger.warning(
+            "Claude API retry #%d after %s", rs.attempt_number, rs.outcome.exception()
+        ),
+    )
     async def generate(
         self,
         model: str,
@@ -48,12 +58,14 @@ class ClaudeProvider:
             messages=[{"role": "user", "content": user_message}],
         )
 
+        if not response.content:
+            raise ValueError("Claude returned empty content array")
         raw_text = response.content[0].text
         cleaned = _extract_json(raw_text)
 
         try:
             return output_model.model_validate_json(cleaned)
-        except Exception:
+        except (ValidationError, json.JSONDecodeError):
             logger.warning("Direct JSON parse failed, attempting relaxed parse")
             # Try parsing as dict first to handle type coercion
             data = json.loads(cleaned)

@@ -15,6 +15,7 @@ dependencies = [
     "openai>=1.60",
     "apscheduler>=3.10",
     "rich>=14.3.2",
+    "tenacity>=9.1.4",
 ]
 
 [dependency-groups]

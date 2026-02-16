@@ -40,6 +40,12 @@ async def _get_portfolio() -> PortfolioManager:
 async def place_buy_order(llm_name: str, ticker: str, amount_eur: float) -> dict:
     """Place a real buy order via Trading 212 for a specified EUR amount.
     Uses value-based ordering so Trading 212 handles fractional share calculation."""
+    if amount_eur <= 0:
+        return {"error": "amount_eur must be positive", "llm_name": llm_name, "ticker": ticker}
+    if not ticker or not ticker.strip():
+        return {"error": "ticker must not be empty", "llm_name": llm_name, "ticker": ticker}
+    if not llm_name or not llm_name.strip():
+        return {"error": "llm_name must not be empty", "ticker": ticker}
     try:
         t212 = await _get_t212()
         broker_ticker = await t212.resolve_ticker(ticker)
@@ -90,6 +96,10 @@ async def place_buy_order(llm_name: str, ticker: str, amount_eur: float) -> dict
 @mcp.tool()
 async def place_sell_order(llm_name: str, ticker: str, quantity: float) -> dict:
     """Place a real sell order via Trading 212 for a specified share quantity."""
+    if quantity <= 0:
+        return {"error": "quantity must be positive", "llm_name": llm_name, "ticker": ticker}
+    if not ticker or not ticker.strip():
+        return {"error": "ticker must not be empty", "llm_name": llm_name, "ticker": ticker}
     try:
         t212 = await _get_t212()
         broker_ticker = await t212.resolve_ticker(ticker)
@@ -157,6 +167,14 @@ async def record_virtual_trade(
 ) -> dict:
     """Record a virtual (simulated) trade in the database for tracking.
     Used for the non-main-trader LLM's picks."""
+    if quantity <= 0:
+        return {"error": "quantity must be positive", "llm_name": llm_name, "ticker": ticker}
+    if price <= 0:
+        return {"error": "price must be positive", "llm_name": llm_name, "ticker": ticker}
+    if action not in ("buy", "sell"):
+        return {"error": "action must be 'buy' or 'sell'", "llm_name": llm_name, "ticker": ticker}
+    if not ticker or not ticker.strip():
+        return {"error": "ticker must not be empty", "llm_name": llm_name}
     try:
         pm = await _get_portfolio()
         return await pm.record_trade(

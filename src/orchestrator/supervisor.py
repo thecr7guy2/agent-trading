@@ -86,11 +86,20 @@ class Supervisor:
             return {}
 
         async def _fetch(ticker: str) -> tuple[str, dict]:
-            price, fundamentals, technicals = await asyncio.gather(
-                self._market_data_client.call_tool("get_stock_price", {"ticker": ticker}),
-                self._market_data_client.call_tool("get_fundamentals", {"ticker": ticker}),
-                self._market_data_client.call_tool("get_technical_indicators", {"ticker": ticker}),
-            )
+            try:
+                price, fundamentals, technicals = await asyncio.wait_for(
+                    asyncio.gather(
+                        self._market_data_client.call_tool("get_stock_price", {"ticker": ticker}),
+                        self._market_data_client.call_tool("get_fundamentals", {"ticker": ticker}),
+                        self._market_data_client.call_tool(
+                            "get_technical_indicators", {"ticker": ticker}
+                        ),
+                    ),
+                    timeout=30.0,
+                )
+            except TimeoutError:
+                logger.warning("Market data fetch timed out for %s", ticker)
+                return (ticker, {"price": {}, "fundamentals": {}, "technicals": {}})
             return (
                 ticker,
                 {
@@ -100,8 +109,17 @@ class Supervisor:
                 },
             )
 
-        results = await asyncio.gather(*(_fetch(ticker) for ticker in tickers))
-        return {ticker: payload for ticker, payload in results}
+        results = await asyncio.gather(
+            *(_fetch(ticker) for ticker in tickers), return_exceptions=True
+        )
+        market_data: dict[str, dict] = {}
+        for result in results:
+            if isinstance(result, Exception):
+                logger.warning("Market data fetch failed: %s", result)
+                continue
+            ticker, payload = result
+            market_data[ticker] = payload
+        return market_data
 
     async def run_decision_cycle(
         self,
@@ -221,12 +239,20 @@ class Supervisor:
             return PipelineResult(llm=llm, picks=picks, portfolio=positions)
 
         tasks = [_run_for(LLMProvider.CLAUDE), _run_for(LLMProvider.MINIMAX)]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=300.0,
+            )
+        except TimeoutError:
+            logger.error("LLM pipelines timed out after 300s")
+            return []
 
         successful: list[PipelineResult] = []
-        for result in results:
+        for i, result in enumerate(results):
             if isinstance(result, Exception):
-                logger.exception("Pipeline failed: %s", result)
+                llm_name = [LLMProvider.CLAUDE, LLMProvider.MINIMAX][i].value
+                logger.exception("Pipeline failed for %s: %s", llm_name, result)
                 continue
             successful.append(result)
         return successful
@@ -420,9 +446,16 @@ class Supervisor:
 
                 for pos in filtered:
                     total_invested += pos.quantity * pos.avg_buy_price
-                    price_resp = await self._market_data_client.call_tool(
-                        "get_stock_price", {"ticker": pos.ticker}
-                    )
+                    try:
+                        price_resp = await asyncio.wait_for(
+                            self._market_data_client.call_tool(
+                                "get_stock_price", {"ticker": pos.ticker}
+                            ),
+                            timeout=15.0,
+                        )
+                    except TimeoutError:
+                        logger.warning("Price fetch timed out for %s in EOD", pos.ticker)
+                        price_resp = {}
                     current_price = self._extract_price(price_resp)
                     if current_price > 0:
                         total_value += pos.quantity * Decimal(str(current_price))
@@ -475,9 +508,14 @@ class Supervisor:
         tickers = list({p.ticker for p in positions})
         prices: dict[str, float] = {}
         for ticker in tickers:
-            price_resp = await self._market_data_client.call_tool(
-                "get_stock_price", {"ticker": ticker}
-            )
+            try:
+                price_resp = await asyncio.wait_for(
+                    self._market_data_client.call_tool("get_stock_price", {"ticker": ticker}),
+                    timeout=15.0,
+                )
+            except TimeoutError:
+                logger.warning("Price fetch timed out for %s in sell check", ticker)
+                price_resp = {}
             prices[ticker] = self._extract_price(price_resp)
 
         signals = self._sell_engine.evaluate_positions(positions, prices, run_date)

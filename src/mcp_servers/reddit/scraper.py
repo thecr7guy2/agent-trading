@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 import feedparser
 import httpx
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
 
@@ -214,19 +215,31 @@ class RSSCollector:
     _posts: dict[str, RedditPost] = field(default_factory=dict)
     _collection_rounds: int = 0
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=0.5, min=1, max=10),
+        retry=retry_if_exception_type(httpx.HTTPError),
+        reraise=True,
+    )
+    async def _fetch_with_retry(
+        self, client: httpx.AsyncClient, url: str, semaphore: asyncio.Semaphore
+    ) -> httpx.Response:
+        async with semaphore:
+            await asyncio.sleep(0.2)
+            resp = await client.get(url)
+            resp.raise_for_status()
+            return resp
+
     async def _fetch_feed(
         self, client: httpx.AsyncClient, subreddit: str, sort: str, semaphore: asyncio.Semaphore
     ) -> list[RedditPost]:
         url = f"https://www.reddit.com/r/{subreddit}/{sort}.rss"
         posts: list[RedditPost] = []
-        async with semaphore:
-            await asyncio.sleep(0.2)
-            try:
-                resp = await client.get(url)
-                resp.raise_for_status()
-            except httpx.HTTPError as e:
-                logger.warning("Failed to fetch %s: %s", url, e)
-                return posts
+        try:
+            resp = await self._fetch_with_retry(client, url, semaphore)
+        except httpx.HTTPError as e:
+            logger.warning("Failed to fetch %s after retries: %s", url, e)
+            return posts
 
         feed = feedparser.parse(resp.text)
         for entry in feed.entries:
