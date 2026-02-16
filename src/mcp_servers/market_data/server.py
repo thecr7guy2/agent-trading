@@ -4,13 +4,17 @@ import sys
 from mcp.server.fastmcp import FastMCP
 
 from src.mcp_servers.market_data.finance import (
+    get_earnings_calendar_upcoming,
     get_technical_indicators_for_ticker,
+    get_ticker_earnings,
     get_ticker_fundamentals,
     get_ticker_history,
     get_ticker_info,
+    get_ticker_news,
     is_eu_market_open,
     search_eu_stocks_by_query,
 )
+from src.mcp_servers.market_data.screener import screen_all_eu
 
 # MCP stdio uses stdout for JSON-RPC — log to stderr only
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
@@ -97,6 +101,53 @@ async def search_eu_stocks(query: str) -> dict:
 async def get_market_status() -> dict:
     """Check if European stock markets are currently open or closed (based on CET timezone)."""
     return is_eu_market_open()
+
+
+@mcp.tool()
+async def screen_eu_markets(
+    exchanges: str = "AMS,PAR,GER,MIL,MCE,LSE",
+    min_market_cap: int = 1_000_000_000,
+) -> dict:
+    """Screen EU exchanges for day gainers, losers, and most active stocks.
+    Returns deduplicated list of tickers sorted by number of screener hits."""
+    try:
+        results = await screen_all_eu(exchanges, min_market_cap)
+        return {"results": results, "count": len(results)}
+    except Exception as e:
+        logger.exception("screen_eu_markets failed")
+        return {"error": str(e), "results": []}
+
+
+@mcp.tool()
+async def get_news(ticker: str, max_items: int = 5) -> dict:
+    """Get recent news headlines for a stock ticker."""
+    try:
+        items = await get_ticker_news(ticker, max_items)
+        return {"ticker": ticker, "news": items}
+    except Exception as e:
+        logger.exception("get_news failed for %s", ticker)
+        return {"error": str(e), "ticker": ticker}
+
+
+@mcp.tool()
+async def get_earnings_calendar() -> dict:
+    """Get upcoming earnings calendar for the current week."""
+    try:
+        events = await get_earnings_calendar_upcoming()
+        return {"events": events, "count": len(events)}
+    except Exception as e:
+        logger.exception("get_earnings_calendar failed")
+        return {"error": str(e), "events": []}
+
+
+@mcp.tool()
+async def get_earnings(ticker: str) -> dict:
+    """Get upcoming earnings date and estimates for a specific ticker."""
+    try:
+        return await get_ticker_earnings(ticker)
+    except Exception as e:
+        logger.exception("get_earnings failed for %s", ticker)
+        return {"error": str(e), "ticker": ticker}
 
 
 if __name__ == "__main__":

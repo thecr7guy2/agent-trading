@@ -74,11 +74,15 @@ def create_reddit_client() -> InProcessMCPClient:
 
 def create_market_data_client() -> InProcessMCPClient:
     from src.mcp_servers.market_data.server import (
+        get_earnings,
+        get_earnings_calendar,
         get_fundamentals,
         get_market_status,
+        get_news,
         get_stock_history,
         get_stock_price,
         get_technical_indicators,
+        screen_eu_markets,
         search_eu_stocks,
     )
 
@@ -90,6 +94,10 @@ def create_market_data_client() -> InProcessMCPClient:
             "get_technical_indicators": get_technical_indicators,
             "search_eu_stocks": search_eu_stocks,
             "get_market_status": get_market_status,
+            "screen_eu_markets": screen_eu_markets,
+            "get_news": get_news,
+            "get_earnings_calendar": get_earnings_calendar,
+            "get_earnings": get_earnings,
         }
     )
 

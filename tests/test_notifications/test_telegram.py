@@ -59,13 +59,15 @@ class TestTelegramNotifier:
     @pytest.mark.asyncio
     async def test_notify_daily_summary_noop_when_disabled(self, disabled_settings):
         notifier = TelegramNotifier(disabled_settings)
-        result = await notifier.notify_daily_summary({
-            "main_trader": "claude",
-            "virtual_trader": "minimax",
-            "date": "2025-02-15",
-            "real_execution": [{"ticker": "ASML.AS"}],
-            "virtual_execution": [],
-        })
+        result = await notifier.notify_daily_summary(
+            {
+                "main_trader": "claude",
+                "virtual_trader": "minimax",
+                "date": "2025-02-15",
+                "real_execution": [{"ticker": "ASML.AS"}],
+                "virtual_execution": [],
+            }
+        )
         assert result["status"] == "skipped"
 
     @pytest.mark.asyncio

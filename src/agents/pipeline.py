@@ -37,14 +37,18 @@ class AgentPipeline:
 
     async def run(
         self,
-        reddit_digest: dict,
-        market_data: dict,
-        portfolio: list,
+        reddit_digest: dict | None = None,
+        market_data: dict | None = None,
+        portfolio: list | None = None,
         budget_eur: float = 10.0,
         run_date: date | None = None,
+        signal_digest: dict | None = None,
     ) -> DailyPicks:
+        digest_input = signal_digest or reddit_digest or {}
+        market_data = market_data or {}
+        portfolio = portfolio or []
         logger.info("[%s] Stage 1: Sentiment analysis", self._llm)
-        sentiment = await self._sentiment.run(reddit_digest)
+        sentiment = await self._sentiment.run(digest_input)
         logger.info(
             "[%s] Sentiment done — %d tickers identified", self._llm, len(sentiment.tickers)
         )

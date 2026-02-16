@@ -20,19 +20,65 @@ async def generate_daily_report(
     lines.append(f"- **Virtual Trader:** {virtual_trader.capitalize()} (paper trades)")
     lines.append("")
 
-    # Reddit Digest
+    # Signal Sources
+    signal_digest = decision_result.get("signal_digest", {})
     reddit_posts = decision_result.get("reddit_posts", 0)
     tickers_analyzed = decision_result.get("tickers_analyzed", 0)
-    lines.append("## Reddit Digest")
-    lines.append(f"- Posts analyzed: {reddit_posts}")
-    lines.append(f"- Tickers evaluated: {tickers_analyzed}")
-    lines.append("")
+
+    if signal_digest.get("source_type") == "multi":
+        candidates = signal_digest.get("candidates", [])
+        reddit_count = sum(1 for c in candidates if "reddit" in c.get("sources", []))
+        screener_count = sum(1 for c in candidates if "screener" in c.get("sources", []))
+        earnings_count = sum(1 for c in candidates if "earnings" in c.get("sources", []))
+        multi_source = sum(1 for c in candidates if len(c.get("sources", [])) > 1)
+
+        lines.append("## Signal Sources")
+        lines.append(f"- Total candidates: {len(candidates)}")
+        lines.append(f"- Reddit: {reddit_count} tickers ({reddit_posts} posts)")
+        lines.append(f"- Screener: {screener_count} tickers")
+        lines.append(f"- Earnings: {earnings_count} tickers")
+        lines.append(f"- Multi-source: {multi_source} tickers")
+        lines.append(f"- Tickers with market data: {tickers_analyzed}")
+        lines.append("")
+    else:
+        lines.append("## Reddit Digest")
+        lines.append(f"- Posts analyzed: {reddit_posts}")
+        lines.append(f"- Tickers evaluated: {tickers_analyzed}")
+        lines.append("")
+
+    # Model Divergence
+    real_exec = decision_result.get("real_execution", [])
+    virtual_exec = decision_result.get("virtual_execution", [])
+    real_tickers = {
+        t.get("ticker") for t in real_exec if t.get("ticker") and t.get("status") != "skipped"
+    }
+    virtual_tickers = {
+        t.get("ticker") for t in virtual_exec if t.get("ticker") and t.get("status") != "skipped"
+    }
+    if real_tickers or virtual_tickers:
+        overlap = real_tickers & virtual_tickers
+        main_only = real_tickers - virtual_tickers
+        virtual_only = virtual_tickers - real_tickers
+
+        lines.append("## Model Divergence")
+        if overlap:
+            lines.append(f"- Both picked: {', '.join(sorted(overlap))}")
+        if main_only:
+            lines.append(f"- {main_trader.capitalize()} only: {', '.join(sorted(main_only))}")
+        if virtual_only:
+            lines.append(f"- {virtual_trader.capitalize()} only: {', '.join(sorted(virtual_only))}")
+        if not overlap and (main_only or virtual_only):
+            lines.append("- Divergence: **Complete** (no overlap)")
+        elif overlap and (main_only or virtual_only):
+            lines.append("- Divergence: **Partial**")
+        else:
+            lines.append("- Divergence: **None** (identical picks)")
+        lines.append("")
 
     # Picks & Execution
     lines.append("## Picks & Execution")
 
     # Main trader
-    real_exec = decision_result.get("real_execution", [])
     lines.append(f"### {main_trader.capitalize()} (Main — Real Trades)")
     lines.append("| Ticker | Action | Status |")
     lines.append("|--------|--------|--------|")
@@ -47,7 +93,6 @@ async def generate_daily_report(
     lines.append("")
 
     # Virtual trader
-    virtual_exec = decision_result.get("virtual_execution", [])
     lines.append(f"### {virtual_trader.capitalize()} (Virtual)")
     lines.append("| Ticker | Action | Status |")
     lines.append("|--------|--------|--------|")

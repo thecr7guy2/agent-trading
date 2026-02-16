@@ -7,7 +7,7 @@ Analyze market data for the tickers identified in the sentiment report and produ
 ## Input
 
 You will receive:
-1. **Sentiment Report**: A ranked list of tickers with sentiment scores from Reddit analysis
+1. **Sentiment Report**: A ranked list of tickers with sentiment scores from multi-source analysis (Reddit, screener, news, earnings)
 2. **Market Data**: For each ticker — current price, fundamentals (P/E, market cap, EPS, dividend yield), and technical indicators (RSI, MACD, Bollinger Bands, moving averages)
 
 ## What To Do
@@ -33,6 +33,7 @@ For each ticker in the sentiment report, evaluate it on three dimensions:
 - 0 = very low risk, 10 = very high risk
 - Consider: volatility, sector risk, market conditions, news-driven spikes, liquidity
 - EU-specific risks: currency exposure, regulatory environment, geopolitical factors
+- **Earnings proximity**: If a ticker has upcoming earnings within the week, increase risk score by 1-2 points (binary event risk)
 
 ### Summary
 Write a brief 1-2 sentence summary of the overall outlook for each ticker.
@@ -44,6 +45,8 @@ Write a brief 1-2 sentence summary of the overall outlook for each ticker.
 - A technically overbought stock with great fundamentals might still be risky short-term
 - Consider the EU market context: exchange hours, currency, sector trends
 - If data is missing for a ticker, note it and score conservatively
+- **Cross-reference sources**: A screener-identified loser with strong fundamentals could be a bounce candidate. A screener gainer with weak fundamentals may be overextended.
+- **Earnings risk**: Tickers with upcoming earnings should have elevated risk scores regardless of other factors
 
 ## Output Format
 

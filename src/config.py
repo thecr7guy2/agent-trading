@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     claude_sonnet_model: str = "claude-sonnet-4-5-20250929"
     claude_opus_model: str = "claude-opus-4-6"
 
+    # Multi-source signals (Phase 7)
+    signal_candidate_limit: int = 25
+    screener_min_market_cap: int = 1_000_000_000
+    screener_exchanges: str = "AMS,PAR,GER,MIL,MCE,LSE"
+
     # MiniMax model ID
     minimax_model: str = Field(default="MiniMax-Text-01")
 

@@ -49,6 +49,9 @@ def _settings():
         telegram_enabled=False,
         telegram_bot_token=None,
         telegram_chat_id=None,
+        signal_candidate_limit=25,
+        screener_min_market_cap=1_000_000_000,
+        screener_exchanges="AMS,PAR,GER,MIL,MCE,LSE",
     )
 
 

@@ -191,6 +191,77 @@ async def get_technical_indicators_for_ticker(ticker: str) -> dict:
     }
 
 
+# --- News + Earnings ---
+
+
+async def get_ticker_news(ticker: str, max_items: int = 5) -> list[dict]:
+    def _fetch():
+        try:
+            t = yf.Ticker(ticker)
+            news = t.news
+            items = []
+            for entry in (news or [])[:max_items]:
+                content = entry.get("content", {})
+                items.append(
+                    {
+                        "title": content.get("title", entry.get("title", "")),
+                        "summary": content.get("summary", ""),
+                        "provider": content.get("provider", {}).get("displayName", ""),
+                        "publish_date": content.get("pubDate", ""),
+                    }
+                )
+            return items
+        except Exception:
+            return []
+
+    return await asyncio.to_thread(_fetch)
+
+
+async def get_earnings_calendar_upcoming() -> list[dict]:
+    def _fetch():
+        try:
+            cal = yf.Calendars()
+            df = cal.get_earnings_calendar()
+            if df is None or df.empty:
+                return []
+            rows = []
+            for _, row in df.iterrows():
+                ticker = row.get("ticker", "")
+                if not ticker:
+                    continue
+                rows.append(
+                    {
+                        "ticker": ticker,
+                        "company": row.get("companyshortname", ""),
+                        "event": row.get("startdatetype", ""),
+                        "date": str(row.get("startdatetime", "")),
+                        "eps_estimate": row.get("epsestimate"),
+                    }
+                )
+            return rows
+        except Exception:
+            return []
+
+    return await asyncio.to_thread(_fetch)
+
+
+async def get_ticker_earnings(ticker: str) -> dict:
+    def _fetch():
+        try:
+            t = yf.Ticker(ticker)
+            cal = t.calendar
+            if cal is None:
+                return {"ticker": ticker, "earnings": None}
+            if isinstance(cal, dict):
+                return {"ticker": ticker, "earnings": cal}
+            earnings = cal.to_dict() if hasattr(cal, "to_dict") else str(cal)
+            return {"ticker": ticker, "earnings": earnings}
+        except Exception:
+            return {"ticker": ticker, "earnings": None}
+
+    return await asyncio.to_thread(_fetch)
+
+
 # --- EU stock search ---
 
 

@@ -22,6 +22,9 @@ class TestOrchestratorScheduler:
             scheduler_execute_time="17:10",
             scheduler_eod_time="17:35",
             sell_check_schedule="09:30,12:30,16:45",
+            signal_candidate_limit=25,
+            screener_min_market_cap=1_000_000_000,
+            screener_exchanges="AMS,PAR,GER,MIL,MCE,LSE",
         )
         scheduler = OrchestratorScheduler(supervisor=_DummySupervisor(), settings=settings)
         scheduler.configure_jobs()

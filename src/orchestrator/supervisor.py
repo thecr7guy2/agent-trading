@@ -78,10 +78,132 @@ class Supervisor:
             args["subreddits"] = subreddits
         return await self._reddit_client.call_tool("get_daily_digest", args)
 
+    async def build_signal_digest(self, subreddits: list[str] | None = None) -> dict:
+        self._ensure_clients()
+        reddit_digest = await self.build_reddit_digest(subreddits)
+        candidates: dict[str, dict] = {}
+        screener_count = 0
+
+        for t in reddit_digest.get("tickers", []):
+            ticker = t.get("ticker", "")
+            if not ticker:
+                continue
+            candidates[ticker] = {
+                "ticker": ticker,
+                "sources": ["reddit"],
+                "reddit_mentions": t.get("mention_count", 0),
+                "sentiment_score": t.get("sentiment_score", 0.0),
+                "top_quotes": t.get("top_quotes", []),
+                "subreddits": t.get("subreddits", {}),
+            }
+
+        try:
+            screener_result = await asyncio.wait_for(
+                self._market_data_client.call_tool(
+                    "screen_eu_markets",
+                    {
+                        "exchanges": self._settings.screener_exchanges,
+                        "min_market_cap": self._settings.screener_min_market_cap,
+                    },
+                ),
+                timeout=60.0,
+            )
+            screener_count = screener_result.get("count", 0)
+            for item in screener_result.get("results", []):
+                ticker = item.get("ticker", "")
+                if not ticker:
+                    continue
+                if ticker in candidates:
+                    candidates[ticker]["sources"].append("screener")
+                    candidates[ticker]["screener"] = item
+                else:
+                    candidates[ticker] = {
+                        "ticker": ticker,
+                        "sources": ["screener"],
+                        "reddit_mentions": 0,
+                        "sentiment_score": 0.0,
+                        "screener": item,
+                    }
+        except Exception:
+            logger.exception("Screener call failed, continuing with Reddit-only")
+
+        try:
+            earnings_result = await asyncio.wait_for(
+                self._market_data_client.call_tool("get_earnings_calendar", {}),
+                timeout=30.0,
+            )
+            for event in earnings_result.get("events", []):
+                ticker = event.get("ticker", "")
+                if not ticker:
+                    continue
+                if ticker in candidates:
+                    candidates[ticker]["sources"].append("earnings")
+                    candidates[ticker]["earnings"] = event
+                else:
+                    candidates[ticker] = {
+                        "ticker": ticker,
+                        "sources": ["earnings"],
+                        "reddit_mentions": 0,
+                        "sentiment_score": 0.0,
+                        "earnings": event,
+                    }
+        except Exception:
+            logger.exception("Earnings calendar call failed, continuing without it")
+
+        sorted_candidates = sorted(
+            candidates.values(),
+            key=lambda c: (len(c.get("sources", [])), c.get("reddit_mentions", 0)),
+            reverse=True,
+        )
+        limit = getattr(self._settings, "signal_candidate_limit", 25)
+        sorted_candidates = sorted_candidates[:limit]
+
+        top_tickers = [c["ticker"] for c in sorted_candidates[:limit]]
+        news_map = await self._fetch_news_batch(top_tickers)
+        for candidate in sorted_candidates:
+            ticker = candidate["ticker"]
+            if ticker in news_map:
+                candidate["news"] = news_map[ticker]
+
+        return {
+            "candidates": sorted_candidates,
+            "total_posts": reddit_digest.get("total_posts", 0),
+            "screener_count": screener_count,
+            "source_type": "multi",
+        }
+
+    async def _fetch_news_batch(self, tickers: list[str]) -> dict[str, list[dict]]:
+        self._ensure_clients()
+        news_map: dict[str, list[dict]] = {}
+
+        async def _fetch_one(ticker: str) -> tuple[str, list[dict]]:
+            try:
+                result = await asyncio.wait_for(
+                    self._market_data_client.call_tool("get_news", {"ticker": ticker}),
+                    timeout=10.0,
+                )
+                return (ticker, result.get("news", []))
+            except Exception:
+                return (ticker, [])
+
+        results = await asyncio.gather(*(_fetch_one(t) for t in tickers), return_exceptions=True)
+        for result in results:
+            if isinstance(result, Exception):
+                continue
+            ticker, news = result
+            if news:
+                news_map[ticker] = news
+        return news_map
+
     async def build_market_data(self, digest: dict) -> dict[str, dict]:
         self._ensure_clients()
-        tickers = [t.get("ticker", "") for t in digest.get("tickers", []) if t.get("ticker")]
-        tickers = tickers[: self._settings.market_data_ticker_limit]
+        if "candidates" in digest:
+            tickers = [c.get("ticker", "") for c in digest["candidates"] if c.get("ticker")]
+            limit = getattr(self._settings, "signal_candidate_limit", 25)
+            tickers = tickers[:limit]
+        else:
+            tickers = [t.get("ticker", "") for t in digest.get("tickers", []) if t.get("ticker")]
+            tickers = tickers[: self._settings.market_data_ticker_limit]
         if not tickers:
             return {}
 
@@ -135,9 +257,9 @@ class Supervisor:
         if collect_rounds > 0:
             await self.collect_reddit_round()
 
-        digest = await self.build_reddit_digest()
+        digest = await self.build_signal_digest()
         if digest.get("error"):
-            return {"status": "error", "stage": "reddit_digest", "error": digest["error"]}
+            return {"status": "error", "stage": "signal_digest", "error": digest["error"]}
 
         market_data = await self.build_market_data(digest)
         main_trader = get_main_trader(run_date)
@@ -188,6 +310,7 @@ class Supervisor:
             )
 
         await self._persist_sentiment(digest, run_date)
+        await self._persist_signals(digest, run_date)
 
         decision_result = {
             "status": "ok",
@@ -203,6 +326,7 @@ class Supervisor:
             "tickers_analyzed": len(market_data),
             "real_execution": real_execution,
             "virtual_execution": virtual_execution,
+            "signal_digest": digest,
         }
 
         await self._notifier.notify_daily_summary(decision_result)
@@ -230,7 +354,7 @@ class Supervisor:
                 for p in positions
             ]
             picks = await self._get_pipeline(llm).run(
-                reddit_digest=digest,
+                signal_digest=digest,
                 market_data=market_data,
                 portfolio=portfolio_dicts,
                 budget_eur=budget,
@@ -581,8 +705,11 @@ class Supervisor:
 
     async def _persist_sentiment(self, digest: dict, run_date: date) -> None:
         pm = await self._get_portfolio_manager()
-        tickers = digest.get("tickers", [])
-        for ticker_data in tickers:
+        if "candidates" in digest:
+            items = [c for c in digest["candidates"] if "reddit" in c.get("sources", [])]
+        else:
+            items = digest.get("tickers", [])
+        for ticker_data in items:
             ticker = ticker_data.get("ticker")
             if not ticker:
                 continue
@@ -590,13 +717,46 @@ class Supervisor:
                 await pm.save_sentiment_snapshot(
                     ticker=ticker,
                     scrape_date=run_date,
-                    mention_count=ticker_data.get("mention_count", 0),
+                    mention_count=ticker_data.get(
+                        "reddit_mentions", ticker_data.get("mention_count", 0)
+                    ),
                     avg_sentiment=ticker_data.get("sentiment_score", 0.0),
                     top_posts=ticker_data.get("top_quotes", []),
                     subreddits=ticker_data.get("subreddits", {}),
                 )
             except Exception:
                 logger.exception("Failed to persist sentiment for %s", ticker)
+
+    async def _persist_signals(self, digest: dict, run_date: date) -> None:
+        if "candidates" not in digest:
+            return
+        pm = await self._get_portfolio_manager()
+        for candidate in digest["candidates"]:
+            ticker = candidate.get("ticker")
+            if not ticker:
+                continue
+            for source in candidate.get("sources", []):
+                try:
+                    evidence = {}
+                    if source == "reddit":
+                        evidence = {
+                            "mentions": candidate.get("reddit_mentions", 0),
+                            "sentiment": candidate.get("sentiment_score", 0.0),
+                        }
+                    elif source == "screener":
+                        evidence = candidate.get("screener", {})
+                    elif source == "earnings":
+                        evidence = candidate.get("earnings", {})
+                    await pm.save_signal_source(
+                        scrape_date=run_date,
+                        ticker=ticker,
+                        source=source,
+                        reason=source,
+                        score=candidate.get("sentiment_score"),
+                        evidence=evidence,
+                    )
+                except Exception:
+                    logger.exception("Failed to persist signal source for %s/%s", ticker, source)
 
     @staticmethod
     def _extract_price(price_payload: dict) -> float:

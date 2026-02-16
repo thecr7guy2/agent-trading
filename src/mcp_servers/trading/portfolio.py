@@ -450,6 +450,37 @@ class PortfolioManager:
                     picks.confidence,
                 )
 
+    async def save_signal_source(
+        self,
+        scrape_date: date,
+        ticker: str,
+        source: str,
+        reason: str | None = None,
+        score: float | None = None,
+        evidence: dict | None = None,
+    ) -> None:
+        import json
+
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO signal_sources
+                    (scrape_date, ticker, source, reason, score, evidence_json)
+                VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+                ON CONFLICT (scrape_date, ticker, source)
+                DO UPDATE SET
+                    reason = EXCLUDED.reason,
+                    score = EXCLUDED.score,
+                    evidence_json = EXCLUDED.evidence_json
+                """,
+                scrape_date,
+                ticker,
+                source,
+                reason,
+                score,
+                json.dumps(evidence or {}),
+            )
+
     async def get_positions_typed(self, llm_name: str) -> list[Position]:
         async with self._pool.acquire() as conn:
             rows = await conn.fetch(

@@ -30,10 +30,17 @@ class SentimentAgent(BaseAgent):
         return AgentStage.SENTIMENT
 
     async def run(self, input_data: dict) -> SentimentReport:
-        user_message = (
-            "Here is today's Reddit digest data. Analyze it and produce a sentiment report.\n\n"
-            f"{json.dumps(input_data, indent=2, default=str)}"
-        )
+        if "candidates" in input_data:
+            preamble = (
+                "Here is today's signal digest data from multiple sources "
+                "(Reddit, market screener, news, earnings). "
+                "Analyze it and produce a sentiment report."
+            )
+        else:
+            preamble = (
+                "Here is today's Reddit digest data. Analyze it and produce a sentiment report."
+            )
+        user_message = f"{preamble}\n\n{json.dumps(input_data, indent=2, default=str)}"
         return await self._provider.generate(
             model=self._model,
             system_prompt=self._system_prompt,

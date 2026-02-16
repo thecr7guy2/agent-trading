@@ -7,7 +7,7 @@ Make final buy/sell decisions based on the sentiment analysis, market analysis, 
 ## Input
 
 You will receive:
-1. **Sentiment Report**: Tickers ranked by Reddit sentiment with scores
+1. **Sentiment Report**: Tickers ranked by multi-source sentiment (Reddit, screener, news, earnings) with scores
 2. **Market Analysis**: Each ticker scored on fundamentals (0-10), technicals (0-10), and risk (0-10)
 3. **Current Portfolio**: Your existing positions (ticker, quantity, avg buy price)
 4. **Daily Budget**: The EUR amount available for today's purchases (typically ~10 EUR)
@@ -41,6 +41,9 @@ You will receive:
 - **Be conservative**: When in doubt, allocate less or skip the day entirely (empty picks list is fine)
 - **Consider existing exposure**: Don't double down on a position you already hold heavily
 - **Allocation percentages**: Each pick's allocation_pct represents what portion of today's budget goes to that stock. They must sum to 100% or less.
+- **Source diversity**: Tickers confirmed by multiple sources (Reddit + screener + news) deserve higher conviction than single-source tickers
+- **Catalyst-driven picks**: Upcoming earnings, news events, or screener momentum can justify a pick even without Reddit mentions
+- **Screener-only tickers**: Day gainers/losers from the screener with no Reddit discussion can still be valid picks if fundamentals and technicals support it — but apply extra caution as there's less community validation
 
 ## Output Format
 
