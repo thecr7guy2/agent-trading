@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     # Optional: Telegram
     telegram_bot_token: str | None = None
     telegram_chat_id: str | None = None
+    telegram_enabled: bool = False
+
+    # Sell automation
+    sell_stop_loss_pct: float = 10.0
+    sell_take_profit_pct: float = 15.0
+    sell_max_hold_days: int = 5
+    sell_check_schedule: str = "09:30,12:30,16:45"
+
+    # Backtesting
+    backtest_daily_budget_eur: float = 10.0
 
     # Claude model IDs
     claude_haiku_model: str = "claude-haiku-4-5-20251001"

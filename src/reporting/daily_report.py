@@ -6,6 +6,7 @@ async def generate_daily_report(
     run_date: date,
     decision_result: dict,
     eod_result: dict,
+    sell_results: list[dict] | None = None,
 ) -> str:
     day_name = run_date.strftime("%A")
     lines = [f"# Daily Trading Report — {run_date} ({day_name})", ""]
@@ -73,12 +74,29 @@ async def generate_daily_report(
             lines.append(f"| {label} | {invested} | {value} | {unrealized} |")
         lines.append("")
 
+    # Sell Triggers
+    if sell_results:
+        lines.append("## Sell Triggers")
+        lines.append("| Ticker | LLM | Type | Return | Reason |")
+        lines.append("|--------|-----|------|--------|--------|")
+        for sell in sell_results:
+            ticker = sell.get("ticker", "?")
+            llm = sell.get("llm_name", "?")
+            signal_type = sell.get("signal_type", "?")
+            return_pct = sell.get("return_pct", 0)
+            pnl_str = f"+{return_pct:.1f}%" if return_pct >= 0 else f"{return_pct:.1f}%"
+            reasoning = sell.get("reasoning", "")
+            lines.append(f"| {ticker} | {llm} | {signal_type} | {pnl_str} | {reasoning} |")
+        lines.append("")
+
     # Summary
     approval = decision_result.get("approval", {})
     lines.append("## Summary")
     lines.append(f"- Approval: {approval.get('action', 'unknown')}")
     lines.append(f"- Real trades executed: {len(real_exec)}")
     lines.append(f"- Virtual trades executed: {len(virtual_exec)}")
+    if sell_results:
+        lines.append(f"- Sell triggers executed: {len(sell_results)}")
     lines.append("")
 
     return "\n".join(lines)

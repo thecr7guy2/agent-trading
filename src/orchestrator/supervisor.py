@@ -8,8 +8,9 @@ from zoneinfo import ZoneInfo
 from src.agents.pipeline import AgentPipeline
 from src.config import Settings, get_settings
 from src.db.connection import get_pool
-from src.db.models import DailyPicks, LLMProvider, Position, StockPick
+from src.db.models import DailyPicks, LLMProvider, Position, SellSignal, StockPick
 from src.mcp_servers.trading.portfolio import PortfolioManager
+from src.notifications.telegram import TelegramNotifier
 from src.orchestrator.approval import ApprovalDecision, CLIApprovalFlow
 from src.orchestrator.mcp_client import (
     MCPToolClient,
@@ -18,6 +19,7 @@ from src.orchestrator.mcp_client import (
     create_trading_client,
 )
 from src.orchestrator.rotation import get_main_trader, get_virtual_trader, is_trading_day
+from src.orchestrator.sell_strategy import SellStrategyEngine
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,8 @@ class Supervisor:
         self._trading_client = trading_client
         self._reddit_client = reddit_client
         self._market_data_client = market_data_client
+        self._sell_engine = SellStrategyEngine(self._settings)
+        self._notifier = TelegramNotifier(self._settings)
 
     def _ensure_clients(self) -> None:
         if self._trading_client is None:
@@ -165,7 +169,9 @@ class Supervisor:
                 force=force,
             )
 
-        return {
+        await self._persist_sentiment(digest, run_date)
+
+        decision_result = {
             "status": "ok",
             "date": str(run_date),
             "main_trader": main_trader.value,
@@ -180,6 +186,9 @@ class Supervisor:
             "real_execution": real_execution,
             "virtual_execution": virtual_execution,
         }
+
+        await self._notifier.notify_daily_summary(decision_result)
+        return decision_result
 
     async def _run_pipelines(
         self,
@@ -443,6 +452,113 @@ class Supervisor:
                 }
 
         return {"status": "ok", "date": str(run_date), "snapshots": snapshots}
+
+    async def run_sell_checks(
+        self,
+        run_date: date | None = None,
+        include_real: bool = True,
+        include_virtual: bool = True,
+    ) -> dict:
+        self._ensure_clients()
+        run_date = run_date or datetime.now(ZoneInfo(self._settings.orchestrator_timezone)).date()
+        pm = await self._get_portfolio_manager()
+
+        positions = await pm.get_all_positions()
+        if not include_real:
+            positions = [p for p in positions if not p.is_real]
+        if not include_virtual:
+            positions = [p for p in positions if p.is_real]
+
+        if not positions:
+            return {"status": "ok", "date": str(run_date), "executed_sells": []}
+
+        tickers = list({p.ticker for p in positions})
+        prices: dict[str, float] = {}
+        for ticker in tickers:
+            price_resp = await self._market_data_client.call_tool(
+                "get_stock_price", {"ticker": ticker}
+            )
+            prices[ticker] = self._extract_price(price_resp)
+
+        signals = self._sell_engine.evaluate_positions(positions, prices, run_date)
+        if not signals:
+            return {"status": "ok", "date": str(run_date), "executed_sells": []}
+
+        executed_sells: list[dict] = []
+        for signal in signals:
+            result = await self._execute_sell_signal(signal, run_date)
+            executed_sells.append(result)
+
+        sell_result = {
+            "status": "ok",
+            "date": str(run_date),
+            "executed_sells": executed_sells,
+        }
+        await self._notifier.notify_sell_signals(sell_result)
+        return sell_result
+
+    async def _execute_sell_signal(self, signal: SellSignal, run_date: date) -> dict:
+        self._ensure_clients()
+        pm = await self._get_portfolio_manager()
+        quantity = float(signal.position_qty)
+
+        if await pm.trade_exists(
+            signal.llm_name.value, run_date, signal.ticker, "sell", signal.is_real
+        ):
+            return {
+                "status": "skipped",
+                "reason": "duplicate",
+                "ticker": signal.ticker,
+                "signal_type": signal.signal_type,
+            }
+
+        if signal.is_real:
+            result = await self._trading_client.call_tool(
+                "place_sell_order",
+                {"llm_name": signal.llm_name.value, "ticker": signal.ticker, "quantity": quantity},
+            )
+        else:
+            result = await self._trading_client.call_tool(
+                "record_virtual_trade",
+                {
+                    "llm_name": signal.llm_name.value,
+                    "ticker": signal.ticker,
+                    "action": "sell",
+                    "quantity": quantity,
+                    "price": float(signal.trigger_price),
+                },
+            )
+
+        result["signal_type"] = signal.signal_type
+        result["reasoning"] = signal.reasoning
+        result["return_pct"] = signal.return_pct
+        logger.info(
+            "Sell executed: %s %s (%s, %s)",
+            signal.ticker,
+            signal.signal_type,
+            signal.llm_name.value,
+            "real" if signal.is_real else "virtual",
+        )
+        return result
+
+    async def _persist_sentiment(self, digest: dict, run_date: date) -> None:
+        pm = await self._get_portfolio_manager()
+        tickers = digest.get("tickers", [])
+        for ticker_data in tickers:
+            ticker = ticker_data.get("ticker")
+            if not ticker:
+                continue
+            try:
+                await pm.save_sentiment_snapshot(
+                    ticker=ticker,
+                    scrape_date=run_date,
+                    mention_count=ticker_data.get("mention_count", 0),
+                    avg_sentiment=ticker_data.get("sentiment_score", 0.0),
+                    top_posts=ticker_data.get("top_quotes", []),
+                    subreddits=ticker_data.get("subreddits", {}),
+                )
+            except Exception:
+                logger.exception("Failed to persist sentiment for %s", ticker)
 
     @staticmethod
     def _extract_price(price_payload: dict) -> float:

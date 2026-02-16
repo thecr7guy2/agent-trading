@@ -21,6 +21,7 @@ class TestOrchestratorScheduler:
             scheduler_collect_times="08:00,12:00,16:30",
             scheduler_execute_time="17:10",
             scheduler_eod_time="17:35",
+            sell_check_schedule="09:30,12:30,16:45",
         )
         scheduler = OrchestratorScheduler(supervisor=_DummySupervisor(), settings=settings)
         scheduler.configure_jobs()
@@ -34,4 +35,7 @@ class TestOrchestratorScheduler:
             "collect_round_3",
             "decision_and_execution",
             "end_of_day_snapshot",
+            "sell_check_1",
+            "sell_check_2",
+            "sell_check_3",
         ]

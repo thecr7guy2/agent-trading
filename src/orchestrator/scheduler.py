@@ -30,15 +30,23 @@ class OrchestratorScheduler:
             },
         )
         self._last_decision_result: dict | None = None
+        self._last_sell_results: list[dict] = []
 
     async def _run_collection_job(self) -> None:
         result = await self._supervisor.collect_reddit_round()
         logger.info("Collection round finished: %s", result)
 
     async def _run_decision_job(self) -> None:
-        result = await self._supervisor.run_decision_cycle(require_approval=True)
+        result = await self._supervisor.run_decision_cycle(require_approval=False)
         logger.info("Decision cycle finished: %s", result)
         self._last_decision_result = result
+
+    async def _run_sell_check_job(self) -> None:
+        result = await self._supervisor.run_sell_checks()
+        logger.info("Sell check finished: %s", result)
+        sells = result.get("executed_sells", [])
+        if sells:
+            self._last_sell_results.extend(sells)
 
     async def _run_eod_job(self) -> None:
         result = await self._supervisor.run_end_of_day()
@@ -52,6 +60,7 @@ class OrchestratorScheduler:
                     run_date=run_date,
                     decision_result=decision_result,
                     eod_result=result,
+                    sell_results=self._last_sell_results,
                 )
                 path = write_daily_report(report, run_date)
                 logger.info("Daily report written to %s", path)
@@ -59,6 +68,7 @@ class OrchestratorScheduler:
                 logger.exception("Failed to generate daily report")
 
         self._last_decision_result = None
+        self._last_sell_results = []
 
     def configure_jobs(self) -> None:
         if self._scheduler.get_jobs():
@@ -71,6 +81,19 @@ class OrchestratorScheduler:
                 self._run_collection_job,
                 trigger="cron",
                 id=f"collect_round_{index}",
+                day_of_week="mon-fri",
+                hour=hour,
+                minute=minute,
+                replace_existing=True,
+            )
+
+        sell_times = [part.strip() for part in self._settings.sell_check_schedule.split(",")]
+        for index, sell_time in enumerate(sell_times, start=1):
+            hour, minute = _parse_hhmm(sell_time)
+            self._scheduler.add_job(
+                self._run_sell_check_job,
+                trigger="cron",
+                id=f"sell_check_{index}",
                 day_of_week="mon-fri",
                 hour=hour,
                 minute=minute,

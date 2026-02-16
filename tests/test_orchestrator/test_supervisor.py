@@ -42,6 +42,13 @@ def _settings():
         orchestrator_timezone="Europe/Berlin",
         daily_budget_eur=10.0,
         scheduler_eod_time="17:35",
+        sell_stop_loss_pct=10.0,
+        sell_take_profit_pct=15.0,
+        sell_max_hold_days=5,
+        sell_check_schedule="09:30,12:30,16:45",
+        telegram_enabled=False,
+        telegram_bot_token=None,
+        telegram_chat_id=None,
     )
 
 
@@ -105,6 +112,7 @@ class TestSupervisor:
         )
         supervisor._execute_real_trades = AsyncMock(return_value=[{"status": "filled"}])
         supervisor._execute_virtual_trades = AsyncMock(return_value=[{"status": "filled"}])
+        supervisor._persist_sentiment = AsyncMock()
 
         result = await supervisor.run_decision_cycle(run_date=date(2026, 2, 16))
 

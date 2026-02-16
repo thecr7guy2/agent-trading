@@ -140,6 +140,18 @@ class PortfolioSnapshot(BaseModel):
 # --- Computed Report Models ---
 
 
+class SellSignal(BaseModel):
+    ticker: str
+    llm_name: LLMProvider
+    signal_type: str  # "stop_loss", "take_profit", "hold_period"
+    trigger_price: Decimal = Decimal("0")
+    position_qty: Decimal = Decimal("0")
+    avg_buy_price: Decimal = Decimal("0")
+    return_pct: float = 0.0
+    is_real: bool = False
+    reasoning: str = ""
+
+
 class PnLReport(BaseModel):
     llm_name: LLMProvider
     period_start: date

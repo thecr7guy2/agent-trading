@@ -341,6 +341,88 @@ class PortfolioManager:
             )
         return value is not None
 
+    async def get_all_positions(self, is_real: bool | None = None) -> list[Position]:
+        async with self._pool.acquire() as conn:
+            if is_real is None:
+                rows = await conn.fetch(
+                    """
+                    SELECT id, llm_name, ticker, quantity, avg_buy_price, is_real, opened_at
+                    FROM positions ORDER BY opened_at DESC
+                    """
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT id, llm_name, ticker, quantity, avg_buy_price, is_real, opened_at
+                    FROM positions WHERE is_real = $1 ORDER BY opened_at DESC
+                    """,
+                    is_real,
+                )
+        return [
+            Position(
+                id=r["id"],
+                llm_name=r["llm_name"],
+                ticker=r["ticker"],
+                quantity=r["quantity"],
+                avg_buy_price=r["avg_buy_price"],
+                is_real=r["is_real"],
+                opened_at=r["opened_at"],
+            )
+            for r in rows
+        ]
+
+    async def save_sentiment_snapshot(
+        self,
+        ticker: str,
+        scrape_date: date,
+        mention_count: int,
+        avg_sentiment: float,
+        top_posts: list | None = None,
+        subreddits: dict | None = None,
+    ) -> None:
+        import json
+
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO reddit_sentiment
+                    (ticker, scrape_date, mention_count, avg_sentiment, top_posts, subreddits)
+                VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
+                ON CONFLICT (ticker, scrape_date)
+                DO UPDATE SET
+                    mention_count = EXCLUDED.mention_count,
+                    avg_sentiment = EXCLUDED.avg_sentiment,
+                    top_posts = EXCLUDED.top_posts,
+                    subreddits = EXCLUDED.subreddits
+                """,
+                ticker,
+                scrape_date,
+                mention_count,
+                avg_sentiment,
+                json.dumps(top_posts or []),
+                json.dumps(subreddits or {}),
+            )
+
+    async def get_sentiment_for_date(self, scrape_date: date) -> list[dict]:
+        async with self._pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT ticker, mention_count, avg_sentiment, top_posts, subreddits
+                FROM reddit_sentiment WHERE scrape_date = $1
+                """,
+                scrape_date,
+            )
+        return [
+            {
+                "ticker": r["ticker"],
+                "mention_count": r["mention_count"],
+                "avg_sentiment": float(r["avg_sentiment"]) if r["avg_sentiment"] else 0.0,
+                "top_posts": r["top_posts"] or [],
+                "subreddits": r["subreddits"] or {},
+            }
+            for r in rows
+        ]
+
     async def save_daily_picks(self, picks: DailyPicks, is_main: bool) -> None:
         async with self._pool.acquire() as conn:
             for pick in picks.picks:
