@@ -37,11 +37,15 @@ async def _get_portfolio() -> PortfolioManager:
 
 
 @mcp.tool()
-async def place_buy_order(llm_name: str, ticker: str, amount_eur: float) -> dict:
+async def place_buy_order(
+    llm_name: str, ticker: str, amount_eur: float, current_price: float
+) -> dict:
     """Place a real buy order via Trading 212 for a specified EUR amount.
-    Uses value-based ordering so Trading 212 handles fractional share calculation."""
+    Calculates quantity from amount_eur / current_price and places a market order."""
     if amount_eur <= 0:
         return {"error": "amount_eur must be positive", "llm_name": llm_name, "ticker": ticker}
+    if current_price <= 0:
+        return {"error": "current_price must be positive", "llm_name": llm_name, "ticker": ticker}
     if not ticker or not ticker.strip():
         return {"error": "ticker must not be empty", "llm_name": llm_name, "ticker": ticker}
     if not llm_name or not llm_name.strip():
@@ -55,11 +59,12 @@ async def place_buy_order(llm_name: str, ticker: str, amount_eur: float) -> dict
                 "llm_name": llm_name,
                 "ticker": ticker,
             }
-        result = await t212.place_value_order(broker_ticker, amount_eur)
+        quantity = amount_eur / current_price
+        result = await t212.place_market_order(broker_ticker, quantity)
 
         # Record in DB
         pm = await _get_portfolio()
-        filled_qty = Decimal(str(result.get("filledQuantity", 0)))
+        filled_qty = Decimal(str(result.get("filledQuantity", quantity)))
         filled_value = Decimal(str(result.get("filledValue", amount_eur)))
         filled_price = filled_value / filled_qty if filled_qty else Decimal("0")
         await pm.record_trade(
@@ -78,6 +83,7 @@ async def place_buy_order(llm_name: str, ticker: str, amount_eur: float) -> dict
             "ticker": ticker,
             "broker_ticker": broker_ticker,
             "amount_eur": amount_eur,
+            "quantity": quantity,
             "order": result,
         }
     except T212Error as e:

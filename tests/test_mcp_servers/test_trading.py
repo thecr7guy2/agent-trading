@@ -52,26 +52,31 @@ class TestT212Client:
         assert result["id"] == "order-456"
 
     @pytest.mark.asyncio
-    async def test_place_value_order(self):
+    async def test_place_market_order_normalizes_precision_to_3_decimals(self):
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "id": "order-789",
-            "filledQuantity": 0.012,
-            "filledValue": 10.0,
-        }
+        mock_response.json.return_value = {"id": "order-precision"}
 
         client = T212Client(api_key="test-key", api_secret="test-secret")
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
-        result = await client.place_value_order("ASML_NL_EQ", 10.0)
-        assert result["filledValue"] == 10.0
+        await client.place_market_order("MSFT_US_EQ", 0.0249177713)
+
         client._client.request.assert_called_once_with(
             "POST",
             "/equity/orders/market",
-            json={"value": 10.0, "ticker": "ASML_NL_EQ"},
+            json={"quantity": 0.024, "ticker": "MSFT_US_EQ"},
         )
+
+    @pytest.mark.asyncio
+    async def test_place_market_order_rejects_quantity_rounded_to_zero(self):
+        client = T212Client(api_key="test-key", api_secret="test-secret")
+        client._client = AsyncMock()
+
+        with pytest.raises(ValueError) as exc_info:
+            await client.place_market_order("MSFT_US_EQ", 0.0004)
+        assert "rounds to 0" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_positions(self):
@@ -176,7 +181,7 @@ class TestTradingServerOrders:
     async def test_place_buy_order_records_llm_name(self, monkeypatch):
         mock_t212 = AsyncMock()
         mock_t212.resolve_ticker = AsyncMock(return_value="ASML_NL_EQ")
-        mock_t212.place_value_order = AsyncMock(
+        mock_t212.place_market_order = AsyncMock(
             return_value={"id": "order-1", "filledQuantity": 0.01, "filledValue": 10.0}
         )
         mock_portfolio = AsyncMock()
@@ -187,7 +192,7 @@ class TestTradingServerOrders:
             trading_server, "_get_portfolio", AsyncMock(return_value=mock_portfolio)
         )
 
-        result = await trading_server.place_buy_order("claude", "ASML.AS", 10.0)
+        result = await trading_server.place_buy_order("claude", "ASML.AS", 10.0, 850.0)
         assert result["status"] == "filled"
         assert result["llm_name"] == "claude"
         assert result["broker_ticker"] == "ASML_NL_EQ"
@@ -208,7 +213,7 @@ class TestTradingServerOrders:
             trading_server, "_get_portfolio", AsyncMock(return_value=mock_portfolio)
         )
 
-        result = await trading_server.place_buy_order("claude", "UNKNOWN", 10.0)
+        result = await trading_server.place_buy_order("claude", "UNKNOWN", 10.0, 100.0)
         assert "error" in result
         assert result["ticker"] == "UNKNOWN"
 

@@ -1,5 +1,6 @@
 import base64
 import logging
+from decimal import Decimal, ROUND_DOWN
 
 import httpx
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
@@ -25,6 +26,7 @@ def _is_retryable(exc: BaseException) -> bool:
 class T212Client:
     LIVE_BASE_URL = "https://live.trading212.com/api/v0"
     DEMO_BASE_URL = "https://demo.trading212.com/api/v0"
+    MARKET_ORDER_QUANTITY_DECIMALS = 3
     SUFFIX_TO_COUNTRY = {
         "AS": "NL",
         "PA": "FR",
@@ -70,19 +72,18 @@ class T212Client:
 
     async def place_market_order(self, ticker: str, quantity: float) -> dict:
         """Place a market order. Positive quantity = buy, negative = sell."""
-        return await self._request(
-            "POST",
-            "/equity/orders/market",
-            json={"quantity": quantity, "ticker": ticker},
+        step = Decimal("1").scaleb(-self.MARKET_ORDER_QUANTITY_DECIMALS)
+        normalized_quantity = float(
+            Decimal(str(quantity)).quantize(step, rounding=ROUND_DOWN)
         )
-
-    async def place_value_order(self, ticker: str, value: float) -> dict:
-        """Place a value-based order (buy a specific EUR/currency amount).
-        Trading 212 calculates the fractional quantity automatically."""
+        if normalized_quantity == 0.0:
+            raise ValueError(
+                "quantity rounds to 0 at 3 decimal places; increase order size or use a lower price"
+            )
         return await self._request(
             "POST",
             "/equity/orders/market",
-            json={"value": value, "ticker": ticker},
+            json={"quantity": normalized_quantity, "ticker": ticker},
         )
 
     async def get_positions(self) -> list:

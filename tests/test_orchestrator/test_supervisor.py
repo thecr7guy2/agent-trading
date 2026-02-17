@@ -152,6 +152,7 @@ class TestSupervisor:
             picks=picks,
             budget_eur=10.0,
             portfolio=[],
+            market_data={"ASML.AS": {"price": {"price": 850.0}}},
             force=False,
         )
         assert result[0]["status"] == "skipped"
@@ -177,11 +178,13 @@ class TestSupervisor:
             picks=picks,
             budget_eur=10.0,
             portfolio=[],
+            market_data={"ASML.AS": {"price": {"price": 850.0}}},
             force=True,
         )
         assert result[0]["status"] == "filled"
         assert len(mock_trading.calls) == 1
         assert mock_trading.calls[0][0] == "place_buy_order"
+        assert mock_trading.calls[0][1]["current_price"] == 850.0
 
     @pytest.mark.asyncio
     async def test_execute_virtual_trade_skips_missing_price(self):

@@ -296,6 +296,7 @@ class Supervisor:
             picks=approved_daily,
             budget_eur=self._settings.daily_budget_eur,
             portfolio=main_result.portfolio,
+            market_data=market_data,
             force=force,
         )
         virtual_execution = []
@@ -422,6 +423,7 @@ class Supervisor:
         picks: DailyPicks,
         budget_eur: float,
         portfolio: list[Position],
+        market_data: dict[str, dict],
         force: bool,
     ) -> list[dict]:
         self._ensure_clients()
@@ -436,6 +438,13 @@ class Supervisor:
             amount = round(budget_eur * (pick.allocation_pct / 100.0), 2)
             if amount <= 0:
                 continue
+            ticker_data = market_data.get(pick.ticker, {})
+            price = self._extract_price(ticker_data.get("price", {}))
+            if price <= 0:
+                executions.append(
+                    {"status": "skipped", "reason": "missing_price", "ticker": pick.ticker}
+                )
+                continue
             if not force and await pm.trade_exists(
                 llm.value, picks.pick_date, pick.ticker, "buy", True
             ):
@@ -445,7 +454,12 @@ class Supervisor:
                 continue
             result = await self._trading_client.call_tool(
                 "place_buy_order",
-                {"llm_name": llm.value, "ticker": pick.ticker, "amount_eur": amount},
+                {
+                    "llm_name": llm.value,
+                    "ticker": pick.ticker,
+                    "amount_eur": amount,
+                    "current_price": price,
+                },
             )
             executions.append(result)
 
