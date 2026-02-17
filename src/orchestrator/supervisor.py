@@ -91,7 +91,7 @@ class Supervisor:
             candidates[ticker] = {
                 "ticker": ticker,
                 "sources": ["reddit"],
-                "reddit_mentions": t.get("mention_count", 0),
+                "reddit_mentions": t.get("mentions", t.get("mention_count", 0)),
                 "sentiment_score": t.get("sentiment_score", 0.0),
                 "top_quotes": t.get("top_quotes", []),
                 "subreddits": t.get("subreddits", {}),
@@ -587,7 +587,7 @@ class Supervisor:
                         total_value += pos.quantity * pos.avg_buy_price
 
                 unrealized_pnl = total_value - total_invested
-                pnl_data = await pm.calculate_pnl(llm.value, run_date, run_date)
+                pnl_data = await pm.calculate_pnl(llm.value, run_date, run_date, is_real=is_real)
                 realized_pnl = Decimal(pnl_data.get("realized_pnl", "0"))
 
                 await pm.save_portfolio_snapshot(

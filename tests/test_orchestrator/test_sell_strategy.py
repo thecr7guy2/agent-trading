@@ -14,6 +14,7 @@ def settings():
         anthropic_api_key="test",
         minimax_api_key="test",
         t212_api_key="test",
+        t212_api_secret="test",
         sell_stop_loss_pct=10.0,
         sell_take_profit_pct=15.0,
         sell_max_hold_days=5,

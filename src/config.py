@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     # Broker
     t212_api_key: str
+    t212_api_secret: str
 
     # Database
     database_url: str = "postgresql://postgres:postgres@localhost:5432/trading_bot"

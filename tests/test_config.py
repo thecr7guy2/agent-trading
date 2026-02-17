@@ -8,6 +8,7 @@ class TestSettings:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
         monkeypatch.setenv("MINIMAX_API_KEY", "mm-test")
         monkeypatch.setenv("T212_API_KEY", "t212-test")
+        monkeypatch.setenv("T212_API_SECRET", "t212-secret-test")
         monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
 
         settings = Settings()
@@ -15,12 +16,14 @@ class TestSettings:
         assert settings.anthropic_api_key == "sk-ant-test"
         assert settings.minimax_api_key == "mm-test"
         assert settings.t212_api_key == "t212-test"
+        assert settings.t212_api_secret == "t212-secret-test"
         assert settings.database_url == "postgresql://test:test@localhost/test"
 
     def test_defaults(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
         monkeypatch.setenv("MINIMAX_API_KEY", "x")
         monkeypatch.setenv("T212_API_KEY", "x")
+        monkeypatch.setenv("T212_API_SECRET", "x")
 
         settings = Settings()
 
@@ -39,6 +42,7 @@ class TestSettings:
         monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
         monkeypatch.setenv("MINIMAX_API_KEY", "x")
         monkeypatch.setenv("T212_API_KEY", "x")
+        monkeypatch.setenv("T212_API_SECRET", "x")
 
         settings = Settings()
 

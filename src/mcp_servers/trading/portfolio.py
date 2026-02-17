@@ -208,62 +208,71 @@ class PortfolioManager:
             for r in rows
         ]
 
-    async def calculate_pnl(self, llm_name: str, start_date: date, end_date: date) -> dict:
+    async def calculate_pnl(
+        self, llm_name: str, start_date: date, end_date: date, is_real: bool | None = None
+    ) -> dict:
         async with self._pool.acquire() as conn:
+            real_filter = ""
+            args: list = [llm_name, start_date, end_date]
+            if is_real is not None:
+                real_filter = f" AND is_real = ${len(args) + 1}"
+                args.append(is_real)
+
             # Total invested (sum of buy costs in period)
             invested = await conn.fetchval(
-                """
+                f"""
                 SELECT COALESCE(SUM(total_cost), 0)
                 FROM trades
                 WHERE llm_name = $1 AND action = 'buy'
-                  AND trade_date BETWEEN $2 AND $3 AND status = 'filled'
+                  AND trade_date BETWEEN $2 AND $3 AND status = 'filled'{real_filter}
                 """,
-                llm_name,
-                start_date,
-                end_date,
+                *args,
             )
 
             # Total proceeds from sells (realized)
             proceeds = await conn.fetchval(
-                """
+                f"""
                 SELECT COALESCE(SUM(total_cost), 0)
                 FROM trades
                 WHERE llm_name = $1 AND action = 'sell'
-                  AND trade_date BETWEEN $2 AND $3 AND status = 'filled'
+                  AND trade_date BETWEEN $2 AND $3 AND status = 'filled'{real_filter}
                 """,
-                llm_name,
-                start_date,
-                end_date,
+                *args,
             )
 
             # Win/loss counts from sell trades
             # A sell is a "win" if sell price > avg buy price for that position
             sell_trades = await conn.fetch(
-                """
+                f"""
                 SELECT t.ticker, t.price_per_share as sell_price, t.quantity
                 FROM trades t
                 WHERE t.llm_name = $1 AND t.action = 'sell'
-                  AND t.trade_date BETWEEN $2 AND $3 AND t.status = 'filled'
+                  AND t.trade_date BETWEEN $2 AND $3 AND t.status = 'filled'{real_filter}
                 """,
-                llm_name,
-                start_date,
-                end_date,
+                *args,
             )
 
             # For each sell, look up what the avg buy price was
             win_count = 0
             loss_count = 0
+            buy_real_filter = ""
+            buy_args_extra: list = []
+            if is_real is not None:
+                buy_real_filter = " AND is_real = $4"
+                buy_args_extra = [is_real]
+
             for trade in sell_trades:
                 buy_avg = await conn.fetchval(
-                    """
+                    f"""
                     SELECT AVG(price_per_share)
                     FROM trades
                     WHERE llm_name = $1 AND ticker = $2 AND action = 'buy'
-                      AND status = 'filled' AND trade_date <= $3
+                      AND status = 'filled' AND trade_date <= $3{buy_real_filter}
                     """,
                     llm_name,
                     trade["ticker"],
                     end_date,
+                    *buy_args_extra,
                 )
                 if buy_avg and trade["sell_price"] > buy_avg:
                     win_count += 1

@@ -24,7 +24,7 @@ async def _get_t212() -> T212Client:
     global _t212
     if _t212 is None:
         settings = get_settings()
-        _t212 = T212Client(api_key=settings.t212_api_key)
+        _t212 = T212Client(api_key=settings.t212_api_key, api_secret=settings.t212_api_secret)
     return _t212
 
 
@@ -203,14 +203,17 @@ async def get_portfolio(llm_name: str) -> dict:
 
 
 @mcp.tool()
-async def get_pnl_report(llm_name: str, start_date: str, end_date: str) -> dict:
+async def get_pnl_report(
+    llm_name: str, start_date: str, end_date: str, is_real: bool | None = None
+) -> dict:
     """Calculate profit & loss for an LLM over a date range.
-    Dates in ISO format (YYYY-MM-DD). Returns realized P&L from completed trades."""
+    Dates in ISO format (YYYY-MM-DD). Optionally filter by is_real (true/false).
+    Returns realized P&L from completed trades."""
     try:
         pm = await _get_portfolio()
         start = date.fromisoformat(start_date)
         end = date.fromisoformat(end_date)
-        return await pm.calculate_pnl(llm_name, start, end)
+        return await pm.calculate_pnl(llm_name, start, end, is_real=is_real)
     except ValueError as e:
         return {"error": f"Invalid date format: {e}"}
     except Exception as e:

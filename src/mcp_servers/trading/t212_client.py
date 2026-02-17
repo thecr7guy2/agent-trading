@@ -1,3 +1,4 @@
+import base64
 import logging
 
 import httpx
@@ -24,7 +25,7 @@ def _is_retryable(exc: BaseException) -> bool:
 class T212Client:
     LIVE_BASE_URL = "https://live.trading212.com/api/v0"
     DEMO_BASE_URL = "https://demo.trading212.com/api/v0"
-    EU_SUFFIX_TO_COUNTRY = {
+    SUFFIX_TO_COUNTRY = {
         "AS": "NL",
         "PA": "FR",
         "DE": "DE",
@@ -33,12 +34,13 @@ class T212Client:
         "L": "GB",
     }
 
-    def __init__(self, api_key: str, use_demo: bool = False):
+    def __init__(self, api_key: str, api_secret: str, use_demo: bool = False):
         self._base_url = self.DEMO_BASE_URL if use_demo else self.LIVE_BASE_URL
+        credentials = base64.b64encode(f"{api_key}:{api_secret}".encode()).decode()
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
             headers={
-                "Authorization": api_key,
+                "Authorization": f"Basic {credentials}",
                 "Content-Type": "application/json",
             },
             timeout=30.0,
@@ -150,10 +152,15 @@ class T212Client:
             _push(base)
             _push(f"{base}_EQ")
             _push(f"{base}_{suffix}")
-            country = self.EU_SUFFIX_TO_COUNTRY.get(suffix)
+            country = self.SUFFIX_TO_COUNTRY.get(suffix)
             if country:
                 _push(f"{base}_{country}")
                 _push(f"{base}_{country}_EQ")
+
+        # Bare ticker (no dot or underscore) — try US formats
+        if "." not in ticker and "_" not in ticker:
+            _push(f"{ticker}_US_EQ")
+            _push(f"{ticker}_US")
 
         if "_" in ticker and not ticker.endswith("_EQ"):
             _push(f"{ticker}_EQ")

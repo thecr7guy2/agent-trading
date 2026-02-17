@@ -25,7 +25,7 @@ class TestT212Client:
             "ticker": "ASML_NL_EQ",
         }
 
-        client = T212Client(api_key="test-key")
+        client = T212Client(api_key="test-key", api_secret="test-secret")
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
@@ -44,7 +44,7 @@ class TestT212Client:
         mock_response.status_code = 200
         mock_response.json.return_value = {"id": "order-456", "filledQuantity": -0.3}
 
-        client = T212Client(api_key="test-key")
+        client = T212Client(api_key="test-key", api_secret="test-secret")
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
@@ -61,7 +61,7 @@ class TestT212Client:
             "filledValue": 10.0,
         }
 
-        client = T212Client(api_key="test-key")
+        client = T212Client(api_key="test-key", api_secret="test-secret")
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
@@ -81,7 +81,7 @@ class TestT212Client:
             {"ticker": "ASML_NL_EQ", "quantity": 0.5, "averagePrice": 850.0},
         ]
 
-        client = T212Client(api_key="test-key")
+        client = T212Client(api_key="test-key", api_secret="test-secret")
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
@@ -95,7 +95,7 @@ class TestT212Client:
         mock_response.status_code = 400
         mock_response.text = "Bad Request: insufficient funds"
 
-        client = T212Client(api_key="test-key")
+        client = T212Client(api_key="test-key", api_secret="test-secret")
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
@@ -109,7 +109,7 @@ class TestT212Client:
         mock_response = MagicMock()
         mock_response.status_code = 204
 
-        client = T212Client(api_key="test-key")
+        client = T212Client(api_key="test-key", api_secret="test-secret")
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
@@ -117,11 +117,11 @@ class TestT212Client:
         assert result == {}
 
     def test_demo_base_url(self):
-        client = T212Client(api_key="key", use_demo=True)
+        client = T212Client(api_key="key", api_secret="secret", use_demo=True)
         assert client._base_url == T212Client.DEMO_BASE_URL
 
     def test_live_base_url(self):
-        client = T212Client(api_key="key", use_demo=False)
+        client = T212Client(api_key="key", api_secret="secret", use_demo=False)
         assert client._base_url == T212Client.LIVE_BASE_URL
 
     @pytest.mark.asyncio
@@ -133,7 +133,7 @@ class TestT212Client:
             {"ticker": "SAP_DE_EQ"},
         ]
 
-        client = T212Client(api_key="test-key")
+        client = T212Client(api_key="test-key", api_secret="test-secret")
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
@@ -146,7 +146,7 @@ class TestT212Client:
         mock_response.status_code = 200
         mock_response.json.return_value = [{"ticker": "ASML_NL_EQ"}]
 
-        client = T212Client(api_key="test-key")
+        client = T212Client(api_key="test-key", api_secret="test-secret")
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
@@ -163,7 +163,7 @@ class TestT212Client:
         mock_response.status_code = 200
         mock_response.json.return_value = [{"ticker": "OTHER_US_EQ"}]
 
-        client = T212Client(api_key="test-key")
+        client = T212Client(api_key="test-key", api_secret="test-secret")
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
@@ -446,7 +446,7 @@ class TestPortfolioManagerQueries:
         ]
 
         pm = PortfolioManager(pool)
-        result = await pm.calculate_pnl("claude", date(2026, 2, 1), date(2026, 2, 15))
+        result = await pm.calculate_pnl("claude", date(2026, 2, 1), date(2026, 2, 15), is_real=True)
         assert result["llm_name"] == "claude"
         assert result["realized_pnl"] == "10"
         assert result["win_count"] == 1
