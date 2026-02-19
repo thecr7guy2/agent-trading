@@ -25,7 +25,7 @@ class TestOrchestratorScheduler:
             signal_candidate_limit=25,
             screener_min_market_cap=1_000_000_000,
             screener_exchanges="AMS,PAR,GER,MIL,MCE,LSE",
-            max_tool_rounds=8,
+            max_tool_rounds=10,
             pipeline_timeout_seconds=600,
         )
         scheduler = OrchestratorScheduler(supervisor=_DummySupervisor(), settings=settings)

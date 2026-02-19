@@ -42,8 +42,8 @@ class AgentPipeline:
             provider = ClaudeProvider(api_key=settings.anthropic_api_key)
             sentiment_model = settings.claude_haiku_model
             research_model = settings.claude_sonnet_model
-            trader_model = settings.claude_opus_model
-            risk_model = settings.claude_sonnet_model
+            trader_model = settings.claude_sonnet_model
+            risk_model = settings.claude_haiku_model
         else:
             provider = MiniMaxProvider(
                 api_key=settings.minimax_api_key,

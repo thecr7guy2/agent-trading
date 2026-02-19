@@ -206,7 +206,7 @@ class TestTraderAgent:
     @pytest.mark.asyncio
     async def test_returns_daily_picks(self):
         provider = _mock_provider(TRADER_RESPONSE_JSON, DailyPicks)
-        agent = TraderAgent(provider, "claude-opus-4-6", LLMProvider.CLAUDE)
+        agent = TraderAgent(provider, "claude-sonnet-4-6", LLMProvider.CLAUDE)
 
         result = await agent.run(
             {

@@ -31,13 +31,12 @@ class TestSettings:
         assert settings.reddit_user_agent == "trading-bot/1.0"
         assert settings.telegram_bot_token is None
         assert settings.telegram_chat_id is None
-        assert settings.claude_opus_model == "claude-opus-4-6"
-        assert settings.claude_sonnet_model == "claude-sonnet-4-5-20250929"
+        assert settings.claude_sonnet_model == "claude-sonnet-4-6"
         assert settings.claude_haiku_model == "claude-haiku-4-5-20251001"
         assert settings.orchestrator_timezone == "Europe/Berlin"
         assert settings.approval_timeout_seconds == 120
         assert settings.approval_timeout_action == "approve_all"
-        assert settings.max_tool_rounds == 8
+        assert settings.max_tool_rounds == 10
         assert settings.pipeline_timeout_seconds == 900
 
     def test_reddit_credentials_optional(self, monkeypatch):

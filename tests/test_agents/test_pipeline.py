@@ -196,9 +196,8 @@ def _mock_settings():
     s.minimax_api_key = "test-minimax-key"
     s.minimax_base_url = "https://api.minimaxi.chat/v1"
     s.claude_haiku_model = "claude-haiku-4-5-20251001"
-    s.claude_sonnet_model = "claude-sonnet-4-5-20250929"
-    s.claude_opus_model = "claude-opus-4-6"
+    s.claude_sonnet_model = "claude-sonnet-4-6"
     s.minimax_model = "MiniMax-Text-01"
-    s.max_tool_rounds = 8
+    s.max_tool_rounds = 10
     s.pipeline_timeout_seconds = 600
     return s

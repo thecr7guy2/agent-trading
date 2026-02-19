@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import re
@@ -22,9 +21,6 @@ JSON_INSTRUCTION = (
     "no explanation outside the JSON object."
 )
 
-# Seconds to wait between tool rounds to avoid rate limits
-_TOOL_ROUND_DELAY = 5
-
 
 def _extract_json(text: str) -> str:
     # Strip markdown code fences if present
@@ -45,6 +41,26 @@ def _repair_json(text: str) -> str:
     text = re.sub(r",\s*$", "", text)
     text += "]" * open_brackets + "}" * open_braces
     return text
+
+
+def _cached_system(system_prompt: str) -> list[dict]:
+    """Format system prompt as a cached content block list."""
+    return [
+        {
+            "type": "text",
+            "text": system_prompt,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
+
+
+def _cached_tools(tools: list[dict]) -> list[dict]:
+    """Add cache_control to the last tool definition so all tools are cached."""
+    if not tools:
+        return tools
+    tools = [dict(t) for t in tools]  # shallow copy
+    tools[-1] = {**tools[-1], "cache_control": {"type": "ephemeral"}}
+    return tools
 
 
 class ClaudeProvider:
@@ -75,7 +91,7 @@ class ClaudeProvider:
         response = await self._client.messages.create(
             model=model,
             max_tokens=max_tokens,
-            system=full_system,
+            system=_cached_system(full_system),
             messages=[{"role": "user", "content": user_message}],
         )
 
@@ -107,22 +123,19 @@ class ClaudeProvider:
         max_tool_rounds: int = 15,
         max_tokens: int = 8192,
     ) -> tuple[T, int]:
-        full_system = system_prompt + JSON_INSTRUCTION
+        cached_system = _cached_system(system_prompt + JSON_INSTRUCTION)
+        cached_tool_defs = _cached_tools(tools)
         messages: list[dict] = [{"role": "user", "content": user_message}]
         total_tool_calls = 0
 
         for round_num in range(max_tool_rounds):
-            # Throttle to avoid hitting Anthropic rate limits
-            if round_num > 0:
-                await asyncio.sleep(_TOOL_ROUND_DELAY)
-
             try:
                 response = await self._client.messages.create(
                     model=model,
                     max_tokens=max_tokens,
-                    system=full_system,
+                    system=cached_system,
                     messages=messages,
-                    tools=tools,
+                    tools=cached_tool_defs,
                 )
             except Exception:
                 logger.exception(
@@ -138,7 +151,7 @@ class ClaudeProvider:
                     )
                     return (
                         await self._force_final(
-                            model, max_tokens, full_system, messages, output_model
+                            model, max_tokens, cached_system, messages, output_model
                         ),
                         total_tool_calls,
                     )
@@ -185,7 +198,7 @@ class ClaudeProvider:
         # Max rounds hit — force a final response without tools
         logger.warning("Max tool rounds (%d) reached, forcing final response", max_tool_rounds)
         return (
-            await self._force_final(model, max_tokens, full_system, messages, output_model),
+            await self._force_final(model, max_tokens, cached_system, messages, output_model),
             total_tool_calls,
         )
 
@@ -193,7 +206,7 @@ class ClaudeProvider:
         self,
         model: str,
         max_tokens: int,
-        system: str,
+        system: str | list[dict],
         messages: list[dict],
         output_model: type[T],
     ) -> T:

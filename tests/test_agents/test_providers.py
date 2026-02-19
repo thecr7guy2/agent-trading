@@ -100,7 +100,7 @@ class TestClaudeProvider:
         provider._client = mock_client
 
         result = await provider.generate(
-            model="claude-opus-4-6",
+            model="claude-sonnet-4-6",
             system_prompt="Test",
             user_message="Test",
             output_model=SimpleModel,
@@ -128,7 +128,10 @@ class TestClaudeProvider:
         )
 
         call_kwargs = mock_client.messages.create.call_args[1]
-        assert "valid JSON only" in call_kwargs["system"]
+        system = call_kwargs["system"]
+        # System is now a list of cached content blocks
+        assert isinstance(system, list)
+        assert "valid JSON only" in system[0]["text"]
 
 
 # --- MiniMaxProvider ---
