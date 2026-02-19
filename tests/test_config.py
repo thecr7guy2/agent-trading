@@ -25,7 +25,7 @@ class TestSettings:
         monkeypatch.setenv("T212_API_KEY", "x")
         monkeypatch.setenv("T212_API_SECRET", "x")
 
-        settings = Settings()
+        settings = Settings(_env_file=None)
 
         assert settings.daily_budget_eur == 10.0
         assert settings.reddit_user_agent == "trading-bot/1.0"
@@ -37,6 +37,8 @@ class TestSettings:
         assert settings.orchestrator_timezone == "Europe/Berlin"
         assert settings.approval_timeout_seconds == 120
         assert settings.approval_timeout_action == "approve_all"
+        assert settings.max_tool_rounds == 8
+        assert settings.pipeline_timeout_seconds == 900
 
     def test_reddit_credentials_optional(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "x")

@@ -52,6 +52,8 @@ def _settings():
         signal_candidate_limit=25,
         screener_min_market_cap=1_000_000_000,
         screener_exchanges="AMS,PAR,GER,MIL,MCE,LSE",
+        max_tool_rounds=8,
+        pipeline_timeout_seconds=600,
     )
 
 
@@ -90,19 +92,18 @@ class TestSupervisor:
         supervisor.build_reddit_digest = AsyncMock(
             return_value={"total_posts": 42, "tickers": [{"ticker": "ASML.AS"}]}
         )
-        supervisor.build_market_data = AsyncMock(
-            return_value={"ASML.AS": {"price": {"price": 100.0}}}
-        )
         supervisor._run_pipelines = AsyncMock(
             return_value=[
                 PipelineResult(
                     llm=LLMProvider.CLAUDE,
                     picks=_daily_picks(LLMProvider.CLAUDE),
+                    research=None,
                     portfolio=[],
                 ),
                 PipelineResult(
                     llm=LLMProvider.MINIMAX,
                     picks=_daily_picks(LLMProvider.MINIMAX),
+                    research=None,
                     portfolio=[],
                 ),
             ]
@@ -136,10 +137,12 @@ class TestSupervisor:
     @pytest.mark.asyncio
     async def test_execute_real_trades_duplicate_guard(self):
         mock_trading = _MockMCPClient({"place_buy_order": {"status": "filled"}})
+        mock_market = _MockMCPClient({"get_stock_price": {"price": 850.0}})
         supervisor = Supervisor(
             settings=_settings(),
             approval_flow=_AutoApprove(),
             trading_client=mock_trading,
+            market_data_client=mock_market,
         )
         picks = _daily_picks(LLMProvider.CLAUDE)
 
@@ -152,7 +155,6 @@ class TestSupervisor:
             picks=picks,
             budget_eur=10.0,
             portfolio=[],
-            market_data={"ASML.AS": {"price": {"price": 850.0}}},
             force=False,
         )
         assert result[0]["status"] == "skipped"
@@ -162,10 +164,12 @@ class TestSupervisor:
     @pytest.mark.asyncio
     async def test_execute_real_trades_force_bypasses_duplicate_guard(self):
         mock_trading = _MockMCPClient({"place_buy_order": {"status": "filled"}})
+        mock_market = _MockMCPClient({"get_stock_price": {"price": 850.0}})
         supervisor = Supervisor(
             settings=_settings(),
             approval_flow=_AutoApprove(),
             trading_client=mock_trading,
+            market_data_client=mock_market,
         )
         picks = _daily_picks(LLMProvider.CLAUDE)
 
@@ -178,7 +182,6 @@ class TestSupervisor:
             picks=picks,
             budget_eur=10.0,
             portfolio=[],
-            market_data={"ASML.AS": {"price": {"price": 850.0}}},
             force=True,
         )
         assert result[0]["status"] == "filled"
@@ -189,10 +192,12 @@ class TestSupervisor:
     @pytest.mark.asyncio
     async def test_execute_virtual_trade_skips_missing_price(self):
         mock_trading = _MockMCPClient({"record_virtual_trade": {"status": "filled"}})
+        mock_market = _MockMCPClient({"get_stock_price": {}})
         supervisor = Supervisor(
             settings=_settings(),
             approval_flow=_AutoApprove(),
             trading_client=mock_trading,
+            market_data_client=mock_market,
         )
         picks = _daily_picks(LLMProvider.MINIMAX)
 
@@ -205,7 +210,6 @@ class TestSupervisor:
             picks=picks,
             budget_eur=10.0,
             portfolio=[],
-            market_data={},
             force=False,
         )
         assert result[0]["status"] == "skipped"

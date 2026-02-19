@@ -175,6 +175,96 @@ class TestT212Client:
         resolved = await client.resolve_ticker("ASML.AS")
         assert resolved is None
 
+    @pytest.mark.asyncio
+    async def test_resolve_ticker_prefix_fallback(self):
+        """When exact candidates fail, prefix matching finds T212's shorter base symbol."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        # T212 has STM_US_EQ but Yahoo uses STMPA.PA for the same company
+        mock_response.json.return_value = [
+            {"ticker": "STM_US_EQ"},
+            {"ticker": "AAPL_US_EQ"},
+        ]
+
+        client = T212Client(api_key="test-key", api_secret="test-secret")
+        client._client = AsyncMock()
+        client._client.request = AsyncMock(return_value=mock_response)
+
+        resolved = await client.resolve_ticker("STMPA.PA")
+        assert resolved == "STM_US_EQ"
+
+    @pytest.mark.asyncio
+    async def test_resolve_ticker_cross_exchange(self):
+        """EU ticker resolves via a different country listing on T212."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        # Yahoo uses RED.MC (Madrid) but T212 lists RED_ES_EQ
+        mock_response.json.return_value = [
+            {"ticker": "RED_ES_EQ"},
+            {"ticker": "AAPL_US_EQ"},
+        ]
+
+        client = T212Client(api_key="test-key", api_secret="test-secret")
+        client._client = AsyncMock()
+        client._client.request = AsyncMock(return_value=mock_response)
+
+        resolved = await client.resolve_ticker("RED.MC")
+        assert resolved == "RED_ES_EQ"
+
+    @pytest.mark.asyncio
+    async def test_resolve_ticker_cross_exchange_different_country(self):
+        """EU ticker listed on different exchange than Yahoo suffix suggests."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        # Yahoo: CCEP.AS (Amsterdam/NL) but T212 has it as CCEP_US_EQ
+        mock_response.json.return_value = [
+            {"ticker": "CCEP_US_EQ"},
+        ]
+
+        client = T212Client(api_key="test-key", api_secret="test-secret")
+        client._client = AsyncMock()
+        client._client.request = AsyncMock(return_value=mock_response)
+
+        resolved = await client.resolve_ticker("CCEP.AS")
+        assert resolved == "CCEP_US_EQ"
+
+    @pytest.mark.asyncio
+    async def test_resolve_ticker_name_fallback(self):
+        """When all ticker-based matching fails, fall back to instrument name search."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        # T212 uses a completely different ticker for Adyen (e.g. 0YXG_GB_EQ)
+        # but the instrument name contains "Adyen"
+        mock_response.json.return_value = [
+            {"ticker": "AAPL_US_EQ", "name": "Apple Inc"},
+            {"ticker": "0YXG_GB_EQ", "name": "Adyen NV"},
+        ]
+
+        client = T212Client(api_key="test-key", api_secret="test-secret")
+        client._client = AsyncMock()
+        client._client.request = AsyncMock(return_value=mock_response)
+
+        resolved = await client.resolve_ticker("ADYEN.AS")
+        assert resolved == "0YXG_GB_EQ"
+
+    @pytest.mark.asyncio
+    async def test_resolve_ticker_name_fallback_skips_short_base(self):
+        """Name fallback requires base >= 4 chars to avoid false positives."""
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        # XYZ has a 3-char base — no ticker/prefix match, only name contains "XYZ"
+        mock_response.json.return_value = [
+            {"ticker": "0ABC_GB_EQ", "name": "XYZ Holdings Plc"},
+        ]
+
+        client = T212Client(api_key="test-key", api_secret="test-secret")
+        client._client = AsyncMock()
+        client._client.request = AsyncMock(return_value=mock_response)
+
+        # XYZ (3 chars) should NOT match via name search — too short
+        resolved = await client.resolve_ticker("XYZ.L")
+        assert resolved is None
+
 
 class TestTradingServerOrders:
     @pytest.mark.asyncio

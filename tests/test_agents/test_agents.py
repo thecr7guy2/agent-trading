@@ -12,6 +12,8 @@ from src.db.models import (
     DailyPicks,
     LLMProvider,
     MarketAnalysis,
+    ResearchFinding,
+    ResearchReport,
     SentimentReport,
     TickerAnalysis,
     TickerSentiment,
@@ -241,6 +243,38 @@ class TestTraderAgent:
         assert "Daily Budget" in user_msg
         assert "10.0 EUR" in user_msg
         assert "SAP.DE" in user_msg
+
+    @pytest.mark.asyncio
+    async def test_accepts_research_report_input(self):
+        provider = _mock_provider(TRADER_RESPONSE_JSON, DailyPicks)
+        research = ResearchReport(
+            analysis_date=date(2026, 2, 15),
+            tickers=[
+                ResearchFinding(
+                    ticker="ASML.AS",
+                    fundamental_score=8.5,
+                    technical_score=7.0,
+                    risk_score=3.0,
+                    summary="Strong fundamentals.",
+                )
+            ],
+            tool_calls_made=5,
+        )
+        agent = TraderAgent(provider, "model", LLMProvider.CLAUDE)
+
+        result = await agent.run(
+            {
+                "sentiment": SAMPLE_SENTIMENT,
+                "research": research,
+                "portfolio": [],
+                "budget_eur": 10.0,
+            }
+        )
+
+        assert isinstance(result, DailyPicks)
+        call_args = provider.generate.call_args
+        user_msg = call_args[1]["user_message"]
+        assert "Research Report" in user_msg
 
     def test_properties(self):
         provider = AsyncMock()

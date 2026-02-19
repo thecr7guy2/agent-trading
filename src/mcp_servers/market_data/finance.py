@@ -266,33 +266,31 @@ async def get_ticker_earnings(ticker: str) -> dict:
 
 
 async def search_eu_stocks_by_query(query: str) -> list[dict]:
-    results = []
-    query_upper = query.upper().strip()
+    eu_suffix_set = {f".{s}" for s in EU_SUFFIXES}
 
-    async def _try_ticker(candidate: str, exchange: str):
+    def _fetch():
         try:
-            info = await asyncio.to_thread(lambda: yf.Ticker(candidate).info)
-            name = info.get("shortName") or info.get("longName")
-            if name and info.get("currentPrice") or info.get("regularMarketPrice"):
+            search = yf.Search(query, max_results=20)
+            results = []
+            for quote in search.quotes:
+                symbol = quote.get("symbol", "")
+                if not any(symbol.endswith(sfx) for sfx in eu_suffix_set):
+                    continue
+                suffix = symbol.rsplit(".", 1)[-1]
                 results.append(
                     {
-                        "ticker": candidate,
-                        "name": name,
-                        "exchange": exchange,
-                        "price": info.get("currentPrice") or info.get("regularMarketPrice"),
-                        "currency": info.get("currency", ""),
+                        "ticker": symbol,
+                        "name": quote.get("shortname") or quote.get("longname", ""),
+                        "exchange": EU_SUFFIXES.get(suffix, quote.get("exchDisp", "")),
+                        "sector": quote.get("sectorDisp", ""),
+                        "industry": quote.get("industryDisp", ""),
                     }
                 )
+            return results
         except Exception:
-            pass
+            return []
 
-    tasks = []
-    for suffix, exchange in EU_SUFFIXES.items():
-        candidate = f"{query_upper}.{suffix}"
-        tasks.append(_try_ticker(candidate, exchange))
-    await asyncio.gather(*tasks)
-
-    return sorted(results, key=lambda r: r["name"])
+    return await asyncio.to_thread(_fetch)
 
 
 # --- Market status ---

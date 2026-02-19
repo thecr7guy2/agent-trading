@@ -8,7 +8,15 @@ from zoneinfo import ZoneInfo
 from src.agents.pipeline import AgentPipeline
 from src.config import Settings, get_settings
 from src.db.connection import get_pool
-from src.db.models import DailyPicks, LLMProvider, Position, SellSignal, StockPick
+from src.db.models import (
+    DailyPicks,
+    LLMProvider,
+    PickReview,
+    Position,
+    ResearchReport,
+    SellSignal,
+    StockPick,
+)
 from src.mcp_servers.trading.portfolio import PortfolioManager
 from src.notifications.telegram import TelegramNotifier
 from src.orchestrator.approval import ApprovalDecision, CLIApprovalFlow
@@ -23,11 +31,154 @@ from src.orchestrator.sell_strategy import SellStrategyEngine
 
 logger = logging.getLogger(__name__)
 
+# Reddit noise: common acronyms, indices, and ETFs that aren't individual stock picks
+_NOISE_TICKERS = {
+    # Reddit acronyms often parsed as tickers
+    "FAQ",
+    "DD",
+    "CEO",
+    "GDP",
+    "IPO",
+    "ATH",
+    "ATL",
+    "IMO",
+    "YOLO",
+    "FYI",
+    "EPS",
+    "USA",
+    "USD",
+    "EUR",
+    "GBP",
+    "ETF",
+    "SEC",
+    "FED",
+    "CPI",
+    "PPI",
+    "FOMC",
+    "HODL",
+    "DCA",
+    "OEM",
+    "LLC",
+    "INC",
+    "YOY",
+    "QOQ",
+    "MOM",
+    "RIP",
+    "FUD",
+    "APE",
+    "TLDR",
+}
+_INDEX_TICKERS = {"VIX", "GSPC", "DJI", "IXIC", "FTSE", "DAX", "CAC"}
+_COMMON_ETFS = {
+    "VOO",
+    "SPY",
+    "QQQ",
+    "SCHD",
+    "VTI",
+    "VEA",
+    "VXUS",
+    "BND",
+    "VIG",
+    "IWM",
+    "DIA",
+    "ARKK",
+    "ARKW",
+    "ARKG",
+    "VGT",
+    "SOXL",
+    "SOXS",
+    "TQQQ",
+    "SQQQ",
+    "VT",
+    "QQQM",
+    "JEPI",
+    "JEPQ",
+    "RSP",
+    "XLF",
+    "XLE",
+    "XLK",
+    "VYM",
+    "VNQ",
+    "GLD",
+    "SLV",
+    "TLT",
+    "HYG",
+    "LQD",
+    "AGG",
+    "EFA",
+    "EEM",
+    "IEMG",
+    "SCHG",
+    "QQQI",
+    "SPYI",
+    "VWCE",
+    "NEOS",
+    "IWDA",
+    "VUSA",
+    "CSPX",
+    "VUAA",
+    "VWRL",
+    "SWDA",
+}
+_EXCLUDED = _NOISE_TICKERS | _INDEX_TICKERS | _COMMON_ETFS
+
+
+def _is_valid_stock_ticker(ticker: str) -> bool:
+    upper = ticker.upper()
+    if upper in _EXCLUDED:
+        return False
+    # 1-2 char tickers from Reddit are almost always noise (II, PC, AI, EU, UK)
+    if len(ticker) <= 2:
+        return False
+    return True
+
+
+def _select_candidates(candidates: dict[str, dict], limit: int) -> list[dict]:
+    # Multi-source candidates are the highest value (confirmed by 2+ independent signals)
+    multi_source = sorted(
+        [c for c in candidates.values() if len(c.get("sources", [])) >= 2],
+        key=lambda c: (len(c["sources"]), c.get("reddit_mentions", 0)),
+        reverse=True,
+    )
+
+    # Single-source buckets
+    reddit_only = sorted(
+        [c for c in candidates.values() if c.get("sources") == ["reddit"]],
+        key=lambda c: c.get("reddit_mentions", 0),
+        reverse=True,
+    )
+    screener_only = [
+        c for c in candidates.values() if c.get("sources") == ["screener"]
+    ]  # Already sorted by screener_hits from screener.py
+    earnings_only = [c for c in candidates.values() if c.get("sources") == ["earnings"]]
+
+    # Build final list: multi-source first, then guaranteed slots per source
+    result = list(multi_source[:limit])
+    remaining = limit - len(result)
+    if remaining <= 0:
+        return result[:limit]
+
+    # Reserve ~40% for EU screener, ~10% for earnings, rest for Reddit
+    screener_quota = min(remaining * 2 // 5, len(screener_only))
+    # Minimum 8 screener slots if available (EU stocks are the trading target)
+    screener_quota = max(screener_quota, min(8, len(screener_only), remaining))
+    result.extend(screener_only[:screener_quota])
+    remaining -= screener_quota
+
+    earnings_quota = min(max(remaining // 5, 1), len(earnings_only), remaining)
+    result.extend(earnings_only[:earnings_quota])
+    remaining -= earnings_quota
+
+    # Fill rest with Reddit
+    result.extend(reddit_only[:remaining])
+    return result[:limit]
+
 
 @dataclass
 class PipelineResult:
     llm: LLMProvider
-    picks: DailyPicks
+    picks: PickReview | DailyPicks
+    research: ResearchReport | None
     portfolio: list[Position]
 
 
@@ -86,7 +237,7 @@ class Supervisor:
 
         for t in reddit_digest.get("tickers", []):
             ticker = t.get("ticker", "")
-            if not ticker:
+            if not ticker or not _is_valid_stock_ticker(ticker):
                 continue
             candidates[ticker] = {
                 "ticker": ticker,
@@ -150,15 +301,10 @@ class Supervisor:
         except Exception:
             logger.exception("Earnings calendar call failed, continuing without it")
 
-        sorted_candidates = sorted(
-            candidates.values(),
-            key=lambda c: (len(c.get("sources", [])), c.get("reddit_mentions", 0)),
-            reverse=True,
-        )
         limit = getattr(self._settings, "signal_candidate_limit", 25)
-        sorted_candidates = sorted_candidates[:limit]
+        sorted_candidates = _select_candidates(candidates, limit)
 
-        top_tickers = [c["ticker"] for c in sorted_candidates[:limit]]
+        top_tickers = [c["ticker"] for c in sorted_candidates]
         news_map = await self._fetch_news_batch(top_tickers)
         for candidate in sorted_candidates:
             ticker = candidate["ticker"]
@@ -261,11 +407,11 @@ class Supervisor:
         if digest.get("error"):
             return {"status": "error", "stage": "signal_digest", "error": digest["error"]}
 
-        market_data = await self.build_market_data(digest)
+        # Phase 8: Research Agent fetches market data via tools — no build_market_data()
         main_trader = get_main_trader(run_date)
         virtual_trader = get_virtual_trader(run_date)
 
-        pipeline_results = await self._run_pipelines(digest, market_data, run_date)
+        pipeline_results = await self._run_pipelines(digest, run_date)
         result_by_llm = {item.llm: item for item in pipeline_results}
 
         if main_trader not in result_by_llm:
@@ -275,19 +421,22 @@ class Supervisor:
         virtual_result = result_by_llm.get(virtual_trader)
 
         pm = await self._get_portfolio_manager()
-        await pm.save_daily_picks(main_result.picks, is_main=True)
+        # Convert PickReview to DailyPicks for save_daily_picks compatibility
+        main_daily = self._to_daily_picks(main_result.picks)
+        await pm.save_daily_picks(main_daily, is_main=True)
         if virtual_result is not None:
-            await pm.save_daily_picks(virtual_result.picks, is_main=False)
+            virtual_daily = self._to_daily_picks(virtual_result.picks)
+            await pm.save_daily_picks(virtual_daily, is_main=False)
 
-        decision = await self._resolve_approval(main_result.picks, require_approval)
-        approved_picks = self._select_picks(main_result.picks.picks, decision)
+        decision = await self._resolve_approval(main_daily, require_approval)
+        approved_picks = self._select_picks(main_daily.picks, decision)
         approved_daily = DailyPicks(
-            llm=main_result.picks.llm,
-            pick_date=main_result.picks.pick_date,
+            llm=main_daily.llm,
+            pick_date=main_daily.pick_date,
             picks=approved_picks,
-            sell_recommendations=main_result.picks.sell_recommendations,
-            confidence=main_result.picks.confidence,
-            market_summary=main_result.picks.market_summary,
+            sell_recommendations=main_daily.sell_recommendations,
+            confidence=main_daily.confidence,
+            market_summary=main_daily.market_summary,
         )
         self._normalize_allocations(approved_daily)
 
@@ -296,17 +445,16 @@ class Supervisor:
             picks=approved_daily,
             budget_eur=self._settings.daily_budget_eur,
             portfolio=main_result.portfolio,
-            market_data=market_data,
             force=force,
         )
         virtual_execution = []
         if virtual_result is not None:
+            v_daily = self._to_daily_picks(virtual_result.picks)
             virtual_execution = await self._execute_virtual_trades(
                 llm=virtual_trader,
-                picks=virtual_result.picks,
+                picks=v_daily,
                 budget_eur=self._settings.daily_budget_eur,
                 portfolio=virtual_result.portfolio,
-                market_data=market_data,
                 force=force,
             )
 
@@ -324,23 +472,96 @@ class Supervisor:
                 "timed_out": decision.timed_out,
             },
             "reddit_posts": digest.get("total_posts", 0),
-            "tickers_analyzed": len(market_data),
+            "tickers_analyzed": len(digest.get("candidates", [])),
             "real_execution": real_execution,
             "virtual_execution": virtual_execution,
             "signal_digest": digest,
+            "pipeline_analysis": {
+                main_trader.value: self._build_analysis_summary(main_result),
+                **(
+                    {virtual_trader.value: self._build_analysis_summary(virtual_result)}
+                    if virtual_result
+                    else {}
+                ),
+            },
         }
 
         await self._notifier.notify_daily_summary(decision_result)
         return decision_result
 
+    @staticmethod
+    def _build_analysis_summary(result: PipelineResult) -> dict:
+        picks_obj = result.picks
+        picked_tickers = {p.ticker for p in picks_obj.picks}
+
+        # Per-pick reasoning from the trader
+        pick_reasoning = [
+            {
+                "ticker": p.ticker,
+                "action": p.action,
+                "allocation_pct": p.allocation_pct,
+                "reasoning": p.reasoning,
+            }
+            for p in picks_obj.picks
+        ]
+
+        # Research summaries for all analyzed tickers (picked and not picked)
+        researched: list[dict] = []
+        not_picked: list[dict] = []
+        if result.research and hasattr(result.research, "tickers"):
+            for finding in result.research.tickers:
+                entry = {
+                    "ticker": finding.ticker,
+                    "fundamental_score": finding.fundamental_score,
+                    "technical_score": finding.technical_score,
+                    "risk_score": finding.risk_score,
+                    "summary": getattr(finding, "summary", ""),
+                    "catalyst": getattr(finding, "catalyst", ""),
+                    "news_summary": getattr(finding, "news_summary", ""),
+                }
+                researched.append(entry)
+                if finding.ticker not in picked_tickers:
+                    not_picked.append(entry)
+
+        # Risk review details
+        risk_review = {}
+        if isinstance(picks_obj, PickReview):
+            risk_review = {
+                "risk_notes": picks_obj.risk_notes,
+                "adjustments": picks_obj.adjustments,
+                "vetoed_tickers": picks_obj.vetoed_tickers,
+            }
+
+        return {
+            "picks": pick_reasoning,
+            "confidence": picks_obj.confidence,
+            "market_summary": picks_obj.market_summary,
+            "researched_tickers": researched,
+            "not_picked": not_picked,
+            "risk_review": risk_review,
+        }
+
+    @staticmethod
+    def _to_daily_picks(picks: PickReview | DailyPicks) -> DailyPicks:
+        if isinstance(picks, DailyPicks):
+            return picks
+        return DailyPicks(
+            llm=picks.llm,
+            pick_date=picks.pick_date,
+            picks=picks.picks,
+            sell_recommendations=picks.sell_recommendations,
+            confidence=picks.confidence,
+            market_summary=picks.market_summary,
+        )
+
     async def _run_pipelines(
         self,
         digest: dict,
-        market_data: dict[str, dict],
         run_date: date,
     ) -> list[PipelineResult]:
         self._ensure_clients()
         budget = self._settings.daily_budget_eur
+        timeout = getattr(self._settings, "pipeline_timeout_seconds", 600)
 
         async def _run_for(llm: LLMProvider) -> PipelineResult:
             pm = await self._get_portfolio_manager()
@@ -354,38 +575,41 @@ class Supervisor:
                 }
                 for p in positions
             ]
-            picks = await self._get_pipeline(llm).run(
+            output = await self._get_pipeline(llm).run(
                 signal_digest=digest,
-                market_data=market_data,
                 portfolio=portfolio_dicts,
                 budget_eur=budget,
                 run_date=run_date,
             )
-            return PipelineResult(llm=llm, picks=picks, portfolio=positions)
-
-        tasks = [_run_for(LLMProvider.CLAUDE), _run_for(LLMProvider.MINIMAX)]
-        try:
-            results = await asyncio.wait_for(
-                asyncio.gather(*tasks, return_exceptions=True),
-                timeout=300.0,
+            research = output.research if isinstance(output.research, ResearchReport) else None
+            return PipelineResult(
+                llm=llm, picks=output.picks, research=research, portfolio=positions
             )
-        except TimeoutError:
-            logger.error("LLM pipelines timed out after 300s")
-            return []
 
-        successful: list[PipelineResult] = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                llm_name = [LLMProvider.CLAUDE, LLMProvider.MINIMAX][i].value
-                logger.exception("Pipeline failed for %s: %s", llm_name, result)
-                continue
-            successful.append(result)
-        return successful
+        async def _run_with_timeout(llm: LLMProvider) -> PipelineResult | None:
+            try:
+                return await asyncio.wait_for(_run_for(llm), timeout=float(timeout))
+            except TimeoutError:
+                logger.error("Pipeline timed out for %s after %ds", llm.value, timeout)
+                return None
+            except Exception:
+                logger.exception("Pipeline failed for %s", llm.value)
+                return None
+
+        results = await asyncio.gather(
+            _run_with_timeout(LLMProvider.CLAUDE),
+            _run_with_timeout(LLMProvider.MINIMAX),
+        )
+        return [r for r in results if r is not None]
 
     def _get_pipeline(self, llm: LLMProvider) -> AgentPipeline:
         pipeline = self._pipelines.get(llm)
         if pipeline is None:
-            pipeline = AgentPipeline(llm)
+            pipeline = AgentPipeline(
+                llm,
+                market_data_client=self._market_data_client,
+                trading_client=self._trading_client,
+            )
             self._pipelines[llm] = pipeline
         return pipeline
 
@@ -417,13 +641,23 @@ class Supervisor:
             if pick.action == "buy":
                 pick.allocation_pct = round(pick.allocation_pct * ratio, 2)
 
+    async def _fetch_price(self, ticker: str) -> float:
+        try:
+            price_resp = await asyncio.wait_for(
+                self._market_data_client.call_tool("get_stock_price", {"ticker": ticker}),
+                timeout=15.0,
+            )
+        except TimeoutError:
+            logger.warning("Price fetch timed out for %s", ticker)
+            price_resp = {}
+        return self._extract_price(price_resp)
+
     async def _execute_real_trades(
         self,
         llm: LLMProvider,
         picks: DailyPicks,
         budget_eur: float,
         portfolio: list[Position],
-        market_data: dict[str, dict],
         force: bool,
     ) -> list[dict]:
         self._ensure_clients()
@@ -438,8 +672,7 @@ class Supervisor:
             amount = round(budget_eur * (pick.allocation_pct / 100.0), 2)
             if amount <= 0:
                 continue
-            ticker_data = market_data.get(pick.ticker, {})
-            price = self._extract_price(ticker_data.get("price", {}))
+            price = await self._fetch_price(pick.ticker)
             if price <= 0:
                 executions.append(
                     {"status": "skipped", "reason": "missing_price", "ticker": pick.ticker}
@@ -490,7 +723,6 @@ class Supervisor:
         picks: DailyPicks,
         budget_eur: float,
         portfolio: list[Position],
-        market_data: dict[str, dict],
         force: bool,
     ) -> list[dict]:
         self._ensure_clients()
@@ -504,8 +736,7 @@ class Supervisor:
             amount = budget_eur * (pick.allocation_pct / 100.0)
             if amount <= 0:
                 continue
-            ticker_data = market_data.get(pick.ticker, {})
-            price = self._extract_price(ticker_data.get("price", {}))
+            price = await self._fetch_price(pick.ticker)
             if price <= 0:
                 executions.append(
                     {
@@ -543,8 +774,7 @@ class Supervisor:
             quantity = float(position.quantity)
             if quantity <= 0:
                 continue
-            ticker_data = market_data.get(ticker, {})
-            price = self._extract_price(ticker_data.get("price", {}))
+            price = await self._fetch_price(ticker)
             if price <= 0:
                 price = float(position.avg_buy_price)
             if price <= 0:

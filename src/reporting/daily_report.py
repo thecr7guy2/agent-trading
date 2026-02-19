@@ -75,8 +75,107 @@ async def generate_daily_report(
             lines.append("- Divergence: **None** (identical picks)")
         lines.append("")
 
+    # LLM Analysis — detailed reasoning per model
+    pipeline_analysis = decision_result.get("pipeline_analysis", {})
+    for trader_name in (main_trader, virtual_trader):
+        analysis = pipeline_analysis.get(trader_name)
+        if not analysis:
+            continue
+        role = "Main — Real" if trader_name == main_trader else "Virtual"
+        lines.append(f"## {trader_name.capitalize()} Analysis ({role})")
+
+        # Market summary from the LLM
+        market_summary = analysis.get("market_summary", "")
+        if market_summary:
+            lines.append(f"**Market View:** {market_summary}")
+            lines.append("")
+
+        confidence = analysis.get("confidence", 0)
+        lines.append(f"**Confidence:** {confidence:.0%}")
+        lines.append("")
+
+        # Why each stock was picked
+        picks = analysis.get("picks", [])
+        if picks:
+            lines.append("### Picked")
+            lines.append("| Ticker | Action | Allocation | Reasoning |")
+            lines.append("|--------|--------|------------|-----------|")
+            for p in picks:
+                ticker = p.get("ticker", "?")
+                action = p.get("action", "buy")
+                alloc = p.get("allocation_pct", 0)
+                reasoning = p.get("reasoning", "").replace("|", "/")
+                lines.append(f"| {ticker} | {action} | {alloc:.0f}% | {reasoning} |")
+            lines.append("")
+
+        # Research scores for all analyzed tickers
+        researched = analysis.get("researched_tickers", [])
+        if researched:
+            lines.append("### Research Scores")
+            lines.append("| Ticker | Fund. | Tech. | Risk | Summary |")
+            lines.append("|--------|-------|-------|------|---------|")
+            for r in researched:
+                ticker = r.get("ticker", "?")
+                fund = r.get("fundamental_score", 0)
+                tech = r.get("technical_score", 0)
+                risk = r.get("risk_score", 0)
+                summary = (r.get("summary") or r.get("catalyst") or "").replace("|", "/")
+                # Truncate long summaries for table readability
+                if len(summary) > 120:
+                    summary = summary[:117] + "..."
+                lines.append(f"| {ticker} | {fund:.1f} | {tech:.1f} | {risk:.1f} | {summary} |")
+            lines.append("")
+
+        # Why stocks were NOT picked
+        not_picked = analysis.get("not_picked", [])
+        if not_picked:
+            lines.append("### Not Picked")
+            lines.append("| Ticker | Fund. | Tech. | Risk | Why Not |")
+            lines.append("|--------|-------|-------|------|---------|")
+            for r in not_picked:
+                ticker = r.get("ticker", "?")
+                fund = r.get("fundamental_score", 0)
+                tech = r.get("technical_score", 0)
+                risk = r.get("risk_score", 0)
+                # Build a short explanation from the scores
+                reasons = []
+                if risk >= 7:
+                    reasons.append("high risk")
+                if fund < 5:
+                    reasons.append("weak fundamentals")
+                if tech < 5:
+                    reasons.append("weak technicals")
+                if not reasons:
+                    reasons.append("lower conviction vs picks")
+                summary = (r.get("summary") or "").replace("|", "/")
+                if summary:
+                    reason_str = f"{'; '.join(reasons)} — {summary}"
+                else:
+                    reason_str = "; ".join(reasons)
+                if len(reason_str) > 120:
+                    reason_str = reason_str[:117] + "..."
+                lines.append(f"| {ticker} | {fund:.1f} | {tech:.1f} | {risk:.1f} | {reason_str} |")
+            lines.append("")
+
+        # Risk review adjustments
+        risk_review = analysis.get("risk_review", {})
+        if risk_review:
+            risk_notes = risk_review.get("risk_notes", "")
+            adjustments = risk_review.get("adjustments", [])
+            vetoed = risk_review.get("vetoed_tickers", [])
+            if risk_notes or adjustments or vetoed:
+                lines.append("### Risk Review")
+                if risk_notes:
+                    lines.append(f"**Notes:** {risk_notes}")
+                if adjustments:
+                    for adj in adjustments:
+                        lines.append(f"- {adj}")
+                if vetoed:
+                    lines.append(f"- **Vetoed:** {', '.join(vetoed)}")
+                lines.append("")
+
     # Picks & Execution
-    lines.append("## Picks & Execution")
+    lines.append("## Execution")
 
     # Main trader
     lines.append(f"### {main_trader.capitalize()} (Main — Real Trades)")

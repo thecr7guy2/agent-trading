@@ -18,7 +18,9 @@ class PnLEngine:
         end_date: date,
         is_real: bool = True,
     ) -> PnLReport:
-        pnl_data = await self._pm.calculate_pnl(llm_name.value, start_date, end_date, is_real=is_real)
+        pnl_data = await self._pm.calculate_pnl(
+            llm_name.value, start_date, end_date, is_real=is_real
+        )
 
         total_invested = Decimal(pnl_data["total_invested"])
         realized_pnl = Decimal(pnl_data["realized_pnl"])

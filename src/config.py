@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     # MiniMax model ID
     minimax_model: str = "MiniMax-M2.5"
 
+    # Phase 8: Tool calling
+    max_tool_rounds: int = 8
+    pipeline_timeout_seconds: int = 900
+
 
 def get_settings() -> Settings:
     return Settings()

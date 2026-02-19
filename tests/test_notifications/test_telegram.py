@@ -40,7 +40,7 @@ class TestTelegramNotifier:
             anthropic_api_key="test",
             minimax_api_key="test",
             t212_api_key="test",
-        t212_api_secret="test",
+            t212_api_secret="test",
             telegram_enabled=True,
             telegram_bot_token=None,
             telegram_chat_id="12345",

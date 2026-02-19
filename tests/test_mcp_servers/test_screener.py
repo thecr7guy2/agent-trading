@@ -94,8 +94,8 @@ class TestScreenAllEu:
             "marketCap": 50_000_000_000,
         }
 
-        def mock_screen(query, sort_field, sort_asc, size):
-            if sort_field == "percentchange" and not sort_asc:
+        def mock_screen(query, **kwargs):
+            if kwargs.get("sortField") == "percentchange" and not kwargs.get("sortAsc"):
                 return {"quotes": [ASML_QUOTE, ing_quote]}
             return {"quotes": [ASML_QUOTE]}
 

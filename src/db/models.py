@@ -27,7 +27,9 @@ class LLMProvider(StrEnum):
 class AgentStage(StrEnum):
     SENTIMENT = "sentiment"
     MARKET = "market"
+    RESEARCH = "research"
     TRADER = "trader"
+    RISK = "risk"
 
 
 # --- Pipeline Stage 1: Sentiment ---
@@ -94,6 +96,73 @@ class TickerAnalysis(BaseModel):
 class MarketAnalysis(BaseModel):
     analysis_date: date
     tickers: list[TickerAnalysis]
+
+
+# --- Pipeline Stage 2b: Research (replaces MarketAnalysis for tool-calling pipeline) ---
+
+
+class ResearchFinding(BaseModel):
+    ticker: str
+    exchange: str = ""
+    current_price: Decimal = Decimal("0")
+    currency: str = "EUR"
+    fundamental_score: float = Field(
+        default=0.0, ge=0.0, le=10.0, description="0-10 score on fundamentals"
+    )
+    technical_score: float = Field(
+        default=0.0, ge=0.0, le=10.0, description="0-10 score on technical indicators"
+    )
+    risk_score: float = Field(default=0.0, ge=0.0, le=10.0, description="0-10 risk level")
+    news_summary: str = ""
+    earnings_outlook: str = ""
+    catalyst: str = ""
+    sector_peers: list[str] = Field(default_factory=list)
+    summary: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_nulls(cls, data: dict) -> dict:
+        if not isinstance(data, dict):
+            return data
+        defaults = {
+            "exchange": "",
+            "current_price": "0",
+            "currency": "EUR",
+            "fundamental_score": 0.0,
+            "technical_score": 0.0,
+            "risk_score": 0.0,
+            "news_summary": "",
+            "earnings_outlook": "",
+            "catalyst": "",
+            "summary": "",
+        }
+        for fld, default in defaults.items():
+            if data.get(fld) is None:
+                data[fld] = default
+        return data
+
+
+class ResearchReport(BaseModel):
+    analysis_date: date
+    tickers: list[ResearchFinding]
+    sectors_analyzed: list[str] = Field(default_factory=list)
+    tool_calls_made: int = 0
+    research_notes: str = ""
+
+
+# --- Pipeline Stage 4: Risk Review ---
+
+
+class PickReview(BaseModel):
+    llm: LLMProvider
+    pick_date: date
+    picks: list["StockPick"] = Field(default_factory=list)
+    sell_recommendations: list["StockPick"] = Field(default_factory=list)
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+    market_summary: str = ""
+    risk_notes: str = ""
+    adjustments: list[str] = Field(default_factory=list)
+    vetoed_tickers: list[str] = Field(default_factory=list)
 
 
 # --- Pipeline Stage 3: Trading Decisions ---

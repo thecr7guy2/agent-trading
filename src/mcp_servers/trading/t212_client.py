@@ -1,6 +1,6 @@
 import base64
 import logging
-from decimal import Decimal, ROUND_DOWN
+from decimal import ROUND_DOWN, Decimal
 
 import httpx
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
@@ -35,6 +35,8 @@ class T212Client:
         "MC": "ES",
         "L": "GB",
     }
+    # All T212 country codes to try when a specific suffix fails
+    ALL_COUNTRIES = ("US", "NL", "FR", "DE", "IT", "ES", "GB")
 
     def __init__(self, api_key: str, api_secret: str, use_demo: bool = False):
         self._base_url = self.DEMO_BASE_URL if use_demo else self.LIVE_BASE_URL
@@ -73,9 +75,7 @@ class T212Client:
     async def place_market_order(self, ticker: str, quantity: float) -> dict:
         """Place a market order. Positive quantity = buy, negative = sell."""
         step = Decimal("1").scaleb(-self.MARKET_ORDER_QUANTITY_DECIMALS)
-        normalized_quantity = float(
-            Decimal(str(quantity)).quantize(step, rounding=ROUND_DOWN)
-        )
+        normalized_quantity = float(Decimal(str(quantity)).quantize(step, rounding=ROUND_DOWN))
         if normalized_quantity == 0.0:
             raise ValueError(
                 "quantity rounds to 0 at 3 decimal places; increase order size or use a lower price"
@@ -128,11 +128,69 @@ class T212Client:
                 if isinstance(value, str) and value:
                     symbols.add(value.upper())
 
-        for candidate in self._build_candidates(normalized):
+        # Step 1: Exact candidate matching (most reliable)
+        candidates = self._build_candidates(normalized)
+        for candidate in candidates:
             if candidate in symbols:
+                logger.info("Ticker resolved: %s → %s (exact)", ticker, candidate)
                 self._resolved_ticker_cache[normalized] = candidate
                 return candidate
 
+        base = normalized.split(".", maxsplit=1)[0] if "." in normalized else normalized
+
+        # Step 2: For EU tickers, also try the base with ALL country codes.
+        # Yahoo may use STMPA.PA (Paris) but T212 only lists STMPA_IT_EQ (Milan).
+        if "." in normalized and len(base) >= 2:
+            for country in self.ALL_COUNTRIES:
+                candidate = f"{base}_{country}_EQ"
+                if candidate in symbols:
+                    logger.info("Ticker resolved: %s → %s (cross-exchange)", ticker, candidate)
+                    self._resolved_ticker_cache[normalized] = candidate
+                    return candidate
+
+        # Step 3: Prefix fallback — T212 may use a shorter base symbol.
+        # e.g. Yahoo: STMPA.PA, T212: STM_US_EQ  (STM is a prefix of STMPA)
+        if len(base) >= 3:
+            best_match = None
+            best_len = 0
+            for symbol in symbols:
+                t212_base = symbol.split("_")[0]
+                if len(t212_base) < 3:
+                    continue
+                if base.startswith(t212_base) and len(t212_base) > best_len:
+                    best_match = symbol
+                    best_len = len(t212_base)
+            if best_match:
+                logger.info("Ticker resolved: %s → %s (prefix fallback)", ticker, best_match)
+                self._resolved_ticker_cache[normalized] = best_match
+                return best_match
+
+        # Step 4: Name-based search — T212 may use a completely different ticker
+        # symbol but the instrument name contains the base.
+        # e.g. Yahoo: ADYEN.AS, T212 ticker: 0YXG_GB_EQ, T212 name: "Adyen NV"
+        if len(base) >= 4:
+            for instrument in instruments:
+                inst_name = (instrument.get("name") or "").upper()
+                inst_short = (
+                    instrument.get("shortName") or instrument.get("shortname") or ""
+                ).upper()
+                if base in inst_name or base in inst_short:
+                    inst_ticker = instrument.get("ticker", "")
+                    if inst_ticker:
+                        logger.info(
+                            "Ticker resolved: %s → %s (name match in '%s')",
+                            ticker,
+                            inst_ticker,
+                            instrument.get("name", ""),
+                        )
+                        self._resolved_ticker_cache[normalized] = inst_ticker
+                        return inst_ticker
+
+        logger.warning(
+            "Ticker resolution failed for %s — candidates tried: %s",
+            ticker,
+            candidates,
+        )
         self._resolved_ticker_cache[normalized] = None
         return None
 
