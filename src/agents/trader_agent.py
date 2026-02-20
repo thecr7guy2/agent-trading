@@ -21,7 +21,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-PROMPT_PATH = Path(__file__).parent / "prompts" / "trader.md"
+_PROMPTS_DIR = Path(__file__).parent / "prompts"
+_STRATEGY_PROMPT_MAP = {
+    "conservative": _PROMPTS_DIR / "trader_conservative.md",
+    "aggressive": _PROMPTS_DIR / "trader_aggressive.md",
+}
+_DEFAULT_PROMPT_PATH = _PROMPTS_DIR / "trader.md"
 
 
 class TraderAgent(BaseAgent):
@@ -32,13 +37,15 @@ class TraderAgent(BaseAgent):
         llm: LLMProvider,
         tool_executor: ToolExecutor | None = None,
         max_tool_rounds: int = 5,
+        strategy: str = "conservative",
     ):
         self._provider = provider
         self._model = model
         self._llm = llm
         self._tool_executor = tool_executor
         self._max_tool_rounds = max_tool_rounds
-        self._system_prompt = PROMPT_PATH.read_text()
+        prompt_path = _STRATEGY_PROMPT_MAP.get(strategy, _DEFAULT_PROMPT_PATH)
+        self._system_prompt = prompt_path.read_text()
 
         if tool_executor is not None:
             if isinstance(provider, ClaudeProvider):
@@ -56,6 +63,38 @@ class TraderAgent(BaseAgent):
     def stage(self) -> AgentStage:
         return AgentStage.TRADER
 
+    @staticmethod
+    def _render_research_as_evidence(research) -> str:
+        """Render research findings as factual evidence (pros/cons) without scores."""
+        from src.db.models import ResearchReport
+
+        if not isinstance(research, ResearchReport):
+            # Legacy MarketAnalysis — fall back to JSON dump
+            return research.model_dump_json(indent=2)
+
+        lines = []
+        for f in research.tickers:
+            lines.append(f"**{f.ticker}** ({f.exchange or 'unknown exchange'})")
+            lines.append(f"  Price: {f.current_price} {f.currency}")
+            if f.pros:
+                lines.append("  Positives:")
+                for pro in f.pros:
+                    lines.append(f"    - {pro}")
+            if f.cons:
+                lines.append("  Risks:")
+                for con in f.cons:
+                    lines.append(f"    - {con}")
+            if f.catalyst:
+                lines.append(f"  Catalyst: {f.catalyst}")
+            if f.earnings_outlook:
+                lines.append(f"  Earnings: {f.earnings_outlook}")
+            if f.news_summary:
+                lines.append(f"  Recent news: {f.news_summary}")
+            if f.sector_peers:
+                lines.append(f"  Sector peers: {', '.join(f.sector_peers)}")
+            lines.append("")
+        return "\n".join(lines)
+
     async def run(self, input_data: dict) -> DailyPicks:
         sentiment: SentimentReport = input_data["sentiment"]
         # Support both ResearchReport (Phase 8) and MarketAnalysis (legacy)
@@ -63,13 +102,13 @@ class TraderAgent(BaseAgent):
         portfolio: list = input_data.get("portfolio", [])
         budget_eur: float = input_data.get("budget_eur", 10.0)
 
-        research_label = "Research Report" if "research" in input_data else "Market Analysis"
+        research_text = self._render_research_as_evidence(research)
         user_message = (
-            f"You are the **{self._llm.value}** LLM provider.\n\n"
+            f"You are the **{self._llm.value}** strategy pipeline.\n\n"
             "## Sentiment Report\n\n"
             f"{sentiment.model_dump_json(indent=2)}\n\n"
-            f"## {research_label}\n\n"
-            f"{research.model_dump_json(indent=2)}\n\n"
+            "## Research Evidence\n\n"
+            f"{research_text}\n\n"
             "## Current Portfolio\n\n"
             f"{json.dumps(portfolio, indent=2, default=str)}\n\n"
             f"## Daily Budget\n\n{budget_eur} EUR\n\n"

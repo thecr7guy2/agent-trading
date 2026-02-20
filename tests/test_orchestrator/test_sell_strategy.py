@@ -100,7 +100,7 @@ class TestEvaluatePositions:
             ),
             Position(
                 id=2,
-                llm_name=LLMProvider.MINIMAX,
+                llm_name=LLMProvider.CLAUDE_AGGRESSIVE,
                 ticker="SAP.DE",
                 quantity=Decimal("0.1"),
                 avg_buy_price=Decimal("200.00"),

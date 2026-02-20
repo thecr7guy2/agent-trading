@@ -31,12 +31,12 @@ def _make_report(llm: LLMProvider, pnl: str, wins: int = 1, losses: int = 0) -> 
 async def test_build_ranks_by_pnl():
     engine = AsyncMock()
     # Claude: real +4, virtual +1 => total +5
-    # MiniMax: real +1, virtual +0 => total +1
+    # Claude Aggressive: real +1, virtual +0 => total +1
     engine.get_pnl_report.side_effect = [
         _make_report(LLMProvider.CLAUDE, "4"),
         _make_report(LLMProvider.CLAUDE, "1"),
-        _make_report(LLMProvider.MINIMAX, "1"),
-        _make_report(LLMProvider.MINIMAX, "0"),
+        _make_report(LLMProvider.CLAUDE_AGGRESSIVE, "1"),
+        _make_report(LLMProvider.CLAUDE_AGGRESSIVE, "0"),
     ]
 
     builder = LeaderboardBuilder(engine)
@@ -46,7 +46,7 @@ async def test_build_ranks_by_pnl():
     assert result[0]["llm_name"] == "claude"
     assert result[0]["rank"] == 1
     assert float(result[0]["pnl"]) > float(result[1]["pnl"])
-    assert result[1]["llm_name"] == "minimax"
+    assert result[1]["llm_name"] == "claude_aggressive"
     assert result[1]["rank"] == 2
 
 

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Multi-LLM agentic trading system for European stocks. Two LLMs (Claude and MiniMax 2.5) alternate daily as the "main trader" placing real trades (~10 EUR/day) via Trading 212, while the other makes virtual picks tracked in PostgreSQL. The system runs fully autonomously with no approval required — a scheduler daemon handles all collection, trading, sell checks, and reporting automatically. See `specs.md` for full architecture.
+Hybrid multi-LLM agentic trading system for European stocks. A shared 4-stage pipeline uses MiniMax for cheap data-gathering (stages 1-2) and Claude for decision-making (stages 3-4). Two strategies run in parallel each day: conservative (Claude, real money ~€10/day via T212 live) and aggressive (Claude Aggressive, practice account ~€500/day via T212 demo). The system runs fully autonomously with no approval required — a scheduler daemon handles all collection, trading, sell checks, and reporting automatically.
 
 ## Tech Stack
 
@@ -188,14 +188,29 @@ Sentiment snapshots are automatically persisted at the end of each daily decisio
 
 ## LLM Agent Guidelines
 
-- Each LLM provider runs a 3-stage pipeline: Sentiment → Market → Trader.
-- All stages inherit from `BaseAgent` and return typed Pydantic models.
-- Claude uses `anthropic` SDK with tiered models: Haiku 4.5 (sentiment), Sonnet 4.5 (market), Opus 4.6 (trader).
-- MiniMax uses `openai` SDK (OpenAI-compatible, custom `base_url`) with MiniMax 2.5 for all stages.
-- `pipeline.py` orchestrates the 3 stages in sequence and is provider-agnostic.
-- `providers/claude.py` and `providers/minimax.py` handle API specifics (auth, model selection, response parsing).
-- Use structured output / JSON mode where available. Fall back to prompt-based JSON extraction with Pydantic validation.
-- System prompts live in `src/agents/prompts/` as markdown files (one per stage), NOT as inline strings.
+### Pipeline Architecture (4 stages, hybrid providers)
+
+One `AgentPipeline` instance runs per strategy. Both strategies share the same structure:
+
+| Stage | Agent | Provider | Model | Tools |
+|-------|-------|----------|-------|-------|
+| 1 — Sentiment | `SentimentAgent` | MiniMax | MiniMax-M2.5 | None |
+| 2 — Research | `ResearchAgent` | MiniMax | MiniMax-M2.5 | Market data MCP tools |
+| 3 — Trader | `TraderAgent` | Claude | Opus 4.6 | None |
+| 4 — Risk Review | `RiskReviewAgent` | Claude | Sonnet 4.6 | None |
+
+Two strategies run in parallel each trading day:
+- **Conservative** (`LLMProvider.CLAUDE`) — real money, €10/day budget, T212 live account
+- **Aggressive** (`LLMProvider.CLAUDE_AGGRESSIVE`) — practice money, €500/day budget, T212 demo account
+
+The `LLMProvider` enum identifies the strategy/portfolio, not the underlying API. Both strategies always use MiniMax for stages 1-2 and Claude for stages 3-4.
+
+### Provider Details
+- **MiniMax:** `openai` SDK (OpenAI-compatible, custom `base_url`), MiniMax-M2.5 for both sentiment and research
+- **Claude:** `anthropic` SDK, Opus 4.6 for trading decisions, Sonnet 4.6 for risk review
+- `providers/claude.py` and `providers/minimax.py` handle API specifics (auth, model selection, response parsing)
+- Use structured output / JSON mode where available. Fall back to prompt-based JSON extraction with Pydantic validation
+- System prompts live in `src/agents/prompts/` as markdown files (one per stage), NOT as inline strings
 
 ## MCP Server Guidelines
 

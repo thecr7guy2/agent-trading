@@ -105,19 +105,20 @@ class TestAgentPipeline:
             mock_trading_client = MagicMock()
 
             pipeline = AgentPipeline(
-                LLMProvider.MINIMAX,
+                LLMProvider.CLAUDE_AGGRESSIVE,
                 market_data_client=mock_market_client,
                 trading_client=mock_trading_client,
+                strategy="aggressive",
             )
 
-            minimax_picks = DailyPicks(
-                llm=LLMProvider.MINIMAX,
+            aggressive_picks = DailyPicks(
+                llm=LLMProvider.CLAUDE_AGGRESSIVE,
                 pick_date=date(2026, 2, 15),
                 picks=[StockPick(ticker="SAP.DE", allocation_pct=100.0, reasoning="All in")],
                 confidence=0.6,
             )
-            minimax_review = PickReview(
-                llm=LLMProvider.MINIMAX,
+            aggressive_review = PickReview(
+                llm=LLMProvider.CLAUDE_AGGRESSIVE,
                 pick_date=date(2026, 2, 15),
                 picks=[StockPick(ticker="SAP.DE", allocation_pct=100.0, reasoning="All in")],
                 confidence=0.6,
@@ -125,15 +126,15 @@ class TestAgentPipeline:
 
             pipeline._sentiment.run = AsyncMock(return_value=SAMPLE_SENTIMENT)
             pipeline._research.run = AsyncMock(return_value=SAMPLE_RESEARCH)
-            pipeline._trader.run = AsyncMock(return_value=minimax_picks)
-            pipeline._risk.run = AsyncMock(return_value=minimax_review)
+            pipeline._trader.run = AsyncMock(return_value=aggressive_picks)
+            pipeline._risk.run = AsyncMock(return_value=aggressive_review)
 
             result = await pipeline.run(
                 reddit_digest={},
                 portfolio=[],
             )
 
-            assert result.picks.llm == LLMProvider.MINIMAX
+            assert result.picks.llm == LLMProvider.CLAUDE_AGGRESSIVE
             assert result.picks.picks[0].ticker == "SAP.DE"
             assert result.research == SAMPLE_RESEARCH
 
@@ -197,6 +198,7 @@ def _mock_settings():
     s.minimax_base_url = "https://api.minimaxi.chat/v1"
     s.claude_haiku_model = "claude-haiku-4-5-20251001"
     s.claude_sonnet_model = "claude-sonnet-4-6"
+    s.claude_opus_model = "claude-opus-4-6"
     s.minimax_model = "MiniMax-Text-01"
     s.max_tool_rounds = 10
     s.pipeline_timeout_seconds = 600

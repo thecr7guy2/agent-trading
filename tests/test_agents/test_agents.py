@@ -177,7 +177,7 @@ class TestMarketAgent:
     @pytest.mark.asyncio
     async def test_includes_sentiment_and_market_data(self):
         provider = _mock_provider(MARKET_RESPONSE_JSON, MarketAnalysis)
-        agent = MarketAgent(provider, "model", LLMProvider.MINIMAX)
+        agent = MarketAgent(provider, "model", LLMProvider.CLAUDE)
 
         await agent.run(
             {
@@ -194,8 +194,8 @@ class TestMarketAgent:
 
     def test_properties(self):
         provider = AsyncMock()
-        agent = MarketAgent(provider, "model", LLMProvider.MINIMAX)
-        assert agent.provider == LLMProvider.MINIMAX
+        agent = MarketAgent(provider, "model", LLMProvider.CLAUDE_AGGRESSIVE)
+        assert agent.provider == LLMProvider.CLAUDE_AGGRESSIVE
         assert agent.stage == AgentStage.MARKET
 
 
@@ -238,7 +238,7 @@ class TestTraderAgent:
         call_args = provider.generate.call_args
         user_msg = call_args[1]["user_message"]
         assert "Sentiment Report" in user_msg
-        assert "Market Analysis" in user_msg
+        assert "Research Evidence" in user_msg
         assert "Current Portfolio" in user_msg
         assert "Daily Budget" in user_msg
         assert "10.0 EUR" in user_msg
@@ -274,7 +274,8 @@ class TestTraderAgent:
         assert isinstance(result, DailyPicks)
         call_args = provider.generate.call_args
         user_msg = call_args[1]["user_message"]
-        assert "Research Report" in user_msg
+        assert "Research Evidence" in user_msg
+        assert "ASML.AS" in user_msg
 
     def test_properties(self):
         provider = AsyncMock()

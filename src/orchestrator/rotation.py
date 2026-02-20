@@ -5,13 +5,13 @@ from src.db.models import LLMProvider
 
 
 def get_main_trader(run_date: date) -> LLMProvider:
-    weekday = run_date.weekday()
-    return LLMProvider.CLAUDE if weekday in {0, 2, 4} else LLMProvider.MINIMAX
+    """Returns the conservative (real-money) trader — always Claude."""
+    return LLMProvider.CLAUDE
 
 
 def get_virtual_trader(run_date: date) -> LLMProvider:
-    main = get_main_trader(run_date)
-    return LLMProvider.MINIMAX if main == LLMProvider.CLAUDE else LLMProvider.CLAUDE
+    """Returns the aggressive (practice) trader — always Claude Aggressive."""
+    return LLMProvider.CLAUDE_AGGRESSIVE
 
 
 def is_trading_day(run_date: date | None = None, timezone: str = "Europe/Berlin") -> bool:

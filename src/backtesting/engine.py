@@ -7,9 +7,9 @@ from src.agents.pipeline import AgentPipeline
 from src.backtesting.data_source import BacktestDataSource
 from src.config import Settings, get_settings
 from src.db.connection import get_pool
-from src.db.models import DailyPicks, LLMProvider
+from src.db.models import DailyPicks, LLMProvider, PickReview
 from src.orchestrator.mcp_client import create_market_data_client
-from src.orchestrator.rotation import get_main_trader, is_trading_day
+from src.orchestrator.rotation import is_trading_day
 from src.orchestrator.sell_strategy import SellStrategyEngine
 from src.orchestrator.supervisor import Supervisor
 
@@ -141,14 +141,26 @@ class BacktestEngine:
 
         portfolios: dict[str, SimulatedPortfolio] = {
             "claude_real": SimulatedPortfolio(),
-            "claude_virtual": SimulatedPortfolio(),
-            "minimax_real": SimulatedPortfolio(),
-            "minimax_virtual": SimulatedPortfolio(),
+            "claude_aggressive_practice": SimulatedPortfolio(),
+        }
+
+        # Maps each strategy to its portfolio key and budget
+        practice_budget = getattr(self._settings, "practice_daily_budget_eur", 500.0)
+        strategy_config: dict[LLMProvider, tuple[str, str, float, bool]] = {
+            LLMProvider.CLAUDE: ("claude_real", "conservative", budget, True),
+            LLMProvider.CLAUDE_AGGRESSIVE: (
+                "claude_aggressive_practice",
+                "aggressive",
+                practice_budget,
+                False,
+            ),
         }
 
         pipelines = {
-            LLMProvider.CLAUDE: AgentPipeline(LLMProvider.CLAUDE),
-            LLMProvider.MINIMAX: AgentPipeline(LLMProvider.MINIMAX),
+            LLMProvider.CLAUDE: AgentPipeline(LLMProvider.CLAUDE, strategy="conservative"),
+            LLMProvider.CLAUDE_AGGRESSIVE: AgentPipeline(
+                LLMProvider.CLAUDE_AGGRESSIVE, strategy="aggressive"
+            ),
         }
 
         for trade_date in trading_dates:
@@ -165,54 +177,44 @@ class BacktestEngine:
             prices = await self._fetch_prices(market_client, tickers)
             market_data = await self._fetch_market_data(market_client, tickers)
 
-            main_trader = get_main_trader(trade_date)
-
             # Run sell checks first
-            for llm in LLMProvider:
-                for label_suffix, is_real in [("real", True), ("virtual", False)]:
-                    portfolio_key = f"{llm.value}_{label_suffix}"
-                    portfolio = portfolios[portfolio_key]
-                    self._apply_sell_rules(portfolio, prices, trade_date)
+            for llm, (portfolio_key, _, _, _) in strategy_config.items():
+                self._apply_sell_rules(portfolios[portfolio_key], prices, trade_date)
 
             # Run LLM pipelines
-            for llm in LLMProvider:
-                is_main = llm == main_trader
-                label_suffix = "real" if is_main else "virtual"
-                portfolio_key = f"{llm.value}_{label_suffix}"
+            for llm, (portfolio_key, strategy, llm_budget, is_real) in strategy_config.items():
                 portfolio = portfolios[portfolio_key]
-
                 portfolio_dicts = [
                     {
                         "ticker": t,
                         "quantity": str(p.quantity),
                         "avg_buy_price": str(p.avg_buy_price),
-                        "is_real": is_main,
+                        "is_real": is_real,
                     }
                     for t, p in portfolio.positions.items()
                 ]
 
                 try:
-                    picks = await pipelines[llm].run(
+                    output = await pipelines[llm].run(
                         reddit_digest=digest,
                         market_data=market_data,
                         portfolio=portfolio_dicts,
-                        budget_eur=budget,
+                        budget_eur=llm_budget,
                         run_date=trade_date,
                     )
-                    self._execute_picks(portfolio, picks, budget, prices, trade_date)
+                    self._execute_picks(portfolio, output.picks, llm_budget, prices, trade_date)
                 except Exception:
                     logger.exception("Pipeline failed for %s on %s", llm.value, trade_date)
 
             # Save daily results
-            for portfolio_key, portfolio in portfolios.items():
-                llm_name = portfolio_key.split("_")[0]
-                is_real = portfolio_key.endswith("_real")
+            for llm, (portfolio_key, _, llm_budget, is_real) in strategy_config.items():
+                portfolio = portfolios[portfolio_key]
                 value = portfolio.portfolio_value(prices)
 
                 await data_source.save_daily_result(
                     run_id=run_id,
                     trade_date=trade_date,
-                    llm_name=llm_name,
+                    llm_name=llm.value,
                     is_real=is_real,
                     invested=round(portfolio.total_invested, 2),
                     value=round(value, 2),
@@ -226,7 +228,8 @@ class BacktestEngine:
         await data_source.complete_backtest_run(run_id)
 
         llm_results = {}
-        for portfolio_key, portfolio in portfolios.items():
+        for llm, (portfolio_key, _, _, _) in strategy_config.items():
+            portfolio = portfolios[portfolio_key]
             llm_results[portfolio_key] = {
                 "total_invested": round(portfolio.total_invested, 2),
                 "realized_pnl": round(portfolio.realized_pnl, 2),
@@ -254,7 +257,7 @@ class BacktestEngine:
     def _execute_picks(
         self,
         portfolio: SimulatedPortfolio,
-        picks: DailyPicks,
+        picks: PickReview | DailyPicks,
         budget: float,
         prices: dict[str, float],
         trade_date: date,

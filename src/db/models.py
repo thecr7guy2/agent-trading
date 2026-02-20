@@ -21,7 +21,7 @@ class TradeStatus(StrEnum):
 
 class LLMProvider(StrEnum):
     CLAUDE = "claude"
-    MINIMAX = "minimax"
+    CLAUDE_AGGRESSIVE = "claude_aggressive"
 
 
 class AgentStage(StrEnum):
@@ -106,6 +106,7 @@ class ResearchFinding(BaseModel):
     exchange: str = ""
     current_price: Decimal = Decimal("0")
     currency: str = "EUR"
+    # Internal scoring — used for filtering/sorting, NOT rendered into trader prompt text
     fundamental_score: float = Field(
         default=0.0, ge=0.0, le=10.0, description="0-10 score on fundamentals"
     )
@@ -113,6 +114,15 @@ class ResearchFinding(BaseModel):
         default=0.0, ge=0.0, le=10.0, description="0-10 score on technical indicators"
     )
     risk_score: float = Field(default=0.0, ge=0.0, le=10.0, description="0-10 risk level")
+    # Evidence fields — factual observations passed to the trader as evidence
+    pros: list[str] = Field(
+        default_factory=list,
+        description="Bullish factual observations (e.g. 'P/E below 5yr average')",
+    )
+    cons: list[str] = Field(
+        default_factory=list,
+        description="Risk/bearish factual observations (e.g. 'Revenue growth slowing QoQ')",
+    )
     news_summary: str = ""
     earnings_outlook: str = ""
     catalyst: str = ""
@@ -131,6 +141,8 @@ class ResearchFinding(BaseModel):
             "fundamental_score": 0.0,
             "technical_score": 0.0,
             "risk_score": 0.0,
+            "pros": [],
+            "cons": [],
             "news_summary": "",
             "earnings_outlook": "",
             "catalyst": "",

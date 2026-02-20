@@ -11,7 +11,7 @@ from src.agents.research_agent import ResearchAgent
 from src.agents.risk_agent import RiskReviewAgent
 from src.agents.sentiment_agent import SentimentAgent
 from src.agents.tool_executor import ToolExecutor
-from src.agents.tools import RESEARCH_TOOL_NAMES, TRADER_TOOL_NAMES
+from src.agents.tools import RESEARCH_TOOL_NAMES
 from src.agents.trader_agent import TraderAgent
 from src.config import get_settings
 from src.db.models import LLMProvider, MarketAnalysis, PickReview, ResearchReport
@@ -34,61 +34,56 @@ class AgentPipeline:
         llm: LLMProvider,
         market_data_client: MCPToolClient | None = None,
         trading_client: MCPToolClient | None = None,
+        strategy: str = "conservative",
     ):
         self._llm = llm
+        self._strategy = strategy
         settings = get_settings()
 
-        if llm == LLMProvider.CLAUDE:
-            provider = ClaudeProvider(api_key=settings.anthropic_api_key)
-            sentiment_model = settings.claude_haiku_model
-            research_model = settings.claude_sonnet_model
-            trader_model = settings.claude_sonnet_model
-            risk_model = settings.claude_haiku_model
-        else:
-            provider = MiniMaxProvider(
-                api_key=settings.minimax_api_key,
-                base_url=settings.minimax_base_url,
-            )
-            sentiment_model = settings.minimax_model
-            research_model = settings.minimax_model
-            trader_model = settings.minimax_model
-            risk_model = settings.minimax_model
+        # MiniMax: cheap data-gathering stages (1 & 2)
+        self._minimax_provider = MiniMaxProvider(
+            api_key=settings.minimax_api_key,
+            base_url=settings.minimax_base_url,
+        )
+        self._minimax_model = settings.minimax_model
+        minimax_provider = self._minimax_provider
+        minimax_model = self._minimax_model
+
+        # Claude: decision stages (3 & 4)
+        claude_provider = ClaudeProvider(api_key=settings.anthropic_api_key)
+        trader_model = settings.claude_opus_model
+        risk_model = settings.claude_sonnet_model
 
         max_tool_rounds = settings.max_tool_rounds
-        # MiniMax makes 1 tool call per round; Claude batches 8+.
-        # Give MiniMax 3x the rounds to compensate.
-        if llm == LLMProvider.MINIMAX:
-            max_tool_rounds = max_tool_rounds * 3
 
-        # Build tool executors if MCP clients are provided
+        # Build tool executor for research stage if MCP client is provided
         research_executor = None
-        trader_executor = None
         if market_data_client is not None:
             research_executor = ToolExecutor(market_data_client, RESEARCH_TOOL_NAMES)
-        if trading_client is not None and market_data_client is not None:
-            # Trader needs both get_stock_price (market) and get_portfolio (trading)
-            combined_tools = TRADER_TOOL_NAMES
-            # Create a merged client that can dispatch to either
-            trader_executor = _MergedToolExecutor(
-                market_data_client, trading_client, combined_tools
-            )
 
-        # Stage 1: Sentiment (no tools)
-        self._sentiment = SentimentAgent(provider, sentiment_model, llm)
+        # Stage 1: Sentiment — MiniMax (no tools)
+        self._sentiment = SentimentAgent(minimax_provider, minimax_model, llm)
 
-        # Stage 2: Research (with tools)
+        # Stage 2: Research — MiniMax with tools
         if research_executor is not None:
             self._research = ResearchAgent(
-                provider, research_model, llm, research_executor, max_tool_rounds
+                minimax_provider, minimax_model, llm, research_executor, max_tool_rounds
             )
         else:
             self._research = None
 
-        # Stage 3: Trader (with optional tools)
-        self._trader = TraderAgent(provider, trader_model, llm, trader_executor, max_tool_rounds=5)
+        # Stage 3: Trader — Claude Opus (final decision, no tools needed)
+        self._trader = TraderAgent(
+            claude_provider,
+            trader_model,
+            llm,
+            tool_executor=None,
+            max_tool_rounds=5,
+            strategy=strategy,
+        )
 
-        # Stage 4: Risk Review (no tools)
-        self._risk = RiskReviewAgent(provider, risk_model, llm)
+        # Stage 4: Risk Review — Claude Haiku (no tools)
+        self._risk = RiskReviewAgent(claude_provider, risk_model, llm)
 
     async def run(
         self,
@@ -124,17 +119,7 @@ class AgentPipeline:
             from src.agents.market_agent import MarketAgent
 
             logger.info("[%s] Stage 2: Market analysis (legacy, no tools)", self._llm)
-            settings = get_settings()
-            if self._llm == LLMProvider.CLAUDE:
-                provider = ClaudeProvider(api_key=settings.anthropic_api_key)
-                model = settings.claude_sonnet_model
-            else:
-                provider = MiniMaxProvider(
-                    api_key=settings.minimax_api_key,
-                    base_url=settings.minimax_base_url,
-                )
-                model = settings.minimax_model
-            market_agent = MarketAgent(provider, model, self._llm)
+            market_agent = MarketAgent(self._minimax_provider, self._minimax_model, self._llm)
             market_data = market_data or {}
             research = await market_agent.run({"sentiment": sentiment, "market_data": market_data})
             logger.info(

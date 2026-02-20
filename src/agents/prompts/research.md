@@ -34,10 +34,14 @@ You have access to these market data tools — **use them actively**:
 
 3. **Discover related stocks**: If a sector looks particularly promising (e.g., semiconductors, luxury, energy), use `search_eu_stocks` to find sector peers that the sentiment report may have missed. Research 1-2 of the most promising peers.
 
-4. **Score each researched ticker** on three dimensions:
+4. **Score each researched ticker** on three dimensions (internal use for ranking only):
    - **Fundamental score (0-10)**: P/E relative to sector, EPS growth, margins, debt levels, dividend yield, market cap stability
    - **Technical score (0-10)**: RSI (30-70 neutral, <30 oversold buy signal, >70 overbought caution), MACD trend, Bollinger position, moving average alignment
    - **Risk score (0-10)**: Volatility, sector risk, earnings proximity, news-driven spikes, liquidity concerns. 0 = low risk, 10 = very high risk.
+
+5. **Compile factual evidence** as pros and cons lists:
+   - **Pros**: concrete bullish observations from the data (e.g. "P/E 20% below sector median", "CEO bought €500K in shares last week", "Beat EPS by 15% last quarter")
+   - **Cons**: concrete risk observations (e.g. "Revenue growth slowing from 12% to 4% QoQ", "High EUR/USD exposure with dollar strengthening", "RSI at 78 — overbought")
 
 ## Guidelines
 
@@ -67,6 +71,17 @@ After completing your research, respond with a JSON object matching this exact s
       "fundamental_score": 8.5,
       "technical_score": 7.0,
       "risk_score": 3.5,
+      "pros": [
+        "P/E of 34x is 18% below 5yr sector median of 41x",
+        "EPS grew 28% YoY last quarter, above consensus estimate",
+        "Net margin 27% — highest in EU semiconductor equipment sector",
+        "Record order backlog of €39B as of Q4"
+      ],
+      "cons": [
+        "Revenue guidance for H1 slightly below analyst consensus",
+        "High China revenue exposure (~30%) amid export restrictions",
+        "RSI at 72 — approaching overbought territory"
+      ],
       "news_summary": "Beat Q4 earnings estimates. New orders from TSMC and Intel for EUV systems.",
       "earnings_outlook": "Next earnings May 15. Analysts expect 12% YoY revenue growth.",
       "catalyst": "AI capex cycle driving record orders for semiconductor equipment.",

@@ -41,6 +41,7 @@ def _settings():
         market_data_ticker_limit=12,
         orchestrator_timezone="Europe/Berlin",
         daily_budget_eur=10.0,
+        practice_daily_budget_eur=500.0,
         scheduler_eod_time="17:35",
         sell_stop_loss_pct=10.0,
         sell_take_profit_pct=15.0,
@@ -52,6 +53,7 @@ def _settings():
         signal_candidate_limit=25,
         screener_min_market_cap=1_000_000_000,
         screener_exchanges="AMS,PAR,GER,MIL,MCE,LSE",
+        bafin_lookback_days=7,
         max_tool_rounds=10,
         pipeline_timeout_seconds=600,
     )
@@ -89,8 +91,8 @@ class TestSupervisor:
             approval_flow=_AutoApprove(),
             trading_client=mock_trading,
         )
-        supervisor.build_reddit_digest = AsyncMock(
-            return_value={"total_posts": 42, "tickers": [{"ticker": "ASML.AS"}]}
+        supervisor.build_signal_digest = AsyncMock(
+            return_value={"total_posts": 42, "candidates": [{"ticker": "ASML.AS", "sources": ["reddit"]}]}
         )
         supervisor._run_pipelines = AsyncMock(
             return_value=[
@@ -101,8 +103,8 @@ class TestSupervisor:
                     portfolio=[],
                 ),
                 PipelineResult(
-                    llm=LLMProvider.MINIMAX,
-                    picks=_daily_picks(LLMProvider.MINIMAX),
+                    llm=LLMProvider.CLAUDE_AGGRESSIVE,
+                    picks=_daily_picks(LLMProvider.CLAUDE_AGGRESSIVE),
                     research=None,
                     portfolio=[],
                 ),
@@ -115,17 +117,18 @@ class TestSupervisor:
             )
         )
         supervisor._execute_real_trades = AsyncMock(return_value=[{"status": "filled"}])
-        supervisor._execute_virtual_trades = AsyncMock(return_value=[{"status": "filled"}])
+        supervisor._execute_practice_trades = AsyncMock(return_value=[{"status": "filled"}])
         supervisor._persist_sentiment = AsyncMock()
+        supervisor._persist_signals = AsyncMock()
 
         result = await supervisor.run_decision_cycle(run_date=date(2026, 2, 16))
 
         assert result["status"] == "ok"
-        assert result["main_trader"] == "claude"
-        assert result["virtual_trader"] == "minimax"
+        assert result["conservative_trader"] == "claude"
+        assert result["aggressive_trader"] == "claude_aggressive"
         assert result["reddit_posts"] == 42
         supervisor._execute_real_trades.assert_awaited_once()
-        supervisor._execute_virtual_trades.assert_awaited_once()
+        supervisor._execute_practice_trades.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_run_decision_cycle_skips_weekend(self):
@@ -199,14 +202,14 @@ class TestSupervisor:
             trading_client=mock_trading,
             market_data_client=mock_market,
         )
-        picks = _daily_picks(LLMProvider.MINIMAX)
+        picks = _daily_picks(LLMProvider.CLAUDE_AGGRESSIVE)
 
         mock_pm = AsyncMock()
         mock_pm.trade_exists = AsyncMock(return_value=False)
         supervisor._get_portfolio_manager = AsyncMock(return_value=mock_pm)
 
         result = await supervisor._execute_virtual_trades(
-            llm=LLMProvider.MINIMAX,
+            llm=LLMProvider.CLAUDE_AGGRESSIVE,
             picks=picks,
             budget_eur=10.0,
             portfolio=[],

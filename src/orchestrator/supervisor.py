@@ -26,7 +26,7 @@ from src.orchestrator.mcp_client import (
     create_reddit_client,
     create_trading_client,
 )
-from src.orchestrator.rotation import get_main_trader, get_virtual_trader, is_trading_day
+from src.orchestrator.rotation import is_trading_day
 from src.orchestrator.sell_strategy import SellStrategyEngine
 
 logger = logging.getLogger(__name__)
@@ -151,6 +151,11 @@ def _select_candidates(candidates: dict[str, dict], limit: int) -> list[dict]:
         c for c in candidates.values() if c.get("sources") == ["screener"]
     ]  # Already sorted by screener_hits from screener.py
     earnings_only = [c for c in candidates.values() if c.get("sources") == ["earnings"]]
+    insider_only = sorted(
+        [c for c in candidates.values() if c.get("sources") == ["insider"]],
+        key=lambda c: c.get("insider", {}).get("total_value", 0),
+        reverse=True,
+    )
 
     # Build final list: multi-source first, then guaranteed slots per source
     result = list(multi_source[:limit])
@@ -158,7 +163,7 @@ def _select_candidates(candidates: dict[str, dict], limit: int) -> list[dict]:
     if remaining <= 0:
         return result[:limit]
 
-    # Reserve ~40% for EU screener, ~10% for earnings, rest for Reddit
+    # Reserve ~40% for EU screener, ~10% for earnings, ~10% for insider, rest for Reddit
     screener_quota = min(remaining * 2 // 5, len(screener_only))
     # Minimum 8 screener slots if available (EU stocks are the trading target)
     screener_quota = max(screener_quota, min(8, len(screener_only), remaining))
@@ -168,6 +173,10 @@ def _select_candidates(candidates: dict[str, dict], limit: int) -> list[dict]:
     earnings_quota = min(max(remaining // 5, 1), len(earnings_only), remaining)
     result.extend(earnings_only[:earnings_quota])
     remaining -= earnings_quota
+
+    insider_quota = min(max(remaining // 5, 1), len(insider_only), remaining)
+    result.extend(insider_only[:insider_quota])
+    remaining -= insider_quota
 
     # Fill rest with Reddit
     result.extend(reddit_only[:remaining])
@@ -301,6 +310,32 @@ class Supervisor:
         except Exception:
             logger.exception("Earnings calendar call failed, continuing without it")
 
+        try:
+            insider_result = await asyncio.wait_for(
+                self._market_data_client.call_tool(
+                    "get_insider_buys",
+                    {"lookback_days": getattr(self._settings, "bafin_lookback_days", 7)},
+                ),
+                timeout=60.0,
+            )
+            for trade in insider_result.get("trades", []):
+                ticker = trade.get("ticker", "")
+                if not ticker or not _is_valid_stock_ticker(ticker):
+                    continue
+                if ticker in candidates:
+                    candidates[ticker]["sources"].append("insider")
+                    candidates[ticker]["insider"] = trade
+                else:
+                    candidates[ticker] = {
+                        "ticker": ticker,
+                        "sources": ["insider"],
+                        "reddit_mentions": 0,
+                        "sentiment_score": 0.0,
+                        "insider": trade,
+                    }
+        except Exception:
+            logger.exception("BAFIN insider trades call failed, continuing without it")
+
         limit = getattr(self._settings, "signal_candidate_limit", 25)
         sorted_candidates = _select_candidates(candidates, limit)
 
@@ -407,54 +442,54 @@ class Supervisor:
         if digest.get("error"):
             return {"status": "error", "stage": "signal_digest", "error": digest["error"]}
 
-        # Phase 8: Research Agent fetches market data via tools — no build_market_data()
-        main_trader = get_main_trader(run_date)
-        virtual_trader = get_virtual_trader(run_date)
-
+        # Run conservative (real money) and aggressive (practice) pipelines in parallel
         pipeline_results = await self._run_pipelines(digest, run_date)
         result_by_llm = {item.llm: item for item in pipeline_results}
 
-        if main_trader not in result_by_llm:
-            return {"status": "error", "stage": "pipeline", "error": "main trader pipeline failed"}
+        conservative_result = result_by_llm.get(LLMProvider.CLAUDE)
+        aggressive_result = result_by_llm.get(LLMProvider.CLAUDE_AGGRESSIVE)
 
-        main_result = result_by_llm[main_trader]
-        virtual_result = result_by_llm.get(virtual_trader)
+        if conservative_result is None:
+            return {"status": "error", "stage": "pipeline", "error": "conservative pipeline failed"}
 
         pm = await self._get_portfolio_manager()
-        # Convert PickReview to DailyPicks for save_daily_picks compatibility
-        main_daily = self._to_daily_picks(main_result.picks)
-        await pm.save_daily_picks(main_daily, is_main=True)
-        if virtual_result is not None:
-            virtual_daily = self._to_daily_picks(virtual_result.picks)
-            await pm.save_daily_picks(virtual_daily, is_main=False)
+        conservative_daily = self._to_daily_picks(conservative_result.picks)
+        await pm.save_daily_picks(conservative_daily, is_main=True)
+        if aggressive_result is not None:
+            aggressive_daily = self._to_daily_picks(aggressive_result.picks)
+            await pm.save_daily_picks(aggressive_daily, is_main=False)
 
-        decision = await self._resolve_approval(main_daily, require_approval)
-        approved_picks = self._select_picks(main_daily.picks, decision)
+        decision = await self._resolve_approval(conservative_daily, require_approval)
+        approved_picks = self._select_picks(conservative_daily.picks, decision)
         approved_daily = DailyPicks(
-            llm=main_daily.llm,
-            pick_date=main_daily.pick_date,
+            llm=conservative_daily.llm,
+            pick_date=conservative_daily.pick_date,
             picks=approved_picks,
-            sell_recommendations=main_daily.sell_recommendations,
-            confidence=main_daily.confidence,
-            market_summary=main_daily.market_summary,
+            sell_recommendations=conservative_daily.sell_recommendations,
+            confidence=conservative_daily.confidence,
+            market_summary=conservative_daily.market_summary,
         )
         self._normalize_allocations(approved_daily)
 
+        # Conservative → real T212 live account
         real_execution = await self._execute_real_trades(
-            llm=main_trader,
+            llm=LLMProvider.CLAUDE,
             picks=approved_daily,
             budget_eur=self._settings.daily_budget_eur,
-            portfolio=main_result.portfolio,
+            portfolio=conservative_result.portfolio,
             force=force,
         )
-        virtual_execution = []
-        if virtual_result is not None:
-            v_daily = self._to_daily_picks(virtual_result.picks)
-            virtual_execution = await self._execute_virtual_trades(
-                llm=virtual_trader,
-                picks=v_daily,
-                budget_eur=self._settings.daily_budget_eur,
-                portfolio=virtual_result.portfolio,
+
+        # Aggressive → T212 practice account (virtual budget)
+        practice_execution = []
+        if aggressive_result is not None:
+            agg_daily = self._to_daily_picks(aggressive_result.picks)
+            self._normalize_allocations(agg_daily)
+            practice_execution = await self._execute_practice_trades(
+                llm=LLMProvider.CLAUDE_AGGRESSIVE,
+                picks=agg_daily,
+                budget_eur=getattr(self._settings, "practice_daily_budget_eur", 500.0),
+                portfolio=aggressive_result.portfolio,
                 force=force,
             )
 
@@ -464,8 +499,8 @@ class Supervisor:
         decision_result = {
             "status": "ok",
             "date": str(run_date),
-            "main_trader": main_trader.value,
-            "virtual_trader": virtual_trader.value,
+            "conservative_trader": LLMProvider.CLAUDE.value,
+            "aggressive_trader": LLMProvider.CLAUDE_AGGRESSIVE.value,
             "approval": {
                 "action": decision.action,
                 "approved_indices": decision.approved_indices,
@@ -474,13 +509,13 @@ class Supervisor:
             "reddit_posts": digest.get("total_posts", 0),
             "tickers_analyzed": len(digest.get("candidates", [])),
             "real_execution": real_execution,
-            "virtual_execution": virtual_execution,
+            "practice_execution": practice_execution,
             "signal_digest": digest,
             "pipeline_analysis": {
-                main_trader.value: self._build_analysis_summary(main_result),
+                "conservative": self._build_analysis_summary(conservative_result),
                 **(
-                    {virtual_trader.value: self._build_analysis_summary(virtual_result)}
-                    if virtual_result
+                    {"aggressive": self._build_analysis_summary(aggressive_result)}
+                    if aggressive_result
                     else {}
                 ),
             },
@@ -560,10 +595,9 @@ class Supervisor:
         run_date: date,
     ) -> list[PipelineResult]:
         self._ensure_clients()
-        budget = self._settings.daily_budget_eur
         timeout = getattr(self._settings, "pipeline_timeout_seconds", 600)
 
-        async def _run_for(llm: LLMProvider) -> PipelineResult:
+        async def _run_for(llm: LLMProvider, strategy: str, budget: float) -> PipelineResult:
             pm = await self._get_portfolio_manager()
             positions = await pm.get_positions_typed(llm.value)
             portfolio_dicts = [
@@ -575,7 +609,7 @@ class Supervisor:
                 }
                 for p in positions
             ]
-            output = await self._get_pipeline(llm).run(
+            output = await self._get_pipeline(llm, strategy).run(
                 signal_digest=digest,
                 portfolio=portfolio_dicts,
                 budget_eur=budget,
@@ -586,9 +620,13 @@ class Supervisor:
                 llm=llm, picks=output.picks, research=research, portfolio=positions
             )
 
-        async def _run_with_timeout(llm: LLMProvider) -> PipelineResult | None:
+        async def _run_with_timeout(
+            llm: LLMProvider, strategy: str, budget: float
+        ) -> PipelineResult | None:
             try:
-                return await asyncio.wait_for(_run_for(llm), timeout=float(timeout))
+                return await asyncio.wait_for(
+                    _run_for(llm, strategy, budget), timeout=float(timeout)
+                )
             except TimeoutError:
                 logger.error("Pipeline timed out for %s after %ds", llm.value, timeout)
                 return None
@@ -596,21 +634,24 @@ class Supervisor:
                 logger.exception("Pipeline failed for %s", llm.value)
                 return None
 
+        practice_budget = getattr(self._settings, "practice_daily_budget_eur", 500.0)
         results = await asyncio.gather(
-            _run_with_timeout(LLMProvider.CLAUDE),
-            _run_with_timeout(LLMProvider.MINIMAX),
+            _run_with_timeout(LLMProvider.CLAUDE, "conservative", self._settings.daily_budget_eur),
+            _run_with_timeout(LLMProvider.CLAUDE_AGGRESSIVE, "aggressive", practice_budget),
         )
         return [r for r in results if r is not None]
 
-    def _get_pipeline(self, llm: LLMProvider) -> AgentPipeline:
-        pipeline = self._pipelines.get(llm)
+    def _get_pipeline(self, llm: LLMProvider, strategy: str = "conservative") -> AgentPipeline:
+        key = (llm, strategy)
+        pipeline = self._pipelines.get(key)  # type: ignore[arg-type]
         if pipeline is None:
             pipeline = AgentPipeline(
                 llm,
                 market_data_client=self._market_data_client,
                 trading_client=self._trading_client,
+                strategy=strategy,
             )
-            self._pipelines[llm] = pipeline
+            self._pipelines[key] = pipeline  # type: ignore[index]
         return pipeline
 
     async def _resolve_approval(
@@ -793,6 +834,73 @@ class Supervisor:
                     "quantity": quantity,
                     "price": price,
                 },
+            )
+            executions.append(result)
+
+        return executions
+
+    async def _execute_practice_trades(
+        self,
+        llm: LLMProvider,
+        picks: DailyPicks,
+        budget_eur: float,
+        portfolio: list[Position],
+        force: bool,
+    ) -> list[dict]:
+        """Execute aggressive strategy trades on the T212 practice (demo) account."""
+        self._ensure_clients()
+        executions: list[dict] = []
+        pm = await self._get_portfolio_manager()
+        practice_positions = {p.ticker: p for p in portfolio if not p.is_real}
+
+        for pick in picks.picks:
+            if pick.action != "buy":
+                continue
+            amount = round(budget_eur * (pick.allocation_pct / 100.0), 2)
+            if amount <= 0:
+                continue
+            price = await self._fetch_price(pick.ticker)
+            if price <= 0:
+                executions.append(
+                    {"status": "skipped", "reason": "missing_price", "ticker": pick.ticker}
+                )
+                continue
+            if not force and await pm.trade_exists(
+                llm.value, picks.pick_date, pick.ticker, "buy", False
+            ):
+                executions.append(
+                    {"status": "skipped", "reason": "duplicate", "ticker": pick.ticker}
+                )
+                continue
+            # Route to T212 practice account via place_buy_order with is_real=False
+            result = await self._trading_client.call_tool(
+                "place_buy_order",
+                {
+                    "llm_name": llm.value,
+                    "ticker": pick.ticker,
+                    "amount_eur": amount,
+                    "current_price": price,
+                    "is_real": False,
+                },
+            )
+            executions.append(result)
+
+        for pick in picks.sell_recommendations:
+            ticker = pick.ticker
+            position = practice_positions.get(ticker)
+            if not position:
+                continue
+            quantity = float(position.quantity)
+            if quantity <= 0:
+                continue
+            if not force and await pm.trade_exists(
+                llm.value, picks.pick_date, ticker, "sell", False
+            ):
+                executions.append({"status": "skipped", "reason": "duplicate", "ticker": ticker})
+                continue
+            result = await self._trading_client.call_tool(
+                "place_sell_order",
+                {"llm_name": llm.value, "ticker": ticker, "quantity": quantity, "is_real": False},
             )
             executions.append(result)
 
@@ -991,6 +1099,8 @@ class Supervisor:
                         evidence = candidate.get("screener", {})
                     elif source == "earnings":
                         evidence = candidate.get("earnings", {})
+                    elif source == "insider":
+                        evidence = candidate.get("insider", {})
                     await pm.save_signal_source(
                         scrape_date=run_date,
                         ticker=ticker,

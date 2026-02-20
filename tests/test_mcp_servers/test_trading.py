@@ -277,7 +277,7 @@ class TestTradingServerOrders:
         mock_portfolio = AsyncMock()
         mock_portfolio.record_trade = AsyncMock(return_value={"id": 1})
 
-        monkeypatch.setattr(trading_server, "_get_t212", AsyncMock(return_value=mock_t212))
+        monkeypatch.setattr(trading_server, "_get_t212_live", AsyncMock(return_value=mock_t212))
         monkeypatch.setattr(
             trading_server, "_get_portfolio", AsyncMock(return_value=mock_portfolio)
         )
@@ -298,7 +298,7 @@ class TestTradingServerOrders:
         mock_t212.resolve_ticker = AsyncMock(return_value=None)
         mock_portfolio = AsyncMock()
 
-        monkeypatch.setattr(trading_server, "_get_t212", AsyncMock(return_value=mock_t212))
+        monkeypatch.setattr(trading_server, "_get_t212_live", AsyncMock(return_value=mock_t212))
         monkeypatch.setattr(
             trading_server, "_get_portfolio", AsyncMock(return_value=mock_portfolio)
         )

@@ -150,5 +150,19 @@ async def get_earnings(ticker: str) -> dict:
         return {"error": str(e), "ticker": ticker}
 
 
+@mcp.tool()
+async def get_insider_buys(lookback_days: int = 7) -> dict:
+    """Get recent CEO/director BUY transactions from BAFIN (German financial regulator).
+    Returns insider purchases filed under MAR Article 19 for the past N days."""
+    from src.mcp_servers.market_data.bafin import fetch_insider_buys
+
+    try:
+        trades = await fetch_insider_buys(lookback_days)
+        return {"trades": trades, "count": len(trades)}
+    except Exception as e:
+        logger.exception("get_insider_buys failed")
+        return {"error": str(e), "trades": [], "count": 0}
+
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")

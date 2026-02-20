@@ -6,7 +6,7 @@ class Settings(BaseSettings):
 
     # LLM APIs
     anthropic_api_key: str
-    minimax_api_key: str
+    minimax_api_key: str = ""
     minimax_base_url: str = "https://api.minimax.io/v1"
 
     # Reddit (optional — RSS feeds don't require API credentials)
@@ -14,9 +14,14 @@ class Settings(BaseSettings):
     reddit_client_secret: str | None = None
     reddit_user_agent: str = "trading-bot/1.0"
 
-    # Broker
+    # Broker — Live (real money)
     t212_api_key: str
     t212_api_secret: str
+
+    # Broker — Practice / Demo (T212 demo account)
+    t212_practice_api_key: str | None = None
+    t212_practice_api_secret: str | None = None
+    practice_daily_budget_eur: float = 500.0
 
     # Database
     database_url: str = "postgresql://postgres:postgres@localhost:5432/trading_bot"
@@ -50,13 +55,17 @@ class Settings(BaseSettings):
     # Claude model IDs
     claude_haiku_model: str = "claude-haiku-4-5-20251001"
     claude_sonnet_model: str = "claude-sonnet-4-6"
+    claude_opus_model: str = "claude-opus-4-6"
 
     # Multi-source signals (Phase 7)
     signal_candidate_limit: int = 25
     screener_min_market_cap: int = 1_000_000_000
     screener_exchanges: str = "AMS,PAR,GER,MIL,MCE,LSE"
 
-    # MiniMax model ID
+    # BAFIN insider trades
+    bafin_lookback_days: int = 7
+
+    # MiniMax model ID (kept for backward compat, unused in main pipeline)
     minimax_model: str = "MiniMax-M2.5"
 
     # Phase 8: Tool calling

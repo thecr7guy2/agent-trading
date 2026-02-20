@@ -89,6 +89,6 @@ class TestRiskReviewAgent:
 
     def test_properties(self):
         provider = AsyncMock()
-        agent = RiskReviewAgent(provider, "model", LLMProvider.MINIMAX)
-        assert agent.provider == LLMProvider.MINIMAX
+        agent = RiskReviewAgent(provider, "model", LLMProvider.CLAUDE_AGGRESSIVE)
+        assert agent.provider == LLMProvider.CLAUDE_AGGRESSIVE
         assert agent.stage == AgentStage.RISK

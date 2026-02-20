@@ -107,7 +107,7 @@ class TestDailyPicks:
 class TestTrade:
     def test_defaults(self):
         trade = Trade(
-            llm_name=LLMProvider.MINIMAX,
+            llm_name=LLMProvider.CLAUDE_AGGRESSIVE,
             trade_date=date(2026, 2, 14),
             ticker="SAP.DE",
             action=TradeAction.BUY,
@@ -149,7 +149,7 @@ class TestPnLReport:
 class TestEnums:
     def test_llm_provider_values(self):
         assert LLMProvider.CLAUDE == "claude"
-        assert LLMProvider.MINIMAX == "minimax"
+        assert LLMProvider.CLAUDE_AGGRESSIVE == "claude_aggressive"
 
     def test_agent_stage_values(self):
         assert AgentStage.SENTIMENT == "sentiment"

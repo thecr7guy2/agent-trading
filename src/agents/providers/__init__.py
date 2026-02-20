@@ -6,7 +6,7 @@ from src.db.models import LLMProvider
 
 def get_provider(llm: LLMProvider) -> ClaudeProvider | MiniMaxProvider:
     settings = get_settings()
-    if llm == LLMProvider.CLAUDE:
+    if llm in (LLMProvider.CLAUDE, LLMProvider.CLAUDE_AGGRESSIVE):
         return ClaudeProvider(api_key=settings.anthropic_api_key)
     return MiniMaxProvider(
         api_key=settings.minimax_api_key,
