@@ -101,6 +101,7 @@ async def execute_with_fallback(
 
         ticker = (candidate.get("ticker") or "").strip().upper()
         price = candidate.get("price") or candidate.get("current_price")
+        allocation_pct = float(candidate.get("allocation_pct") or 100.0)
 
         if not ticker:
             continue
@@ -114,7 +115,14 @@ async def execute_with_fallback(
             logger.warning("No valid price for %s — skipping", ticker)
             continue
 
-        result = await _try_buy(t212, ticker, remaining, float(price))
+        # Respect Claude's allocation — spend only the pick's share of the budget,
+        # capped at whatever is still remaining
+        target_amount = min(remaining, effective_budget * allocation_pct / 100.0)
+        if target_amount < 1.0:
+            logger.info("Skipping %s — target amount €%.2f below minimum", ticker, target_amount)
+            continue
+
+        result = await _try_buy(t212, ticker, target_amount, float(price))
 
         if result.success:
             summary.total_spent += result.amount_spent

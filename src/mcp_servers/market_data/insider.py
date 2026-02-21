@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-OPENINSIDER_URL = "https://openinsider.com/screener"
+OPENINSIDER_URL = "http://openinsider.com/screener"
 
 # Column indices in the OpenInsider screener table
 _COL_FILING_DATE = 1
@@ -68,7 +68,7 @@ async def get_recent_insider_buys(days: int = 7, min_value: int = 50_000) -> lis
                 params=params,
                 headers={"User-Agent": "Mozilla/5.0 (compatible; trading-bot/1.0)"},
                 timeout=15.0,
-                follow_redirects=True,
+                follow_redirects=False,
             )
             resp.raise_for_status()
 

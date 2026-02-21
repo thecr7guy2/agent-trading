@@ -311,7 +311,7 @@ class Supervisor:
         collect_rounds: int = 0,
     ) -> dict:
         run_date = run_date or datetime.now(ZoneInfo(self._settings.orchestrator_timezone)).date()
-        if not is_trading_day(run_date, self._settings.orchestrator_timezone):
+        if not force and not is_trading_day(run_date, self._settings.orchestrator_timezone):
             return {"status": "skipped", "reason": "non-trading-day", "date": str(run_date)}
 
         if collect_rounds > 0:
