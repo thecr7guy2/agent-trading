@@ -6,7 +6,6 @@ import signal
 import sys
 from pathlib import Path
 
-from src.db.connection import close_pool
 from src.orchestrator.scheduler import OrchestratorScheduler
 
 logging.basicConfig(
@@ -42,6 +41,7 @@ class SchedulerDaemon:
         logger.info("Timezone: Europe/Berlin")
         logger.info("Schedule:")
         logger.info("  - Reddit collection: 08:00, 12:00, 16:30 (Mon-Fri)")
+        logger.info("  - Sell checks: 09:30, 12:30, 16:45 (Mon-Fri)")
         logger.info("  - Trade execution: 17:10 (Mon-Fri)")
         logger.info("  - End-of-day snapshot: 17:35 (Mon-Fri)")
 
@@ -58,8 +58,6 @@ class SchedulerDaemon:
             logger.info("Shutting down scheduler...")
             if self.scheduler:
                 self.scheduler.shutdown(wait=True)
-            logger.info("Closing database connection pool...")
-            await close_pool()
             logger.info("Scheduler stopped cleanly")
 
 

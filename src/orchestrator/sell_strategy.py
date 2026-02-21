@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 from src.config import Settings, get_settings
-from src.db.models import Position, SellSignal
+from src.models import Position, SellSignal
 
 logger = logging.getLogger(__name__)
 

@@ -8,13 +8,12 @@ from typing import TYPE_CHECKING
 from src.agents.providers.claude import ClaudeProvider
 from src.agents.providers.minimax import MiniMaxProvider
 from src.agents.research_agent import ResearchAgent
-from src.agents.risk_agent import RiskReviewAgent
 from src.agents.sentiment_agent import SentimentAgent
 from src.agents.tool_executor import ToolExecutor
 from src.agents.tools import RESEARCH_TOOL_NAMES
 from src.agents.trader_agent import TraderAgent
 from src.config import get_settings
-from src.db.models import LLMProvider, MarketAnalysis, PickReview, ResearchReport
+from src.models import LLMProvider, MarketAnalysis, PickReview, ResearchReport, SentimentReport
 
 if TYPE_CHECKING:
     from src.orchestrator.mcp_client import MCPToolClient
@@ -49,10 +48,9 @@ class AgentPipeline:
         minimax_provider = self._minimax_provider
         minimax_model = self._minimax_model
 
-        # Claude: decision stages (3 & 4)
+        # Claude: decision stage (3)
         claude_provider = ClaudeProvider(api_key=settings.anthropic_api_key)
         trader_model = settings.claude_opus_model
-        risk_model = settings.claude_sonnet_model
 
         max_tool_rounds = settings.max_tool_rounds
 
@@ -82,51 +80,48 @@ class AgentPipeline:
             strategy=strategy,
         )
 
-        # Stage 4: Risk Review — Claude Haiku (no tools)
-        self._risk = RiskReviewAgent(claude_provider, risk_model, llm)
-
-    async def run(
+    async def run_research(
         self,
-        reddit_digest: dict | None = None,
+        digest_input: dict,
         market_data: dict | None = None,
-        portfolio: list | None = None,
-        budget_eur: float = 10.0,
-        run_date: date | None = None,
-        signal_digest: dict | None = None,
-    ) -> PipelineOutput:
-        digest_input = signal_digest or reddit_digest or {}
-        portfolio = portfolio or []
-
-        # Stage 1: Sentiment analysis
-        logger.info("[%s] Stage 1: Sentiment analysis", self._llm)
+    ) -> tuple[SentimentReport, ResearchReport | MarketAnalysis]:
+        """Stages 1-2: shared data-gathering (MiniMax). Run once and reuse across strategies."""
+        # Stage 1: Sentiment
+        logger.info("Stage 1: Sentiment analysis (shared)")
         sentiment = await self._sentiment.run(digest_input)
-        logger.info(
-            "[%s] Sentiment done — %d tickers identified", self._llm, len(sentiment.tickers)
-        )
+        logger.info("Sentiment done — %d tickers identified", len(sentiment.tickers))
 
-        # Stage 2: Research (tool-calling) or Market analysis (legacy fallback)
+        # Stage 2: Research or legacy market analysis
         if self._research is not None:
-            logger.info("[%s] Stage 2: Research (with tools)", self._llm)
+            logger.info("Stage 2: Research (with tools, shared)")
             research = await self._research.run({"sentiment": sentiment})
             logger.info(
-                "[%s] Research done — %d tickers, %d tool calls",
-                self._llm,
+                "Research done — %d tickers, %d tool calls",
                 len(research.tickers),
                 research.tool_calls_made,
             )
         else:
-            # Legacy fallback: import MarketAgent for backward compat
             from src.agents.market_agent import MarketAgent
 
-            logger.info("[%s] Stage 2: Market analysis (legacy, no tools)", self._llm)
+            logger.info("Stage 2: Market analysis (legacy, no tools, shared)")
             market_agent = MarketAgent(self._minimax_provider, self._minimax_model, self._llm)
-            market_data = market_data or {}
-            research = await market_agent.run({"sentiment": sentiment, "market_data": market_data})
-            logger.info(
-                "[%s] Market analysis done — %d tickers scored",
-                self._llm,
-                len(research.tickers),
+            research = await market_agent.run(
+                {"sentiment": sentiment, "market_data": market_data or {}}
             )
+            logger.info("Market analysis done — %d tickers scored", len(research.tickers))
+
+        return sentiment, research
+
+    async def run_decision(
+        self,
+        sentiment: SentimentReport,
+        research: ResearchReport | MarketAnalysis,
+        portfolio: list | None = None,
+        budget_eur: float = 10.0,
+        run_date: date | None = None,
+    ) -> PipelineOutput:
+        """Stages 3-4: strategy-specific decisions (Claude). Run per strategy."""
+        portfolio = portfolio or []
 
         # Stage 3: Trading decisions
         logger.info("[%s] Stage 3: Trading decisions", self._llm)
@@ -148,27 +143,30 @@ class AgentPipeline:
             picks.confidence,
         )
 
-        # Stage 4: Risk review
-        logger.info("[%s] Stage 4: Risk review", self._llm)
-        reviewed = await self._risk.run(
-            {
-                "picks": picks,
-                "research": research,
-                "portfolio": portfolio,
-            }
+        # Wrap DailyPicks → PickReview (no risk stage)
+        reviewed = PickReview(
+            llm=picks.llm,
+            pick_date=picks.pick_date,
+            picks=picks.picks,
+            sell_recommendations=picks.sell_recommendations,
+            confidence=picks.confidence,
+            market_summary=picks.market_summary,
         )
-        reviewed.llm = self._llm
-        if run_date is not None:
-            reviewed.pick_date = run_date
-        logger.info(
-            "[%s] Risk review done — %d picks approved, %d vetoed, confidence %.2f",
-            self._llm,
-            len(reviewed.picks),
-            len(reviewed.vetoed_tickers),
-            reviewed.confidence,
-        )
-
         return PipelineOutput(picks=reviewed, research=research)
+
+    async def run(
+        self,
+        reddit_digest: dict | None = None,
+        market_data: dict | None = None,
+        portfolio: list | None = None,
+        budget_eur: float = 10.0,
+        run_date: date | None = None,
+        signal_digest: dict | None = None,
+    ) -> PipelineOutput:
+        """Full pipeline: stages 1-4 in sequence. Used for single-strategy runs."""
+        digest_input = signal_digest or reddit_digest or {}
+        sentiment, research = await self.run_research(digest_input, market_data)
+        return await self.run_decision(sentiment, research, portfolio or [], budget_eur, run_date)
 
 
 class _MergedToolExecutor(ToolExecutor):
@@ -184,7 +182,7 @@ class _MergedToolExecutor(ToolExecutor):
         self._trading_client = trading_client
         self._allowed = allowed_tools
         # Tools that live on the trading server
-        self._trading_tools = {"get_portfolio", "get_positions", "get_trade_history"}
+        self._trading_tools = {"get_positions", "get_cash"}
 
     async def execute(self, tool_name: str, args: dict) -> dict:
         if tool_name not in self._allowed:

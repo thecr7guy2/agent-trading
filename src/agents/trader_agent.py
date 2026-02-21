@@ -9,7 +9,7 @@ from src.agents.base_agent import BaseAgent
 from src.agents.providers.claude import ClaudeProvider
 from src.agents.providers.minimax import MiniMaxProvider
 from src.agents.tools import TRADER_TOOLS, to_claude_tools, to_openai_tools
-from src.db.models import (
+from src.models import (
     AgentStage,
     DailyPicks,
     LLMProvider,
@@ -66,7 +66,7 @@ class TraderAgent(BaseAgent):
     @staticmethod
     def _render_research_as_evidence(research) -> str:
         """Render research findings as factual evidence (pros/cons) without scores."""
-        from src.db.models import ResearchReport
+        from src.models import ResearchReport
 
         if not isinstance(research, ResearchReport):
             # Legacy MarketAnalysis — fall back to JSON dump

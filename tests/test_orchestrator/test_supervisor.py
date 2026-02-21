@@ -1,34 +1,26 @@
 from datetime import date
-from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.db.models import DailyPicks, LLMProvider, Position, StockPick
-from src.orchestrator.approval import ApprovalDecision
-from src.orchestrator.supervisor import PipelineResult, Supervisor
-
-
-class _AutoApprove:
-    async def request(self, picks: DailyPicks) -> ApprovalDecision:
-        return ApprovalDecision(
-            action="approve_all",
-            approved_indices=list(range(len(picks.picks))),
-        )
+from src.models import DailyPicks, LLMProvider, StockPick
+from src.orchestrator.supervisor import (
+    PipelineResult,
+    Supervisor,
+    _is_valid_stock_ticker,
+    _select_candidates,
+)
 
 
 class _MockMCPClient:
-    def __init__(self, responses: dict[str, dict | list] | None = None):
+    def __init__(self, responses: dict | None = None):
         self._responses = responses or {}
         self.calls: list[tuple[str, dict]] = []
 
     async def call_tool(self, name: str, arguments: dict) -> dict:
         self.calls.append((name, arguments))
-        resp = self._responses.get(name, {"status": "filled"})
-        if callable(resp):
-            return resp(name, arguments)
-        return resp
+        return self._responses.get(name, {"status": "ok"})
 
     async def close(self) -> None:
         pass
@@ -36,25 +28,23 @@ class _MockMCPClient:
 
 def _settings():
     return SimpleNamespace(
-        approval_timeout_seconds=120,
-        approval_timeout_action="approve_all",
-        market_data_ticker_limit=12,
         orchestrator_timezone="Europe/Berlin",
         daily_budget_eur=10.0,
         practice_daily_budget_eur=500.0,
-        scheduler_eod_time="17:35",
+        t212_api_key="live-key",
+        t212_api_secret="",
+        t212_practice_api_key="demo-key",
+        t212_practice_api_secret="",
+        telegram_enabled=False,
+        telegram_bot_token=None,
+        telegram_chat_id=None,
         sell_stop_loss_pct=10.0,
         sell_take_profit_pct=15.0,
         sell_max_hold_days=5,
         sell_check_schedule="09:30,12:30,16:45",
-        telegram_enabled=False,
-        telegram_bot_token=None,
-        telegram_chat_id=None,
-        signal_candidate_limit=25,
-        screener_min_market_cap=1_000_000_000,
-        screener_exchanges="AMS,PAR,GER,MIL,MCE,LSE",
-        bafin_lookback_days=7,
-        max_tool_rounds=10,
+        max_candidates=15,
+        recently_traded_path="recently_traded.json",
+        recently_traded_days=3,
         pipeline_timeout_seconds=600,
     )
 
@@ -62,37 +52,30 @@ def _settings():
 def _daily_picks(llm: LLMProvider) -> DailyPicks:
     return DailyPicks(
         llm=llm,
-        pick_date=date(2026, 2, 16),
+        pick_date=date(2026, 2, 18),
         picks=[StockPick(ticker="ASML.AS", allocation_pct=100.0, action="buy")],
         confidence=0.8,
         market_summary="test",
     )
 
 
-def _positions(llm: LLMProvider, is_real: bool = False) -> list[Position]:
-    return [
-        Position(
-            id=1,
-            llm_name=llm,
-            ticker="ASML.AS",
-            quantity=Decimal("0.5"),
-            avg_buy_price=Decimal("850"),
-            is_real=is_real,
-        )
-    ]
-
-
 class TestSupervisor:
     @pytest.mark.asyncio
+    async def test_run_decision_cycle_skips_weekend(self):
+        supervisor = Supervisor(settings=_settings())
+        result = await supervisor.run_decision_cycle(run_date=date(2026, 2, 15))  # Saturday
+        assert result["status"] == "skipped"
+        assert result["reason"] == "non-trading-day"
+
+    @pytest.mark.asyncio
     async def test_run_decision_cycle_happy_path(self):
-        mock_trading = _MockMCPClient({"place_buy_order": {"status": "filled"}})
-        supervisor = Supervisor(
-            settings=_settings(),
-            approval_flow=_AutoApprove(),
-            trading_client=mock_trading,
-        )
+        supervisor = Supervisor(settings=_settings())
         supervisor.build_signal_digest = AsyncMock(
-            return_value={"total_posts": 42, "candidates": [{"ticker": "ASML.AS", "sources": ["reddit"]}]}
+            return_value={
+                "total_posts": 42,
+                "candidates": [{"ticker": "ASML.AS", "sources": ["reddit"]}],
+                "source_type": "multi",
+            }
         )
         supervisor._run_pipelines = AsyncMock(
             return_value=[
@@ -102,156 +85,130 @@ class TestSupervisor:
                     research=None,
                     portfolio=[],
                 ),
+            ]
+        )
+        supervisor._picks_to_candidates = AsyncMock(return_value=[])
+
+        mock_summary = MagicMock()
+        mock_summary.bought = []
+        mock_summary.failed = []
+
+        with patch("src.orchestrator.supervisor.execute_with_fallback", AsyncMock(return_value=mock_summary)):
+            with patch("src.orchestrator.supervisor.get_blacklist", return_value=set()):
+                result = await supervisor.run_decision_cycle(run_date=date(2026, 2, 18))
+
+        assert result["status"] == "ok"
+        assert result["conservative_trader"] == "claude"
+        assert result["reddit_posts"] == 42
+
+    @pytest.mark.asyncio
+    async def test_run_decision_cycle_filters_blacklist(self):
+        supervisor = Supervisor(settings=_settings())
+        supervisor.build_signal_digest = AsyncMock(
+            return_value={
+                "total_posts": 10,
+                "candidates": [
+                    {"ticker": "NVDA", "sources": ["reddit"]},
+                    {"ticker": "ASML.AS", "sources": ["reddit"]},
+                ],
+                "source_type": "multi",
+            }
+        )
+        supervisor._run_pipelines = AsyncMock(
+            return_value=[
                 PipelineResult(
-                    llm=LLMProvider.CLAUDE_AGGRESSIVE,
-                    picks=_daily_picks(LLMProvider.CLAUDE_AGGRESSIVE),
+                    llm=LLMProvider.CLAUDE,
+                    picks=_daily_picks(LLMProvider.CLAUDE),
                     research=None,
                     portfolio=[],
                 ),
             ]
         )
-        supervisor._get_portfolio_manager = AsyncMock(
-            return_value=AsyncMock(
-                save_daily_picks=AsyncMock(),
-                trade_exists=AsyncMock(return_value=False),
-            )
-        )
-        supervisor._execute_real_trades = AsyncMock(return_value=[{"status": "filled"}])
-        supervisor._execute_practice_trades = AsyncMock(return_value=[{"status": "filled"}])
-        supervisor._persist_sentiment = AsyncMock()
-        supervisor._persist_signals = AsyncMock()
+        supervisor._picks_to_candidates = AsyncMock(return_value=[])
 
-        result = await supervisor.run_decision_cycle(run_date=date(2026, 2, 16))
+        mock_summary = MagicMock()
+        mock_summary.bought = []
+        mock_summary.failed = []
 
-        assert result["status"] == "ok"
-        assert result["conservative_trader"] == "claude"
-        assert result["aggressive_trader"] == "claude_aggressive"
-        assert result["reddit_posts"] == 42
-        supervisor._execute_real_trades.assert_awaited_once()
-        supervisor._execute_practice_trades.assert_awaited_once()
+        # NVDA is blacklisted
+        with patch("src.orchestrator.supervisor.execute_with_fallback", AsyncMock(return_value=mock_summary)):
+            with patch("src.orchestrator.supervisor.get_blacklist", return_value={"NVDA"}):
+                result = await supervisor.run_decision_cycle(run_date=date(2026, 2, 18))
 
-    @pytest.mark.asyncio
-    async def test_run_decision_cycle_skips_weekend(self):
-        supervisor = Supervisor(settings=_settings(), approval_flow=_AutoApprove())
-        result = await supervisor.run_decision_cycle(run_date=date(2026, 2, 15))
-        assert result["status"] == "skipped"
-        assert result["reason"] == "non-trading-day"
-
-    @pytest.mark.asyncio
-    async def test_execute_real_trades_duplicate_guard(self):
-        mock_trading = _MockMCPClient({"place_buy_order": {"status": "filled"}})
-        mock_market = _MockMCPClient({"get_stock_price": {"price": 850.0}})
-        supervisor = Supervisor(
-            settings=_settings(),
-            approval_flow=_AutoApprove(),
-            trading_client=mock_trading,
-            market_data_client=mock_market,
-        )
-        picks = _daily_picks(LLMProvider.CLAUDE)
-
-        mock_pm = AsyncMock()
-        mock_pm.trade_exists = AsyncMock(return_value=True)
-        supervisor._get_portfolio_manager = AsyncMock(return_value=mock_pm)
-
-        result = await supervisor._execute_real_trades(
-            llm=LLMProvider.CLAUDE,
-            picks=picks,
-            budget_eur=10.0,
-            portfolio=[],
-            force=False,
-        )
-        assert result[0]["status"] == "skipped"
-        assert result[0]["reason"] == "duplicate"
-        assert len(mock_trading.calls) == 0
-
-    @pytest.mark.asyncio
-    async def test_execute_real_trades_force_bypasses_duplicate_guard(self):
-        mock_trading = _MockMCPClient({"place_buy_order": {"status": "filled"}})
-        mock_market = _MockMCPClient({"get_stock_price": {"price": 850.0}})
-        supervisor = Supervisor(
-            settings=_settings(),
-            approval_flow=_AutoApprove(),
-            trading_client=mock_trading,
-            market_data_client=mock_market,
-        )
-        picks = _daily_picks(LLMProvider.CLAUDE)
-
-        mock_pm = AsyncMock()
-        mock_pm.trade_exists = AsyncMock(return_value=True)
-        supervisor._get_portfolio_manager = AsyncMock(return_value=mock_pm)
-
-        result = await supervisor._execute_real_trades(
-            llm=LLMProvider.CLAUDE,
-            picks=picks,
-            budget_eur=10.0,
-            portfolio=[],
-            force=True,
-        )
-        assert result[0]["status"] == "filled"
-        assert len(mock_trading.calls) == 1
-        assert mock_trading.calls[0][0] == "place_buy_order"
-        assert mock_trading.calls[0][1]["current_price"] == 850.0
-
-    @pytest.mark.asyncio
-    async def test_execute_virtual_trade_skips_missing_price(self):
-        mock_trading = _MockMCPClient({"record_virtual_trade": {"status": "filled"}})
-        mock_market = _MockMCPClient({"get_stock_price": {}})
-        supervisor = Supervisor(
-            settings=_settings(),
-            approval_flow=_AutoApprove(),
-            trading_client=mock_trading,
-            market_data_client=mock_market,
-        )
-        picks = _daily_picks(LLMProvider.CLAUDE_AGGRESSIVE)
-
-        mock_pm = AsyncMock()
-        mock_pm.trade_exists = AsyncMock(return_value=False)
-        supervisor._get_portfolio_manager = AsyncMock(return_value=mock_pm)
-
-        result = await supervisor._execute_virtual_trades(
-            llm=LLMProvider.CLAUDE_AGGRESSIVE,
-            picks=picks,
-            budget_eur=10.0,
-            portfolio=[],
-            force=False,
-        )
-        assert result[0]["status"] == "skipped"
-        assert result[0]["reason"] == "missing_price"
-        assert len(mock_trading.calls) == 0
-
-    def test_normalize_allocations(self):
-        supervisor = Supervisor(settings=_settings(), approval_flow=_AutoApprove())
-        picks = DailyPicks(
-            llm=LLMProvider.CLAUDE,
-            pick_date=date(2026, 2, 16),
-            picks=[
-                StockPick(ticker="ASML.AS", allocation_pct=80.0, action="buy"),
-                StockPick(ticker="SAP.DE", allocation_pct=40.0, action="buy"),
-            ],
-        )
-        supervisor._normalize_allocations(picks)
-        total = sum(pick.allocation_pct for pick in picks.picks)
-        assert total == pytest.approx(100.0, abs=0.1)
+        # Only ASML.AS should remain after filtering
+        assert result["tickers_analyzed"] == 1
 
     @pytest.mark.asyncio
     async def test_run_end_of_day(self):
-        mock_market = _MockMCPClient({"get_stock_price": {"price": 900.0}})
-        supervisor = Supervisor(
-            settings=_settings(),
-            approval_flow=_AutoApprove(),
-            market_data_client=mock_market,
-        )
+        supervisor = Supervisor(settings=_settings())
+        mock_t212 = AsyncMock()
+        live_positions = [
+            {"ticker": "ASML.AS", "quantity": 0.5, "avg_buy_price": 850.0, "current_price": 900.0}
+        ]
 
-        mock_pm = AsyncMock()
-        mock_pm.get_positions_typed = AsyncMock(
-            return_value=_positions(LLMProvider.CLAUDE, is_real=False)
-        )
-        mock_pm.calculate_pnl = AsyncMock(return_value={"realized_pnl": "5"})
-        mock_pm.save_portfolio_snapshot = AsyncMock()
-        supervisor._get_portfolio_manager = AsyncMock(return_value=mock_pm)
-
-        result = await supervisor.run_end_of_day(run_date=date(2026, 2, 16))
+        with patch("src.orchestrator.supervisor.get_live_positions", AsyncMock(return_value=live_positions)):
+            with patch("src.orchestrator.supervisor.get_demo_positions", AsyncMock(return_value=[])):
+                supervisor._get_t212_live = MagicMock(return_value=mock_t212)
+                supervisor._get_t212_demo = MagicMock(return_value=mock_t212)
+                result = await supervisor.run_end_of_day(run_date=date(2026, 2, 18))
 
         assert result["status"] == "ok"
-        assert result["date"] == "2026-02-16"
-        assert mock_pm.save_portfolio_snapshot.call_count == 4  # 2 LLMs x 2 (real/virtual)
+        assert result["date"] == "2026-02-18"
+        assert "conservative_real" in result["snapshots"]
+        snap = result["snapshots"]["conservative_real"]
+        # invested = 0.5 * 850 = 425, value = 0.5 * 900 = 450, pnl = 25
+        assert snap["total_invested"] == "425.00"
+        assert snap["total_value"] == "450.00"
+        assert snap["unrealized_pnl"] == "25.00"
+
+    @pytest.mark.asyncio
+    async def test_run_end_of_day_no_demo(self):
+        """When no practice key is configured, only live snapshot is returned."""
+        settings = _settings()
+        settings.t212_practice_api_key = None
+        supervisor = Supervisor(settings=settings)
+        mock_t212 = AsyncMock()
+
+        with patch("src.orchestrator.supervisor.get_live_positions", AsyncMock(return_value=[])):
+            supervisor._get_t212_live = MagicMock(return_value=mock_t212)
+            result = await supervisor.run_end_of_day(run_date=date(2026, 2, 18))
+
+        assert result["status"] == "ok"
+        assert "conservative_real" in result["snapshots"]
+        assert "aggressive_demo" not in result["snapshots"]
+
+
+class TestHelpers:
+    def test_is_valid_ticker_filters_noise(self):
+        assert not _is_valid_stock_ticker("DD")
+        assert not _is_valid_stock_ticker("CEO")
+        assert not _is_valid_stock_ticker("ETF")
+        assert not _is_valid_stock_ticker("SPY")
+        assert not _is_valid_stock_ticker("AB")  # 2 chars
+
+    def test_is_valid_ticker_allows_normal(self):
+        assert _is_valid_stock_ticker("ASML.AS")
+        assert _is_valid_stock_ticker("SAP.DE")
+        assert _is_valid_stock_ticker("AAPL")
+        assert _is_valid_stock_ticker("NVO")
+
+    def test_select_candidates_respects_limit(self):
+        candidates = {
+            str(i): {"ticker": str(i), "sources": ["reddit"], "reddit_mentions": i}
+            for i in range(20)
+        }
+        result = _select_candidates(candidates, limit=10)
+        assert len(result) <= 10
+
+    def test_select_candidates_multi_source_first(self):
+        candidates = {
+            "A": {"ticker": "A", "sources": ["reddit", "screener"], "reddit_mentions": 1},
+            "B": {"ticker": "B", "sources": ["reddit"], "reddit_mentions": 100},
+        }
+        result = _select_candidates(candidates, limit=5)
+        # Multi-source should come before single-source reddit
+        assert result[0]["ticker"] == "A"
+
+    def test_select_candidates_empty(self):
+        result = _select_candidates({}, limit=10)
+        assert result == []

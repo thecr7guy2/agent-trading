@@ -30,14 +30,10 @@ class InProcessMCPClient:
 
 def create_trading_client() -> InProcessMCPClient:
     from src.mcp_servers.trading.server import (
-        get_leaderboard,
-        get_pnl_report,
-        get_portfolio,
+        get_cash,
         get_positions,
-        get_trade_history,
         place_buy_order,
         place_sell_order,
-        record_virtual_trade,
     )
 
     return InProcessMCPClient(
@@ -45,11 +41,7 @@ def create_trading_client() -> InProcessMCPClient:
             "place_buy_order": place_buy_order,
             "place_sell_order": place_sell_order,
             "get_positions": get_positions,
-            "record_virtual_trade": record_virtual_trade,
-            "get_portfolio": get_portfolio,
-            "get_pnl_report": get_pnl_report,
-            "get_leaderboard": get_leaderboard,
-            "get_trade_history": get_trade_history,
+            "get_cash": get_cash,
         }
     )
 
@@ -74,16 +66,18 @@ def create_reddit_client() -> InProcessMCPClient:
 
 def create_market_data_client() -> InProcessMCPClient:
     from src.mcp_servers.market_data.server import (
+        get_analyst_revisions,
         get_earnings,
         get_earnings_calendar,
         get_fundamentals,
+        get_insider_activity,
         get_market_status,
         get_news,
         get_stock_history,
         get_stock_price,
         get_technical_indicators,
-        screen_eu_markets,
-        search_eu_stocks,
+        screen_global_markets,
+        search_stocks,
     )
 
     return InProcessMCPClient(
@@ -92,12 +86,14 @@ def create_market_data_client() -> InProcessMCPClient:
             "get_stock_history": get_stock_history,
             "get_fundamentals": get_fundamentals,
             "get_technical_indicators": get_technical_indicators,
-            "search_eu_stocks": search_eu_stocks,
+            "search_stocks": search_stocks,
             "get_market_status": get_market_status,
-            "screen_eu_markets": screen_eu_markets,
+            "screen_global_markets": screen_global_markets,
             "get_news": get_news,
             "get_earnings_calendar": get_earnings_calendar,
             "get_earnings": get_earnings,
+            "get_insider_activity": get_insider_activity,
+            "get_analyst_revisions": get_analyst_revisions,
         }
     )
 

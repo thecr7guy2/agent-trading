@@ -8,7 +8,7 @@ from src.agents.base_agent import BaseAgent
 from src.agents.providers.claude import ClaudeProvider
 from src.agents.providers.minimax import MiniMaxProvider
 from src.agents.tools import RESEARCH_TOOLS, to_claude_tools, to_openai_tools
-from src.db.models import AgentStage, LLMProvider, ResearchReport, SentimentReport
+from src.models import AgentStage, LLMProvider, ResearchReport, SentimentReport
 
 if TYPE_CHECKING:
     from src.agents.tool_executor import ToolExecutor

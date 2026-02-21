@@ -36,7 +36,7 @@ def to_openai_tools(tools: list[ToolDef]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# Research Agent tools (8 read-only market data tools)
+# Research Agent tools (read-only market data tools)
 # ---------------------------------------------------------------------------
 
 RESEARCH_TOOLS: list[ToolDef] = [
@@ -172,11 +172,47 @@ RESEARCH_TOOLS: list[ToolDef] = [
         },
     ),
     ToolDef(
-        name="search_eu_stocks",
+        name="get_analyst_revisions",
         description=(
-            "Search for EU-listed stocks by company name or keyword. "
-            "Checks across Amsterdam (.AS), Paris (.PA), Frankfurt (.DE), "
-            "Milan (.MI), Madrid (.MC), and London (.L) exchanges. "
+            "Get analyst estimate revision trend for a stock. "
+            "Shows whether analysts are upgrading/downgrading and if EPS estimates "
+            "are being revised up or down. Upward revisions are a strong bullish signal."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "ticker": {
+                    "type": "string",
+                    "description": "Stock ticker symbol with exchange suffix",
+                },
+            },
+            "required": ["ticker"],
+        },
+    ),
+    ToolDef(
+        name="get_insider_activity",
+        description=(
+            "Get recent insider purchase transactions from OpenInsider (free, public data). "
+            "Only includes open-market purchases (not option exercises) above $50K. "
+            "Shows cluster_buys (2+ insiders buying the same stock) which are the "
+            "strongest forward-looking signal. Lookback defaults to 7 days."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Number of days to look back (default 7)",
+                    "default": 7,
+                },
+            },
+        },
+    ),
+    ToolDef(
+        name="search_stocks",
+        description=(
+            "Search for stocks by company name or keyword. "
+            "Checks across major exchanges including EU markets. "
             "Useful for discovering related companies or sector peers."
         ),
         parameters={
@@ -192,10 +228,22 @@ RESEARCH_TOOLS: list[ToolDef] = [
             "required": ["query"],
         },
     ),
+    ToolDef(
+        name="screen_global_markets",
+        description=(
+            "Screen global markets for top movers and most active stocks. "
+            "EU-listed stocks receive a soft scoring bonus for preference. "
+            "Returns candidates ranked by score — use this to discover investment opportunities."
+        ),
+        parameters={
+            "type": "object",
+            "properties": {},
+        },
+    ),
 ]
 
 # ---------------------------------------------------------------------------
-# Trader Agent tools (2 verification-only tools)
+# Trader Agent tools (price verification only)
 # ---------------------------------------------------------------------------
 
 TRADER_TOOLS: list[ToolDef] = [
@@ -214,24 +262,6 @@ TRADER_TOOLS: list[ToolDef] = [
                 },
             },
             "required": ["ticker"],
-        },
-    ),
-    ToolDef(
-        name="get_portfolio",
-        description=(
-            "Get the current portfolio positions for your LLM to check "
-            "existing holdings. Returns list of positions with ticker, "
-            "quantity, average buy price, and whether real/virtual."
-        ),
-        parameters={
-            "type": "object",
-            "properties": {
-                "llm_name": {
-                    "type": "string",
-                    "description": "The LLM name to look up, either 'claude' or 'minimax'",
-                },
-            },
-            "required": ["llm_name"],
         },
     ),
 ]

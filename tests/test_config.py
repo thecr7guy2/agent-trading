@@ -9,7 +9,6 @@ class TestSettings:
         monkeypatch.setenv("MINIMAX_API_KEY", "mm-test")
         monkeypatch.setenv("T212_API_KEY", "t212-test")
         monkeypatch.setenv("T212_API_SECRET", "t212-secret-test")
-        monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost/test")
 
         settings = Settings()
 
@@ -17,7 +16,6 @@ class TestSettings:
         assert settings.minimax_api_key == "mm-test"
         assert settings.t212_api_key == "t212-test"
         assert settings.t212_api_secret == "t212-secret-test"
-        assert settings.database_url == "postgresql://test:test@localhost/test"
 
     def test_defaults(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
@@ -34,21 +32,22 @@ class TestSettings:
         assert settings.claude_sonnet_model == "claude-sonnet-4-6"
         assert settings.claude_haiku_model == "claude-haiku-4-5-20251001"
         assert settings.orchestrator_timezone == "Europe/Berlin"
-        assert settings.approval_timeout_seconds == 120
-        assert settings.approval_timeout_action == "approve_all"
         assert settings.max_tool_rounds == 10
         assert settings.pipeline_timeout_seconds == 900
+        assert settings.max_candidates == 15
 
-    def test_reddit_credentials_optional(self, monkeypatch):
+    def test_practice_account_optional(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "x")
         monkeypatch.setenv("MINIMAX_API_KEY", "x")
         monkeypatch.setenv("T212_API_KEY", "x")
         monkeypatch.setenv("T212_API_SECRET", "x")
+        monkeypatch.delenv("T212_PRACTICE_API_KEY", raising=False)
+        monkeypatch.delenv("T212_PRACTICE_API_SECRET", raising=False)
 
-        settings = Settings()
+        settings = Settings(_env_file=None)
 
-        assert settings.reddit_client_id is None
-        assert settings.reddit_client_secret is None
+        assert settings.t212_practice_api_key is None
+        assert settings.t212_practice_api_secret is None
 
     def test_missing_required_key_raises(self, monkeypatch):
         for key in [

@@ -1,75 +1,104 @@
-"""Generate P&L and leaderboard reports."""
+"""Generate a portfolio P&L report from current T212 positions."""
 
 import argparse
 import asyncio
-from datetime import date, timedelta
+from decimal import Decimal
 
-from src.db.connection import get_pool
-from src.mcp_servers.trading.portfolio import PortfolioManager
-from src.orchestrator.mcp_client import create_market_data_client
-from src.reporting.formatter import print_report
-from src.reporting.leaderboard import LeaderboardBuilder
-from src.reporting.pnl import PnLEngine
+from src.config import get_settings
+from src.mcp_servers.trading.portfolio import get_demo_positions, get_live_positions
+from src.mcp_servers.trading.t212_client import T212Client
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate a trading report")
+    parser = argparse.ArgumentParser(description="Show current portfolio positions and P&L")
     parser.add_argument(
-        "--period",
-        required=True,
-        choices=["day", "week", "month", "all"],
-        help="Report period",
-    )
-    parser.add_argument(
-        "--date",
-        dest="end_date",
-        help="End date in YYYY-MM-DD format (defaults to today)",
+        "--account",
+        choices=["live", "demo", "both"],
+        default="both",
+        help="Which account to show (default: both)",
     )
     return parser
 
 
-def _compute_date_range(period: str, end_date: date) -> tuple[date, date]:
-    if period == "day":
-        return end_date, end_date
-    if period == "week":
-        start = end_date - timedelta(days=end_date.weekday())
-        return start, end_date
-    if period == "month":
-        start = end_date.replace(day=1)
-        return start, end_date
-    # "all" — go back ~1 year
-    return end_date - timedelta(days=365), end_date
+def _format_positions(positions: list[dict], label: str) -> None:
+    print(f"\n{'=' * 60}")
+    print(f"  {label}")
+    print(f"{'=' * 60}")
 
+    if not positions:
+        print("  No open positions.")
+        return
 
-def _period_label(period: str, start: date, end: date) -> str:
-    if period == "day":
-        return f"DAILY REPORT ({end})"
-    if period == "week":
-        return f"WEEKLY REPORT ({start} – {end})"
-    if period == "month":
-        return f"MONTHLY REPORT ({start.strftime('%B %Y')})"
-    return f"ALL-TIME REPORT (through {end})"
+    total_invested = Decimal("0")
+    total_value = Decimal("0")
+
+    print(f"  {'Ticker':<10} {'Qty':>8} {'Avg':>10} {'Price':>10} {'Value':>10} {'P&L':>10} {'%':>7}")
+    print(f"  {'-' * 65}")
+
+    for pos in sorted(positions, key=lambda p: p.get("ticker", "")):
+        ticker = pos.get("ticker", "?")
+        qty = Decimal(str(pos.get("quantity", 0)))
+        avg = Decimal(str(pos.get("avg_buy_price", 0)))
+        price = Decimal(str(pos.get("current_price", 0)))
+        invested = qty * avg
+        value = qty * price if price > 0 else invested
+        pnl = value - invested
+        pnl_pct = float(pnl / invested * 100) if invested > 0 else 0.0
+
+        total_invested += invested
+        total_value += value
+
+        pnl_sign = "+" if pnl >= 0 else ""
+        pnl_pct_sign = "+" if pnl_pct >= 0 else ""
+        print(
+            f"  {ticker:<10} {float(qty):>8.4f} {float(avg):>10.2f} {float(price):>10.2f} "
+            f"{float(value):>10.2f} {pnl_sign}{float(pnl):>9.2f} {pnl_pct_sign}{pnl_pct:>6.1f}%"
+        )
+
+    print(f"  {'-' * 65}")
+    total_pnl = total_value - total_invested
+    total_pnl_pct = float(total_pnl / total_invested * 100) if total_invested > 0 else 0.0
+    pnl_sign = "+" if total_pnl >= 0 else ""
+    pnl_pct_sign = "+" if total_pnl_pct >= 0 else ""
+    print(
+        f"  {'TOTAL':<10} {'':>8} {'':>10} {'':>10} "
+        f"{float(total_value):>10.2f} {pnl_sign}{float(total_pnl):>9.2f} "
+        f"{pnl_pct_sign}{total_pnl_pct:>6.1f}%"
+    )
+    print(f"  Invested: €{float(total_invested):.2f}")
 
 
 async def _run(args: argparse.Namespace) -> None:
-    end = date.fromisoformat(args.end_date) if args.end_date else date.today()
-    start, end = _compute_date_range(args.period, end)
-    label = _period_label(args.period, start, end)
+    settings = get_settings()
 
-    pool = await get_pool()
-    pm = PortfolioManager(pool)
-    market_client = create_market_data_client()
+    if args.account in ("live", "both"):
+        try:
+            t212_live = T212Client(
+                api_key=settings.t212_api_key,
+                api_secret=settings.t212_api_secret,
+                use_demo=False,
+            )
+            live_positions = await get_live_positions(t212_live)
+            _format_positions(live_positions, "LIVE ACCOUNT (Real Money)")
+        except Exception as e:
+            print(f"\nFailed to fetch live positions: {e}")
 
-    engine = PnLEngine(pm, market_client)
-    builder = LeaderboardBuilder(engine)
+    if args.account in ("demo", "both"):
+        if not settings.t212_practice_api_key:
+            print("\nNo practice account configured (T212_PRACTICE_API_KEY not set)")
+        else:
+            try:
+                t212_demo = T212Client(
+                    api_key=settings.t212_practice_api_key,
+                    api_secret=settings.t212_practice_api_secret or "",
+                    use_demo=True,
+                )
+                demo_positions = await get_demo_positions(t212_demo)
+                _format_positions(demo_positions, "DEMO ACCOUNT (Practice)")
+            except Exception as e:
+                print(f"\nFailed to fetch demo positions: {e}")
 
-    leaderboard = await builder.build(start, end)
-    summary = await engine.get_portfolio_summary(is_real=True)
-    best_worst = await engine.get_best_worst_picks(start, end)
-
-    print_report(label, leaderboard, summary, best_worst)
-
-    await market_client.close()
+    print()
 
 
 def main() -> None:

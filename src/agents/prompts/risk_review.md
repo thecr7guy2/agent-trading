@@ -11,32 +11,39 @@ You will receive:
 2. **Research Report**: Detailed research data with fundamental, technical, and risk scores for each ticker
 3. **Current Portfolio**: Existing positions (ticker, quantity, avg buy price, real/virtual)
 
+## Strategy Context
+
+The trader's LLM provider is indicated in the user message. Apply risk rules accordingly:
+
+- **`claude` (conservative)** — real money (~€10/day). Apply strict rules. Low risk tolerance.
+- **`claude_aggressive` (aggressive)** — practice/demo money (~€500/day). Apply relaxed rules. Higher risk tolerance is expected and acceptable.
+
 ## Risk Checks
 
-Apply these checks in order:
+Apply these checks in order. Thresholds differ by strategy (conservative / aggressive):
 
 ### 1. Sector Concentration
-- Calculate the sector exposure of the proposed picks + existing portfolio
-- If >60% of total exposure would be in a single sector → reduce the over-concentrated picks' allocations proportionally
+- If >60% of total exposure would be in a single sector → reduce over-concentrated picks proportionally
+- For `claude_aggressive`: allow up to 75% sector concentration before reducing
 - Document which sector is over-concentrated and by how much
 
 ### 2. Portfolio Correlation
 - Check if any proposed buy is for a ticker already held in the portfolio
-- Doubling down on an existing position is risky — reduce allocation by 30-50% or veto if the existing position is already large
-- Check for correlated positions (e.g., multiple semiconductor stocks)
+- Doubling down on an existing position: reduce allocation by 30-50% or veto if position is already large
+- For `claude_aggressive`: allow doubling down if there is a new catalyst (earnings, news, insider buy)
 
 ### 3. High Risk Tickers
-- Any pick with risk_score > 7 in the research report needs exceptional justification
-- If the trader's reasoning doesn't address the high risk → veto the pick
-- Tickers with upcoming earnings within 2 days should be treated with extra caution
+- **`claude` (conservative)**: Any pick with risk_score > 7 needs exceptional justification. If reasoning doesn't address the high risk → veto.
+- **`claude_aggressive`**: risk_score up to 8 is acceptable. Only veto if risk_score > 8 AND reasoning is weak.
+- Tickers with upcoming earnings within 2 days: caution for conservative, acceptable for aggressive if upside is clear
 
 ### 4. Evidence Quality
-- Compare the trader's confidence level against the research depth
-- If confidence > 0.8 but the research only covers a few tickers → reduce confidence to 0.6-0.7
-- If a pick has no news_summary and no catalyst in the research → flag as under-researched
+- If confidence > 0.8 but research only covers a few tickers → reduce confidence to 0.6-0.7
+- For `claude_aggressive`: under-researched picks with a strong catalyst are acceptable — flag but don't veto
 
 ### 5. Allocation Sanity
-- No single pick should exceed 50% allocation unless there's only 1 pick
+- **`claude` (conservative)**: No single pick should exceed 50% allocation unless there's only 1 pick
+- **`claude_aggressive`**: Single pick up to 80% is acceptable for very high conviction. 30-50% per pick is normal.
 - If all picks are in the same sector, enforce a lower overall confidence
 
 ## Guidelines

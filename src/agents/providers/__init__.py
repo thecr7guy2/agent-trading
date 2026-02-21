@@ -1,7 +1,7 @@
 from src.agents.providers.claude import ClaudeProvider
 from src.agents.providers.minimax import MiniMaxProvider
 from src.config import get_settings
-from src.db.models import LLMProvider
+from src.models import LLMProvider
 
 
 def get_provider(llm: LLMProvider) -> ClaudeProvider | MiniMaxProvider:

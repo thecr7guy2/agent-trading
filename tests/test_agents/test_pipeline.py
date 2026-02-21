@@ -4,10 +4,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.agents.pipeline import AgentPipeline, PipelineOutput
-from src.db.models import (
+from src.models import (
     DailyPicks,
     LLMProvider,
-    PickReview,
     ResearchFinding,
     ResearchReport,
     SentimentReport,
@@ -44,17 +43,6 @@ SAMPLE_PICKS = DailyPicks(
     market_summary="Markets looking good.",
 )
 
-SAMPLE_REVIEW = PickReview(
-    llm=LLMProvider.CLAUDE,
-    pick_date=date(2026, 2, 15),
-    picks=[
-        StockPick(ticker="ASML.AS", allocation_pct=55.0, reasoning="Strong pick, reduced alloc")
-    ],
-    confidence=0.75,
-    market_summary="Markets looking good.",
-    risk_notes="Slightly reduced allocation due to sector concentration.",
-    adjustments=["Reduced ASML.AS from 60% to 55%"],
-)
 
 
 class TestAgentPipeline:
@@ -72,11 +60,10 @@ class TestAgentPipeline:
                 trading_client=mock_trading_client,
             )
 
-            # Mock all four agents
+            # Mock all three agents (no separate risk stage)
             pipeline._sentiment.run = AsyncMock(return_value=SAMPLE_SENTIMENT)
             pipeline._research.run = AsyncMock(return_value=SAMPLE_RESEARCH)
             pipeline._trader.run = AsyncMock(return_value=SAMPLE_PICKS)
-            pipeline._risk.run = AsyncMock(return_value=SAMPLE_REVIEW)
 
             result = await pipeline.run(
                 signal_digest={"candidates": []},
@@ -94,7 +81,6 @@ class TestAgentPipeline:
             pipeline._sentiment.run.assert_called_once()
             pipeline._research.run.assert_called_once()
             pipeline._trader.run.assert_called_once()
-            pipeline._risk.run.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_full_pipeline_minimax(self):
@@ -117,17 +103,9 @@ class TestAgentPipeline:
                 picks=[StockPick(ticker="SAP.DE", allocation_pct=100.0, reasoning="All in")],
                 confidence=0.6,
             )
-            aggressive_review = PickReview(
-                llm=LLMProvider.CLAUDE_AGGRESSIVE,
-                pick_date=date(2026, 2, 15),
-                picks=[StockPick(ticker="SAP.DE", allocation_pct=100.0, reasoning="All in")],
-                confidence=0.6,
-            )
-
             pipeline._sentiment.run = AsyncMock(return_value=SAMPLE_SENTIMENT)
             pipeline._research.run = AsyncMock(return_value=SAMPLE_RESEARCH)
             pipeline._trader.run = AsyncMock(return_value=aggressive_picks)
-            pipeline._risk.run = AsyncMock(return_value=aggressive_review)
 
             result = await pipeline.run(
                 reddit_digest={},
@@ -154,7 +132,6 @@ class TestAgentPipeline:
             pipeline._sentiment.run = AsyncMock(return_value=SAMPLE_SENTIMENT)
             pipeline._research.run = AsyncMock(return_value=SAMPLE_RESEARCH)
             pipeline._trader.run = AsyncMock(return_value=SAMPLE_PICKS)
-            pipeline._risk.run = AsyncMock(return_value=SAMPLE_REVIEW)
 
             await pipeline.run(
                 signal_digest={"data": "test"},
@@ -176,12 +153,6 @@ class TestAgentPipeline:
             assert trader_input["research"] == SAMPLE_RESEARCH
             assert trader_input["portfolio"] == [{"ticker": "OLD"}]
             assert trader_input["budget_eur"] == 5.0
-
-            # Stage 4 receives picks + research + portfolio
-            risk_input = pipeline._risk.run.call_args[0][0]
-            assert risk_input["picks"] == SAMPLE_PICKS
-            assert risk_input["research"] == SAMPLE_RESEARCH
-            assert risk_input["portfolio"] == [{"ticker": "OLD"}]
 
     @pytest.mark.asyncio
     async def test_pipeline_without_clients_uses_legacy(self):

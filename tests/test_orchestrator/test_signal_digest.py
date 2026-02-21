@@ -8,23 +8,23 @@ from src.orchestrator.supervisor import Supervisor
 
 def _settings():
     return SimpleNamespace(
-        approval_timeout_seconds=120,
-        approval_timeout_action="approve_all",
-        market_data_ticker_limit=12,
         orchestrator_timezone="Europe/Berlin",
         daily_budget_eur=10.0,
-        scheduler_eod_time="17:35",
+        practice_daily_budget_eur=500.0,
+        t212_api_key="live-key",
+        t212_api_secret="",
+        t212_practice_api_key="demo-key",
+        t212_practice_api_secret="",
+        telegram_enabled=False,
+        telegram_bot_token=None,
+        telegram_chat_id=None,
         sell_stop_loss_pct=10.0,
         sell_take_profit_pct=15.0,
         sell_max_hold_days=5,
         sell_check_schedule="09:30,12:30,16:45",
-        telegram_enabled=False,
-        telegram_bot_token=None,
-        telegram_chat_id=None,
-        signal_candidate_limit=25,
-        screener_min_market_cap=1_000_000_000,
-        screener_exchanges="AMS,PAR,GER,MIL,MCE,LSE",
-        max_tool_rounds=10,
+        max_candidates=15,
+        recently_traded_path="recently_traded.json",
+        recently_traded_days=3,
         pipeline_timeout_seconds=600,
     )
 
@@ -116,7 +116,7 @@ class TestBuildSignalDigest:
         mock_reddit = _MockMCPClient({"get_daily_digest": REDDIT_DIGEST})
         mock_market = _MockMCPClient(
             {
-                "screen_eu_markets": SCREENER_RESULT,
+                "screen_global_markets": SCREENER_RESULT,
                 "get_earnings_calendar": EARNINGS_RESULT,
                 "get_news": news_result,
             }
@@ -150,7 +150,7 @@ class TestBuildSignalDigest:
     @pytest.mark.asyncio
     async def test_candidate_limit(self):
         settings = _settings()
-        settings.signal_candidate_limit = 2
+        settings.max_candidates = 2
 
         reddit_digest = {
             "total_posts": 100,
@@ -167,7 +167,7 @@ class TestBuildSignalDigest:
         mock_reddit = _MockMCPClient({"get_daily_digest": reddit_digest})
         mock_market = _MockMCPClient(
             {
-                "screen_eu_markets": {"results": [], "count": 0},
+                "screen_global_markets": {"results": [], "count": 0},
                 "get_earnings_calendar": {"events": [], "count": 0},
                 "get_news": {"ticker": "", "news": []},
             }
@@ -198,7 +198,7 @@ class TestBuildSignalDigest:
         mock_reddit = _MockMCPClient({"get_daily_digest": reddit_digest})
         mock_market = _MockMCPClient(
             {
-                "screen_eu_markets": {"results": [], "count": 0},
+                "screen_global_markets": {"results": [], "count": 0},
                 "get_earnings_calendar": {"events": [], "count": 0},
                 "get_news": {"ticker": "", "news": []},
             }
@@ -206,7 +206,7 @@ class TestBuildSignalDigest:
         original_call = mock_market.call_tool
 
         async def patched_call(name, arguments):
-            if name == "screen_eu_markets":
+            if name == "screen_global_markets":
                 raise Exception("screener down")
             return await original_call(name, arguments)
 
@@ -237,7 +237,7 @@ class TestBuildSignalDigest:
         }
 
         def mock_market_response(name, arguments):
-            if name == "screen_eu_markets":
+            if name == "screen_global_markets":
                 return {"results": [], "count": 0}
             if name == "get_earnings_calendar":
                 return {"events": [], "count": 0}
@@ -263,56 +263,3 @@ class TestBuildSignalDigest:
         asml = next(c for c in digest["candidates"] if c["ticker"] == "ASML.AS")
         assert "news" in asml
         assert asml["news"][0]["title"] == "Test headline"
-
-
-class TestBuildMarketDataNewFormat:
-    @pytest.mark.asyncio
-    async def test_uses_candidates_key(self):
-        digest = {
-            "candidates": [
-                {"ticker": "ASML.AS", "sources": ["reddit", "screener"]},
-                {"ticker": "SAP.DE", "sources": ["reddit"]},
-            ],
-            "source_type": "multi",
-        }
-
-        mock_market = _MockMCPClient(
-            {
-                "get_stock_price": {"price": 850.0},
-                "get_fundamentals": {"ticker": "ASML.AS"},
-                "get_technical_indicators": {"ticker": "ASML.AS"},
-            }
-        )
-
-        supervisor = Supervisor(
-            settings=_settings(),
-            market_data_client=mock_market,
-        )
-
-        market_data = await supervisor.build_market_data(digest)
-        assert "ASML.AS" in market_data
-        assert "SAP.DE" in market_data
-
-    @pytest.mark.asyncio
-    async def test_backward_compat_tickers_key(self):
-        digest = {
-            "tickers": [
-                {"ticker": "ASML.AS"},
-            ],
-        }
-
-        mock_market = _MockMCPClient(
-            {
-                "get_stock_price": {"price": 850.0},
-                "get_fundamentals": {"ticker": "ASML.AS"},
-                "get_technical_indicators": {"ticker": "ASML.AS"},
-            }
-        )
-
-        supervisor = Supervisor(
-            settings=_settings(),
-            market_data_client=mock_market,
-        )
-
-        market_data = await supervisor.build_market_data(digest)
-        assert "ASML.AS" in market_data

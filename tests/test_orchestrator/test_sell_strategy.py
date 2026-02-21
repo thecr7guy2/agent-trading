@@ -1,10 +1,10 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 import pytest
 
 from src.config import Settings
-from src.db.models import LLMProvider, Position
+from src.models import LLMProvider, Position
 from src.orchestrator.sell_strategy import SellStrategyEngine
 
 
@@ -29,13 +29,12 @@ def engine(settings):
 @pytest.fixture
 def position():
     return Position(
-        id=1,
         llm_name=LLMProvider.CLAUDE,
         ticker="ASML.AS",
         quantity=Decimal("0.05"),
         avg_buy_price=Decimal("700.00"),
         is_real=True,
-        opened_at=datetime(2025, 2, 10, 9, 0, 0),
+        opened_at=date(2025, 2, 10),
     )
 
 
@@ -90,22 +89,20 @@ class TestEvaluatePositions:
     def test_multiple_positions(self, engine):
         positions = [
             Position(
-                id=1,
                 llm_name=LLMProvider.CLAUDE,
                 ticker="ASML.AS",
                 quantity=Decimal("0.05"),
                 avg_buy_price=Decimal("700.00"),
                 is_real=True,
-                opened_at=datetime(2025, 2, 10, 9, 0, 0),
+                opened_at=date(2025, 2, 10),
             ),
             Position(
-                id=2,
                 llm_name=LLMProvider.CLAUDE_AGGRESSIVE,
                 ticker="SAP.DE",
                 quantity=Decimal("0.1"),
                 avg_buy_price=Decimal("200.00"),
                 is_real=False,
-                opened_at=datetime(2025, 2, 10, 9, 0, 0),
+                opened_at=date(2025, 2, 10),
             ),
         ]
         prices = {"ASML.AS": 620.0, "SAP.DE": 200.0}
@@ -117,13 +114,12 @@ class TestEvaluatePositions:
     def test_no_signals_when_prices_normal(self, engine):
         positions = [
             Position(
-                id=1,
                 llm_name=LLMProvider.CLAUDE,
                 ticker="ASML.AS",
                 quantity=Decimal("0.05"),
                 avg_buy_price=Decimal("700.00"),
                 is_real=True,
-                opened_at=datetime(2025, 2, 10, 9, 0, 0),
+                opened_at=date(2025, 2, 10),
             ),
         ]
         prices = {"ASML.AS": 710.0}
@@ -137,13 +133,12 @@ class TestEvaluatePositions:
     def test_zero_price_skipped(self, engine):
         positions = [
             Position(
-                id=1,
                 llm_name=LLMProvider.CLAUDE,
                 ticker="ASML.AS",
                 quantity=Decimal("0.05"),
                 avg_buy_price=Decimal("700.00"),
                 is_real=True,
-                opened_at=datetime(2025, 2, 10, 9, 0, 0),
+                opened_at=date(2025, 2, 10),
             ),
         ]
         signals = engine.evaluate_positions(positions, {"ASML.AS": 0.0}, date(2025, 2, 11))

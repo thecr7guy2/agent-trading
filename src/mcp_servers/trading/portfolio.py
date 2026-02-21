@@ -1,556 +1,74 @@
-from datetime import date
-from decimal import Decimal
+"""
+Thin wrapper around the T212 client for position and account queries.
+No DB — T212 is the single source of truth for all positions and balances.
+"""
 
-import asyncpg
+import logging
 
-from src.db.models import DailyPicks, Position
+from src.mcp_servers.trading.t212_client import T212Client
+
+logger = logging.getLogger(__name__)
 
 
-class PortfolioManager:
-    def __init__(self, pool: asyncpg.Pool):
-        self._pool = pool
+async def get_live_positions(t212: T212Client) -> list[dict]:
+    """Return all open positions from the live (real money) account."""
+    try:
+        raw = await t212.get_positions()
+        return _normalise_positions(raw)
+    except Exception:
+        logger.exception("Failed to fetch live positions")
+        return []
 
-    async def record_trade(
-        self,
-        llm_name: str,
-        ticker: str,
-        action: str,
-        quantity: Decimal,
-        price_per_share: Decimal,
-        is_real: bool,
-        broker_order_id: str | None = None,
-    ) -> dict:
-        total_cost = quantity * price_per_share
-        async with self._pool.acquire() as conn:
-            async with conn.transaction():
-                # Insert trade
-                row = await conn.fetchrow(
-                    """
-                    INSERT INTO trades
-                        (llm_name, trade_date, ticker, action, quantity,
-                         price_per_share, total_cost, is_real, broker_order_id, status)
-                    VALUES ($1, CURRENT_DATE, $2, $3, $4, $5, $6, $7, $8, 'filled')
-                    RETURNING id, trade_date, created_at
-                    """,
-                    llm_name,
-                    ticker,
-                    action,
-                    quantity,
-                    price_per_share,
-                    total_cost,
-                    is_real,
-                    broker_order_id,
-                )
 
-                # Update position
-                if action == "buy":
-                    await self._update_position_buy(
-                        conn, llm_name, ticker, quantity, price_per_share, is_real
-                    )
-                elif action == "sell":
-                    await self._update_position_sell(conn, llm_name, ticker, quantity, is_real)
+async def get_demo_positions(t212: T212Client) -> list[dict]:
+    """Return all open positions from the demo (practice) account."""
+    try:
+        raw = await t212.get_positions()
+        return _normalise_positions(raw)
+    except Exception:
+        logger.exception("Failed to fetch demo positions")
+        return []
 
+
+async def get_account_cash(t212: T212Client) -> dict:
+    """Return free cash and total account value."""
+    try:
+        data = await t212.get_account_cash()
         return {
-            "id": row["id"],
-            "llm_name": llm_name,
-            "trade_date": str(row["trade_date"]),
+            "free": float(data.get("free", data.get("freeForStocks", 0))),
+            "invested": float(data.get("invested", 0)),
+            "result": float(data.get("result", 0)),
+            "total": float(data.get("total", 0)),
+            "ppl": float(data.get("ppl", 0)),
+        }
+    except Exception:
+        logger.exception("Failed to fetch account cash")
+        return {"free": 0.0, "invested": 0.0, "result": 0.0, "total": 0.0, "ppl": 0.0}
+
+
+def _normalise_positions(raw: list) -> list[dict]:
+    """Normalise T212 position dicts into a consistent format."""
+    positions = []
+    for p in raw:
+        if not isinstance(p, dict):
+            continue
+        ticker = p.get("ticker", "")
+        quantity = float(p.get("quantity", 0))
+        avg_price = float(p.get("averagePrice", p.get("avgPrice", 0)))
+        current_price = float(p.get("currentPrice", p.get("lastPrice", 0)))
+        current_value = quantity * current_price
+        invested = quantity * avg_price
+        pnl = current_value - invested
+        pnl_pct = (pnl / invested * 100) if invested else 0.0
+
+        positions.append({
             "ticker": ticker,
-            "action": action,
-            "quantity": str(quantity),
-            "price_per_share": str(price_per_share),
-            "total_cost": str(total_cost),
-            "is_real": is_real,
-            "broker_order_id": broker_order_id,
-            "status": "filled",
-        }
-
-    async def _update_position_buy(
-        self,
-        conn: asyncpg.Connection,
-        llm_name: str,
-        ticker: str,
-        quantity: Decimal,
-        price: Decimal,
-        is_real: bool,
-    ):
-        existing = await conn.fetchrow(
-            """
-            SELECT quantity, avg_buy_price FROM positions
-            WHERE llm_name = $1 AND ticker = $2 AND is_real = $3
-            """,
-            llm_name,
-            ticker,
-            is_real,
-        )
-        if existing:
-            old_qty = existing["quantity"]
-            old_avg = existing["avg_buy_price"]
-            new_qty = old_qty + quantity
-            new_avg = (old_qty * old_avg + quantity * price) / new_qty
-            await conn.execute(
-                """
-                UPDATE positions SET quantity = $1, avg_buy_price = $2
-                WHERE llm_name = $3 AND ticker = $4 AND is_real = $5
-                """,
-                new_qty,
-                new_avg,
-                llm_name,
-                ticker,
-                is_real,
-            )
-        else:
-            await conn.execute(
-                """
-                INSERT INTO positions (llm_name, ticker, quantity, avg_buy_price, is_real)
-                VALUES ($1, $2, $3, $4, $5)
-                """,
-                llm_name,
-                ticker,
-                quantity,
-                price,
-                is_real,
-            )
-
-    async def _update_position_sell(
-        self,
-        conn: asyncpg.Connection,
-        llm_name: str,
-        ticker: str,
-        quantity: Decimal,
-        is_real: bool,
-    ):
-        existing = await conn.fetchrow(
-            """
-            SELECT quantity FROM positions
-            WHERE llm_name = $1 AND ticker = $2 AND is_real = $3
-            """,
-            llm_name,
-            ticker,
-            is_real,
-        )
-        if not existing:
-            return
-        remaining = existing["quantity"] - quantity
-        if remaining <= 0:
-            await conn.execute(
-                """
-                DELETE FROM positions
-                WHERE llm_name = $1 AND ticker = $2 AND is_real = $3
-                """,
-                llm_name,
-                ticker,
-                is_real,
-            )
-        else:
-            await conn.execute(
-                """
-                UPDATE positions SET quantity = $1
-                WHERE llm_name = $2 AND ticker = $3 AND is_real = $4
-                """,
-                remaining,
-                llm_name,
-                ticker,
-                is_real,
-            )
-
-    async def get_portfolio(self, llm_name: str) -> list[dict]:
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT id, llm_name, ticker, quantity, avg_buy_price, is_real, opened_at
-                FROM positions WHERE llm_name = $1
-                ORDER BY opened_at DESC
-                """,
-                llm_name,
-            )
-        return [
-            {
-                "id": r["id"],
-                "llm_name": r["llm_name"],
-                "ticker": r["ticker"],
-                "quantity": str(r["quantity"]),
-                "avg_buy_price": str(r["avg_buy_price"]),
-                "is_real": r["is_real"],
-                "opened_at": str(r["opened_at"]),
-            }
-            for r in rows
-        ]
-
-    async def get_trade_history(self, llm_name: str, limit: int = 50) -> list[dict]:
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT id, llm_name, trade_date, ticker, action, quantity,
-                       price_per_share, total_cost, is_real, broker_order_id,
-                       status, created_at
-                FROM trades
-                WHERE llm_name = $1
-                ORDER BY created_at DESC
-                LIMIT $2
-                """,
-                llm_name,
-                limit,
-            )
-        return [
-            {
-                "id": r["id"],
-                "llm_name": r["llm_name"],
-                "trade_date": str(r["trade_date"]),
-                "ticker": r["ticker"],
-                "action": r["action"],
-                "quantity": str(r["quantity"]),
-                "price_per_share": str(r["price_per_share"]),
-                "total_cost": str(r["total_cost"]),
-                "is_real": r["is_real"],
-                "broker_order_id": r["broker_order_id"],
-                "status": r["status"],
-            }
-            for r in rows
-        ]
-
-    async def calculate_pnl(
-        self, llm_name: str, start_date: date, end_date: date, is_real: bool | None = None
-    ) -> dict:
-        async with self._pool.acquire() as conn:
-            real_filter = ""
-            args: list = [llm_name, start_date, end_date]
-            if is_real is not None:
-                real_filter = f" AND is_real = ${len(args) + 1}"
-                args.append(is_real)
-
-            # Total invested (sum of buy costs in period)
-            invested = await conn.fetchval(
-                f"""
-                SELECT COALESCE(SUM(total_cost), 0)
-                FROM trades
-                WHERE llm_name = $1 AND action = 'buy'
-                  AND trade_date BETWEEN $2 AND $3 AND status = 'filled'{real_filter}
-                """,
-                *args,
-            )
-
-            # Total proceeds from sells (realized)
-            proceeds = await conn.fetchval(
-                f"""
-                SELECT COALESCE(SUM(total_cost), 0)
-                FROM trades
-                WHERE llm_name = $1 AND action = 'sell'
-                  AND trade_date BETWEEN $2 AND $3 AND status = 'filled'{real_filter}
-                """,
-                *args,
-            )
-
-            # Win/loss counts from sell trades
-            # A sell is a "win" if sell price > avg buy price for that position
-            sell_trades = await conn.fetch(
-                f"""
-                SELECT t.ticker, t.price_per_share as sell_price, t.quantity
-                FROM trades t
-                WHERE t.llm_name = $1 AND t.action = 'sell'
-                  AND t.trade_date BETWEEN $2 AND $3 AND t.status = 'filled'{real_filter}
-                """,
-                *args,
-            )
-
-            # For each sell, look up what the avg buy price was
-            win_count = 0
-            loss_count = 0
-            buy_real_filter = ""
-            buy_args_extra: list = []
-            if is_real is not None:
-                buy_real_filter = " AND is_real = $4"
-                buy_args_extra = [is_real]
-
-            for trade in sell_trades:
-                buy_avg = await conn.fetchval(
-                    f"""
-                    SELECT AVG(price_per_share)
-                    FROM trades
-                    WHERE llm_name = $1 AND ticker = $2 AND action = 'buy'
-                      AND status = 'filled' AND trade_date <= $3{buy_real_filter}
-                    """,
-                    llm_name,
-                    trade["ticker"],
-                    end_date,
-                    *buy_args_extra,
-                )
-                if buy_avg and trade["sell_price"] > buy_avg:
-                    win_count += 1
-                else:
-                    loss_count += 1
-
-            total_trades = win_count + loss_count
-            realized_pnl = proceeds - invested
-
-        return {
-            "llm_name": llm_name,
-            "period_start": str(start_date),
-            "period_end": str(end_date),
-            "total_invested": str(invested),
-            "total_proceeds": str(proceeds),
-            "realized_pnl": str(realized_pnl),
-            "total_sell_trades": total_trades,
-            "win_count": win_count,
-            "loss_count": loss_count,
-            "win_rate": round(win_count / total_trades, 2) if total_trades > 0 else 0.0,
-        }
-
-    async def get_leaderboard(self) -> list[dict]:
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT
-                    llm_name,
-                    COUNT(*) as total_trades,
-                    SUM(CASE WHEN action = 'buy' THEN total_cost ELSE 0 END) as total_invested,
-                    SUM(CASE WHEN action = 'sell' THEN total_cost ELSE 0 END) as total_proceeds
-                FROM trades
-                WHERE status = 'filled'
-                GROUP BY llm_name
-                ORDER BY (SUM(CASE WHEN action = 'sell' THEN total_cost ELSE 0 END)
-                        - SUM(CASE WHEN action = 'buy' THEN total_cost ELSE 0 END)) DESC
-                """
-            )
-        return [
-            {
-                "llm_name": r["llm_name"],
-                "total_trades": r["total_trades"],
-                "total_invested": str(r["total_invested"]),
-                "total_proceeds": str(r["total_proceeds"]),
-                "realized_pnl": str(r["total_proceeds"] - r["total_invested"]),
-            }
-            for r in rows
-        ]
-
-    async def trade_exists(
-        self,
-        llm_name: str,
-        trade_date: date,
-        ticker: str,
-        action: str,
-        is_real: bool,
-    ) -> bool:
-        async with self._pool.acquire() as conn:
-            value = await conn.fetchval(
-                """
-                SELECT 1
-                FROM trades
-                WHERE llm_name = $1
-                  AND trade_date = $2
-                  AND ticker = $3
-                  AND action = $4
-                  AND is_real = $5
-                LIMIT 1
-                """,
-                llm_name,
-                trade_date,
-                ticker,
-                action,
-                is_real,
-            )
-        return value is not None
-
-    async def get_all_positions(self, is_real: bool | None = None) -> list[Position]:
-        async with self._pool.acquire() as conn:
-            if is_real is None:
-                rows = await conn.fetch(
-                    """
-                    SELECT id, llm_name, ticker, quantity, avg_buy_price, is_real, opened_at
-                    FROM positions ORDER BY opened_at DESC
-                    """
-                )
-            else:
-                rows = await conn.fetch(
-                    """
-                    SELECT id, llm_name, ticker, quantity, avg_buy_price, is_real, opened_at
-                    FROM positions WHERE is_real = $1 ORDER BY opened_at DESC
-                    """,
-                    is_real,
-                )
-        return [
-            Position(
-                id=r["id"],
-                llm_name=r["llm_name"],
-                ticker=r["ticker"],
-                quantity=r["quantity"],
-                avg_buy_price=r["avg_buy_price"],
-                is_real=r["is_real"],
-                opened_at=r["opened_at"],
-            )
-            for r in rows
-        ]
-
-    async def save_sentiment_snapshot(
-        self,
-        ticker: str,
-        scrape_date: date,
-        mention_count: int,
-        avg_sentiment: float,
-        top_posts: list | None = None,
-        subreddits: dict | None = None,
-    ) -> None:
-        import json
-
-        async with self._pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO reddit_sentiment
-                    (ticker, scrape_date, mention_count, avg_sentiment, top_posts, subreddits)
-                VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
-                ON CONFLICT (ticker, scrape_date)
-                DO UPDATE SET
-                    mention_count = EXCLUDED.mention_count,
-                    avg_sentiment = EXCLUDED.avg_sentiment,
-                    top_posts = EXCLUDED.top_posts,
-                    subreddits = EXCLUDED.subreddits
-                """,
-                ticker,
-                scrape_date,
-                mention_count,
-                avg_sentiment,
-                json.dumps(top_posts or []),
-                json.dumps(subreddits or {}),
-            )
-
-    async def get_sentiment_for_date(self, scrape_date: date) -> list[dict]:
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT ticker, mention_count, avg_sentiment, top_posts, subreddits
-                FROM reddit_sentiment WHERE scrape_date = $1
-                """,
-                scrape_date,
-            )
-        return [
-            {
-                "ticker": r["ticker"],
-                "mention_count": r["mention_count"],
-                "avg_sentiment": float(r["avg_sentiment"]) if r["avg_sentiment"] else 0.0,
-                "top_posts": r["top_posts"] or [],
-                "subreddits": r["subreddits"] or {},
-            }
-            for r in rows
-        ]
-
-    async def save_daily_picks(self, picks: DailyPicks, is_main: bool) -> None:
-        async with self._pool.acquire() as conn:
-            for pick in picks.picks:
-                await conn.execute(
-                    """
-                    INSERT INTO daily_picks
-                        (llm_name, pick_date, is_main_trader, ticker, exchange,
-                         allocation_pct, reasoning, confidence)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                    ON CONFLICT (llm_name, pick_date, ticker)
-                    DO UPDATE SET
-                        is_main_trader = EXCLUDED.is_main_trader,
-                        exchange = EXCLUDED.exchange,
-                        allocation_pct = EXCLUDED.allocation_pct,
-                        reasoning = EXCLUDED.reasoning,
-                        confidence = EXCLUDED.confidence
-                    """,
-                    picks.llm.value,
-                    picks.pick_date,
-                    is_main,
-                    pick.ticker,
-                    pick.exchange,
-                    pick.allocation_pct,
-                    pick.reasoning,
-                    picks.confidence,
-                )
-
-    async def save_signal_source(
-        self,
-        scrape_date: date,
-        ticker: str,
-        source: str,
-        reason: str | None = None,
-        score: float | None = None,
-        evidence: dict | None = None,
-    ) -> None:
-        import json
-
-        async with self._pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO signal_sources
-                    (scrape_date, ticker, source, reason, score, evidence_json)
-                VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-                ON CONFLICT (scrape_date, ticker, source)
-                DO UPDATE SET
-                    reason = EXCLUDED.reason,
-                    score = EXCLUDED.score,
-                    evidence_json = EXCLUDED.evidence_json
-                """,
-                scrape_date,
-                ticker,
-                source,
-                reason,
-                score,
-                json.dumps(evidence or {}),
-            )
-
-    async def get_positions_typed(self, llm_name: str) -> list[Position]:
-        async with self._pool.acquire() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT id, llm_name, ticker, quantity, avg_buy_price, is_real, opened_at
-                FROM positions WHERE llm_name = $1
-                ORDER BY opened_at DESC
-                """,
-                llm_name,
-            )
-        return [
-            Position(
-                id=r["id"],
-                llm_name=r["llm_name"],
-                ticker=r["ticker"],
-                quantity=r["quantity"],
-                avg_buy_price=r["avg_buy_price"],
-                is_real=r["is_real"],
-                opened_at=r["opened_at"],
-            )
-            for r in rows
-        ]
-
-    async def save_portfolio_snapshot(
-        self,
-        llm_name: str,
-        snapshot_date: date,
-        total_invested: Decimal,
-        total_value: Decimal,
-        realized_pnl: Decimal,
-        unrealized_pnl: Decimal,
-        is_real: bool,
-    ) -> dict:
-        async with self._pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO portfolio_snapshots
-                    (llm_name, snapshot_date, total_invested, total_value,
-                     realized_pnl, unrealized_pnl, is_real)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-                ON CONFLICT (llm_name, snapshot_date, is_real)
-                DO UPDATE SET
-                    total_invested = EXCLUDED.total_invested,
-                    total_value = EXCLUDED.total_value,
-                    realized_pnl = EXCLUDED.realized_pnl,
-                    unrealized_pnl = EXCLUDED.unrealized_pnl
-                """,
-                llm_name,
-                snapshot_date,
-                total_invested,
-                total_value,
-                realized_pnl,
-                unrealized_pnl,
-                is_real,
-            )
-        return {
-            "llm_name": llm_name,
-            "snapshot_date": str(snapshot_date),
-            "total_invested": str(total_invested),
-            "total_value": str(total_value),
-            "realized_pnl": str(realized_pnl),
-            "unrealized_pnl": str(unrealized_pnl),
-            "is_real": is_real,
-        }
+            "quantity": quantity,
+            "avg_buy_price": avg_price,
+            "current_price": current_price,
+            "current_value": round(current_value, 2),
+            "pnl_eur": round(pnl, 2),
+            "pnl_pct": round(pnl_pct, 2),
+            "open_date": p.get("initialFillDate", p.get("openDate", "")),
+        })
+    return positions

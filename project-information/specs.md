@@ -1,344 +1,195 @@
-# Trading Bot - Project Specification
+# Trading Bot — Project Specification
 
 ## Overview
 
-A multi-LLM agentic trading system that scrapes Reddit for stock sentiment, analyzes European market data, and places real trades (~10 EUR/day) via Trading 212. Two LLMs (Claude and MiniMax 2.5) rotate daily as the "main trader" with real money, while the other makes virtual picks. At the end of each week/month, we compare P&L across both LLMs.
+A hybrid multi-LLM agentic trading system for global stocks with a soft preference for EU listings. MiniMax handles cheap data-gathering (stages 1-2); Claude makes the final buy decisions (stages 3-4). Two strategies run in parallel each day:
+
+- **Conservative** — real money (~€10/day) via T212 live account
+- **Aggressive** — practice money (~€500/day) via T212 demo account
+
+The system is fully autonomous — no human approval, no database. All state comes from the T212 API live, plus a small JSON file that prevents buying the same stock two days in a row.
 
 ---
 
-## LLM Rotation System
-
-| Day | Main Trader (Real Money) | Virtual Trader |
-|-----|--------------------------|----------------|
-| Mon | Claude                   | MiniMax 2.5    |
-| Tue | MiniMax 2.5              | Claude         |
-| Wed | Claude                   | MiniMax 2.5    |
-| Thu | MiniMax 2.5              | Claude         |
-| Fri | Claude                   | MiniMax 2.5    |
-
-- Each LLM independently picks up to 3 stocks per day (or goes all-in on 1)
-- Budget: ~10 EUR/day for the main trader
-- Virtual trader gets a simulated 10 EUR/day budget tracked in DB
-- Rotation alternates daily between the two LLMs
-
----
-
-## Architecture
+## High-Level Architecture
 
 ```
-                       ┌─────────────────────┐
-                       │   Supervisor Agent   │
-                       │     (Python)         │
-                       │  Schedules & routes  │
-                       └──────┬──────────────┘
-                              │
-               ┌──────────────┴──────────────┐
-               │                             │
-        ┌──────▼───────┐            ┌────────▼─────────┐
-        │ Claude Pipeline│            │ MiniMax Pipeline │
-        │              │            │                  │
-        │ ┌──────────┐ │            │ ┌──────────────┐ │
-        │ │ Sentiment│ │            │ │  Sentiment   │ │
-        │ │ (Haiku)  │ │            │ │  (MiniMax)   │ │
-        │ └────┬─────┘ │            │ └──────┬───────┘ │
-        │ ┌────▼─────┐ │            │ ┌──────▼───────┐ │
-        │ │ Market   │ │            │ │   Market     │ │
-        │ │ (Sonnet) │ │            │ │  (MiniMax)   │ │
-        │ └────┬─────┘ │            │ └──────┬───────┘ │
-        │ ┌────▼─────┐ │            │ ┌──────▼───────┐ │
-        │ │ Trader   │ │            │ │   Trader     │ │
-        │ │ (Opus)   │ │            │ │  (MiniMax)   │ │
-        │ └──────────┘ │            │ └──────────────┘ │
-        └──────┬───────┘            └────────┬─────────┘
-               │                             │
-               └──────────────┬──────────────┘
-                              │
-                       ┌──────▼──────┐
-                       │  MCP Servers │
-                       │  (Tools)     │
-                       └──────┬──────┘
-               ┌──────────────┼────────────────┐
-               │              │                │
-        ┌──────▼──────┐ ┌────▼──────┐ ┌───────▼───────┐
-        │ Reddit MCP  │ │ Market    │ │  Trading &    │
-        │ Server      │ │ Data MCP  │ │  Portfolio MCP│
-        └─────────────┘ └───────────┘ └───────────────┘
+                       ┌──────────────────────┐
+                       │     Supervisor        │
+                       │  (scheduler + flow)   │
+                       └──────────┬───────────┘
+                                  │
+                    ┌─────────────▼──────────────┐
+                    │      Signal Digest          │
+                    │  Reddit + Screener +        │
+                    │  OpenInsider + Earnings     │
+                    │  → up to 15 candidates      │
+                    └─────────────┬──────────────┘
+                                  │
+              ┌───────────────────▼────────────────────┐
+              │          Shared Research                 │
+              │   Stage 1 (MiniMax) → Stage 2 (MiniMax) │
+              │   Sentiment → Research with tools        │
+              └───────────────────┬────────────────────┘
+                                  │
+              ┌───────────────────▼────────────────────┐
+              │  Fan out to both strategies in parallel  │
+              └───────┬──────────────────┬─────────────┘
+                      │                  │
+         ┌────────────▼──────┐  ┌────────▼──────────────┐
+         │   Conservative    │  │    Aggressive           │
+         │  Stage 3: Opus    │  │  Stage 3: Opus          │
+         │  Stage 4: Sonnet  │  │  Stage 4: Sonnet        │
+         │  → T212 Live      │  │  → T212 Demo            │
+         │  €10 real money   │  │  €500 practice money    │
+         └───────────────────┘  └───────────────────────┘
 ```
 
 ---
 
-## MCP Servers (Tool Providers)
+## Signal Sources
 
-### 1. Reddit MCP Server (`mcp-reddit`)
-Scrapes and analyzes Reddit for stock-related discussions.
+All signals flow into a candidate list (max 15 tickers). Multi-source tickers rank highest.
 
-**Tools exposed:**
-| Tool | Description |
-|------|-------------|
-| `search_subreddit` | Search a subreddit for posts matching keywords (tickers, stock names) |
-| `get_trending_tickers` | Extract most-mentioned tickers from WSB/investing subs in last N hours |
-| `get_post_comments` | Fetch comments from a specific post for deeper sentiment |
-| `get_daily_digest` | Aggregated summary of all stock mentions + upvote-weighted sentiment |
+| Source | What it provides | Role |
+|--------|-----------------|------|
+| **yfinance screener** | Global top movers, gainers, actives | Candidate tickers (EU gets +10% soft bonus) |
+| **OpenInsider** | Cluster insider buys (2+ execs buying same stock, $50K+) | Direct candidates — highest conviction signal |
+| **Reddit RSS** | Mention counts + upvote-weighted sentiment | Supplementary — boosts multi-source tickers |
+| **NewsAPI** | Recent headlines per ticker | Per-candidate enrichment (MiniMax reads during research) |
+| **FMP / yfinance** | Analyst estimate revisions (up/down trend) | Per-candidate enrichment — earnings momentum |
+| **yfinance calendar** | Upcoming earnings announcements | Candidate signal for near-term catalysts |
 
-**Subreddits to scrape:**
-- r/wallstreetbets
-- r/investing
-- r/stocks
-- r/EuropeanStocks (or similar EU-focused subs)
-- r/Euronext
+### Candidate selection priority
 
-**Tech:** Python + PRAW (Reddit API) or async PRAW
+1. **Multi-source first** — confirmed by 2+ independent signals
+2. **Screener slots** — top movers from global markets
+3. **Earnings slots** — upcoming catalysts
+4. **Insider slots** — cluster buy signals
+5. **Reddit-only** — fills remaining slots
 
----
-
-### 2. Market Data MCP Server (`mcp-market-data`)
-Provides stock price data, fundamentals, and technical indicators for EU stocks.
-
-**Tools exposed:**
-| Tool | Description |
-|------|-------------|
-| `get_stock_price` | Current/recent price for a ticker (supports EU exchanges) |
-| `get_stock_history` | Historical OHLCV data for a ticker over N days |
-| `get_fundamentals` | P/E, market cap, EPS, dividend yield, etc. |
-| `get_technical_indicators` | RSI, MACD, moving averages, Bollinger bands |
-| `search_eu_stocks` | Search for EU-listed stocks by name or partial ticker |
-| `get_market_status` | Check if EU markets are open/closed |
-
-**Tech:** Python + `yfinance` library
-- EU tickers use suffixes: `.AS` (Amsterdam), `.PA` (Paris), `.DE` (Frankfurt), `.MI` (Milan), `.MC` (Madrid), `.L` (London)
+After selection, blacklisted tickers (bought within 3 days) are removed. Remaining candidates are enriched with news headlines in parallel before being handed to the pipeline.
 
 ---
 
-### 3. Trading & Portfolio MCP Server (`mcp-trading`)
-Handles trade execution and portfolio tracking.
+## LLM Pipeline (4 stages, hybrid providers)
 
-**Tools exposed:**
-| Tool | Description |
-|------|-------------|
-| `place_buy_order` | Place a real buy order via Trading 212 (main trader only) |
-| `place_sell_order` | Place a real sell order via Trading 212 |
-| `get_positions` | Get current real positions from Trading 212 |
-| `record_virtual_trade` | Record a virtual trade for non-main LLMs |
-| `get_portfolio` | Get full portfolio (real + virtual) from PostgreSQL |
-| `get_pnl_report` | Calculate P&L for a given LLM over a date range |
-| `get_leaderboard` | Compare both LLMs' performance side by side |
-| `get_trade_history` | Fetch trade history with filters |
+Stages 1-2 run **once** (shared research). Stages 3-4 **fan out** to both strategies simultaneously.
 
-**Tech:** Python + Trading 212 API (REST) + PostgreSQL via `asyncpg`
+| Stage | Agent | Provider | Model | Tools |
+|-------|-------|----------|-------|-------|
+| 1 — Sentiment | `SentimentAgent` | MiniMax | MiniMax-M2.5 | None |
+| 2 — Research | `ResearchAgent` | MiniMax | MiniMax-M2.5 | 8 market data tools, up to 10 rounds |
+| 3 — Trader | `TraderAgent` | Claude | Opus 4.6 | None |
+| 4 — Risk Review | `RiskReviewAgent` | Claude | Sonnet 4.6 | None |
 
----
+### Stage 1: Sentiment (MiniMax-M2.5, no tools)
+- **Input:** Full signal digest (15 candidates with all source data)
+- **Output:** `SentimentReport` — ranked tickers with refined sentiment scores
+- Filters noise, identifies which candidates are worth deep research
 
-## Agents
+### Stage 2: Research (MiniMax-M2.5, agentic tool calling)
+- **Input:** Sentiment report
+- **Tools available:** `get_stock_price`, `get_fundamentals`, `get_technical_indicators`, `get_stock_history`, `get_news`, `get_earnings`, `get_earnings_calendar`, `search_stocks`, `get_analyst_revisions`
+- The model decides which tools to call and in what order
+- **Output:** `ResearchReport` — each ticker scored (fundamentals 0-10, technicals 0-10, risk 0-10) with pros/cons list, catalyst, news summary
 
-### 1. Supervisor Agent
-- **Role:** Orchestrates the daily trading cycle
-- **Runs as:** A Python process with scheduling (APScheduler or similar)
-- **Responsibilities:**
-  - Determine which LLM is "main" today (rotation logic)
-  - Trigger the daily pipeline at configured times
-  - Collect data from Reddit + Market Data MCP servers
-  - Fan out the same data to both LLM agents
-  - Collect their recommendations
-  - Present main trader's picks to user for approval (Telegram/CLI)
-  - Execute approved trades (real for main, virtual for others)
-  - Handle errors and retries
+### Stage 3: Trader (Claude Opus 4.6, no tools)
+- **Input:** Sentiment report + Research report + current portfolio from T212 + daily budget
+- **Output:** `DailyPicks` — ranked buy list with allocation % and reasoning per pick
+- Claude reads the research evidence and makes the final conviction call
 
-### 2. LLM Agent Pipeline (mirrored for both Claude and MiniMax)
-
-Each LLM provider runs a 3-stage agent pipeline. The stages are the same for both, but use different models.
-
-#### Stage 1: Sentiment Analyst Agent (cheap/fast)
-- **Role:** Processes raw Reddit data, scores sentiment per ticker, filters noise
-- **Claude version:** Haiku 4.5 (`claude-haiku-4-5-20251001`)
-- **MiniMax version:** MiniMax 2.5 (standard)
-- **Input:** Raw Reddit digest (posts, comments, upvotes)
-- **Output:** `SentimentReport` — ranked list of tickers with sentiment scores, mention counts, key quotes
-
-#### Stage 2: Market Analyst Agent (mid-tier)
-- **Role:** Analyzes price data, fundamentals, and technicals for the tickers surfaced by Stage 1
-- **Claude version:** Sonnet 4.5 (`claude-sonnet-4-5-20250929`)
-- **MiniMax version:** MiniMax 2.5 (standard)
-- **Input:** `SentimentReport` + market data (prices, fundamentals, technicals)
-- **Output:** `MarketAnalysis` — each ticker scored on fundamentals, technicals, and risk
-
-#### Stage 3: Trader Agent (heavy hitter)
-- **Role:** Makes the final buy/sell decisions based on combined analysis
-- **Claude version:** Opus 4.6 (`claude-opus-4-6`)
-- **MiniMax version:** MiniMax 2.5 (standard)
-- **Input:** `SentimentReport` + `MarketAnalysis` + current portfolio + daily budget (10 EUR)
-- **Output:** `DailyPicks`
-
-#### Model Summary
-
-| Stage | Role | Claude Model | MiniMax Model |
-|-------|------|-------------|---------------|
-| 1 | Sentiment Analyst | Haiku 4.5 | MiniMax 2.5 |
-| 2 | Market Analyst | Sonnet 4.5 | MiniMax 2.5 |
-| 3 | Trader (decision) | Opus 4.6 | MiniMax 2.5 |
-
-#### Pipeline Output (`DailyPicks`)
-```json
-{
-  "llm": "claude",
-  "date": "2026-02-14",
-  "picks": [
-    {
-      "ticker": "ASML.AS",
-      "exchange": "Euronext Amsterdam",
-      "allocation_pct": 60,
-      "reasoning": "Strong momentum, positive WSB sentiment, solid fundamentals...",
-      "action": "buy"
-    },
-    {
-      "ticker": "SAP.DE",
-      "exchange": "Frankfurt",
-      "allocation_pct": 40,
-      "reasoning": "...",
-      "action": "buy"
-    }
-  ],
-  "sell_recommendations": [],
-  "confidence": 0.75,
-  "market_summary": "Brief analysis of today's market conditions..."
-}
-```
-
-### 3. Reporter Agent
-- **Role:** Generates P&L reports and performance comparisons
-- **Triggered:** On-demand, end of week, end of month
-- **Output:** Formatted report showing:
-  - Per-LLM P&L (realized + unrealized)
-  - Total real money P&L
-  - Best/worst picks per LLM
-  - Win rate per LLM
-  - Leaderboard ranking
+### Stage 4: Risk Review (Claude Sonnet 4.6, no tools)
+- **Input:** Trader picks + research report + portfolio
+- **Output:** `PickReview` — same as DailyPicks but can veto picks or adjust allocations
+- Sanity check: catches overconcentration, excessive risk, picks that contradict the research
 
 ---
 
-## Daily Pipeline Flow
+## Trade Execution (Fallback Logic)
+
+After the pipeline produces a ranked buy list, `execute_with_fallback()` tries to spend the full budget:
 
 ```
- 08:00  ┌─────────────────────────────────┐
-        │ 1. Pre-Market Data Collection   │
-        │    - Reddit MCP: get_daily_digest│
-        │    - Market MCP: get trending    │
-        │      stock prices & fundamentals │
-        └──────────────┬──────────────────┘
-                       │
- 08:30  ┌──────────────▼──────────────────┐
-        │ 2. Fan out to both LLM Agents   │
-        │    - Same data to each           │
-        │    - Each picks stocks           │
-        │    - Run in parallel             │
-        └──────────────┬──────────────────┘
-                       │
- 09:00  ┌──────────────▼──────────────────┐
-        │ 3. User Approval (Main Trader)  │
-        │    - Show main LLM's picks      │
-        │    - User approves/rejects/edits│
-        │    via Telegram or CLI           │
-        └──────────────┬──────────────────┘
-                       │
- 09:15  ┌──────────────▼──────────────────┐
-        │ 4. Execute Trades               │
-        │    - Main: real order via Trading 212│
-        │    - Other: record_virtual_trade │
-        └──────────────┬──────────────────┘
-                       │
- 17:35  ┌──────────────▼──────────────────┐
-        │ 5. End of Day                   │
-        │    - Record closing prices       │
-        │    - Update P&L for both LLMs    │
-        │    - Store daily snapshot         │
-        └─────────────────────────────────┘
+For each ranked candidate (top conviction first):
+  1. Check remaining budget (stop if < €1)
+  2. Resolve ticker on T212 (some tickers unavailable on the platform)
+  3. Place market order for available budget
+  4. If success → add to blacklist (recently_traded.json), log, continue
+  5. If fail → log reason, try next candidate
+  6. Continue until budget spent or all candidates exhausted
 ```
 
-EU market hours: 09:00 - 17:30 CET (varies by exchange)
+This means if Claude's #1 pick isn't on T212, it automatically falls back to #2, #3, etc. — no wasted budget.
 
 ---
 
-## Database Schema (PostgreSQL)
+## Sell Strategy
 
-### Tables
+The `SellStrategyEngine` evaluates all T212 positions 3x daily (09:30, 12:30, 16:45):
 
-```sql
--- LLM rotation schedule and metadata
-CREATE TABLE llm_config (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(50) UNIQUE NOT NULL,      -- 'claude', 'minimax'
-    api_provider VARCHAR(100) NOT NULL,
-    is_active BOOLEAN DEFAULT true
-);
+| Rule | Condition | Default |
+|------|-----------|---------|
+| Stop-loss | Return ≤ -X% | -10% |
+| Take-profit | Return ≥ +X% | +15% |
+| Hold-period | Days held ≥ N | 5 days |
 
--- Daily stock picks from each LLM
-CREATE TABLE daily_picks (
-    id SERIAL PRIMARY KEY,
-    llm_name VARCHAR(50) NOT NULL,
-    pick_date DATE NOT NULL,
-    is_main_trader BOOLEAN NOT NULL,       -- was this LLM the real-money trader?
-    ticker VARCHAR(20) NOT NULL,
-    exchange VARCHAR(50),
-    allocation_pct DECIMAL(5,2),
-    reasoning TEXT,
-    confidence DECIMAL(3,2),
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(llm_name, pick_date, ticker)
-);
+Rules evaluated in priority order. Positions fetched live from T212 — no DB reads. Sells execute immediately via T212 API for both real and demo accounts.
 
--- All trades (real + virtual)
-CREATE TABLE trades (
-    id SERIAL PRIMARY KEY,
-    llm_name VARCHAR(50) NOT NULL,
-    trade_date DATE NOT NULL,
-    ticker VARCHAR(20) NOT NULL,
-    action VARCHAR(10) NOT NULL,           -- 'buy' or 'sell'
-    quantity DECIMAL(12,4),
-    price_per_share DECIMAL(12,4),
-    total_cost DECIMAL(12,2),
-    is_real BOOLEAN NOT NULL,              -- true = real Trading 212 trade, false = virtual
-    broker_order_id VARCHAR(100),          -- Trading 212 order ID if real
-    status VARCHAR(20) DEFAULT 'pending',  -- pending, filled, rejected, cancelled
-    created_at TIMESTAMP DEFAULT NOW()
-);
+---
 
--- Current positions (real + virtual per LLM)
-CREATE TABLE positions (
-    id SERIAL PRIMARY KEY,
-    llm_name VARCHAR(50) NOT NULL,
-    ticker VARCHAR(20) NOT NULL,
-    quantity DECIMAL(12,4) NOT NULL,
-    avg_buy_price DECIMAL(12,4) NOT NULL,
-    is_real BOOLEAN NOT NULL,
-    opened_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(llm_name, ticker, is_real)
-);
+## Stock Variety (3-Day Blacklist)
 
--- Daily portfolio snapshots for P&L tracking
-CREATE TABLE portfolio_snapshots (
-    id SERIAL PRIMARY KEY,
-    llm_name VARCHAR(50) NOT NULL,
-    snapshot_date DATE NOT NULL,
-    total_invested DECIMAL(12,2),
-    total_value DECIMAL(12,2),
-    realized_pnl DECIMAL(12,2),
-    unrealized_pnl DECIMAL(12,2),
-    is_real BOOLEAN NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(llm_name, snapshot_date, is_real)
-);
+To prevent buying NVDA/MSFT every day:
 
--- Reddit sentiment data (cached)
-CREATE TABLE reddit_sentiment (
-    id SERIAL PRIMARY KEY,
-    ticker VARCHAR(20) NOT NULL,
-    scrape_date DATE NOT NULL,
-    mention_count INTEGER,
-    avg_sentiment DECIMAL(5,3),            -- -1.0 to 1.0
-    top_posts JSONB,                        -- [{title, score, url, subreddit}]
-    subreddits JSONB,                       -- breakdown by subreddit
-    created_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(ticker, scrape_date)
-);
+- After a successful buy, the ticker is written to `recently_traded.json` with today's date
+- Any ticker bought within the last `RECENTLY_TRADED_DAYS` (default: 3) days is filtered from candidates before research
+- Format: `{"NVDA": "2026-02-19", "MSFT": "2026-02-18", ...}`
+
+---
+
+## Daily Schedule (Europe/Berlin, weekdays only)
+
+| Time  | Job | Description |
+|-------|-----|-------------|
+| 08:00 | Reddit collection | Scrape RSS feeds |
+| 09:30 | Sell check | Stop-loss / take-profit / hold-period |
+| 12:00 | Reddit collection | Second round |
+| 12:30 | Sell check | Mid-day evaluation |
+| 16:30 | Reddit collection | Final round before market close |
+| 16:45 | Sell check | Pre-close evaluation |
+| 17:10 | Trade execution | Signal digest → pipelines → buy orders |
+| 17:35 | EOD snapshot | Portfolio snapshot + daily MD report |
+
+---
+
+## Daily Report Format
+
+Generated automatically at 17:35 and saved to `reports/YYYY-MM-DD.md`:
+
+```markdown
+# Trading Report — 2026-02-21 (Friday)
+
+## Summary
+- Conservative (Real): spent €9.50 / €10.00 — 2 stocks bought
+- Practice (Demo): spent €487.30 / €500.00 — 4 stocks bought
+
+## Today's Buys
+### Conservative — Real Money
+| Ticker | Company | Amount | Price | Signal Sources | Why Claude bought it |
+
+### Practice — Demo Account
+| Ticker | Company | Amount | Price | Signal Sources | Why Claude bought it |
+
+## Skipped / Failed
+| Ticker | Reason |
+
+## Current Positions (Live from T212)
+### Real Account
+| Ticker | Bought at | Now | P&L | Days held |
+
+## Sell Triggers (if any)
+| Ticker | Type | Return | Reason |
 ```
 
 ---
@@ -346,79 +197,51 @@ CREATE TABLE reddit_sentiment (
 ## Project Structure
 
 ```
-trading-bot/
-├── specs.md                        # This file
-├── pyproject.toml                  # Project config (uv/poetry)
-├── .env                            # API keys (gitignored)
-├── .env.example                    # Template for env vars
-│
-├── src/
-│   ├── __init__.py
-│   │
-│   ├── mcp_servers/                # MCP server implementations
-│   │   ├── __init__.py
-│   │   ├── reddit/
-│   │   │   ├── __init__.py
-│   │   │   ├── server.py           # Reddit MCP server
-│   │   │   └── scraper.py          # PRAW-based Reddit scraping logic
-│   │   ├── market_data/
-│   │   │   ├── __init__.py
-│   │   │   ├── server.py           # Market Data MCP server
-│   │   │   └── finance.py          # yfinance wrapper for EU stocks
-│   │   └── trading/
-│   │       ├── __init__.py
-│   │       ├── server.py           # Trading & Portfolio MCP server
-│   │       ├── t212_client.py      # Trading 212 API wrapper
-│   │       └── portfolio.py        # Portfolio tracking logic
-│   │
-│   ├── agents/                     # LLM agent implementations
-│   │   ├── __init__.py
-│   │   ├── base_agent.py           # Abstract base class for all agent stages
-│   │   ├── sentiment_agent.py      # Stage 1: sentiment analysis from Reddit data
-│   │   ├── market_agent.py         # Stage 2: market/technical/fundamental analysis
-│   │   ├── trader_agent.py         # Stage 3: final buy/sell decision maker
-│   │   ├── pipeline.py             # Runs all 3 stages in sequence for a given LLM provider
-│   │   ├── providers/
-│   │   │   ├── __init__.py
-│   │   │   ├── claude.py           # Claude API wrapper (Haiku/Sonnet/Opus)
-│   │   │   └── minimax.py          # MiniMax 2.5 API wrapper (OpenAI-compatible)
-│   │   └── prompts/
-│   │       ├── sentiment.md        # System prompt for sentiment analysis stage
-│   │       ├── market_analysis.md  # System prompt for market analysis stage
-│   │       └── trader.md           # System prompt for trading decisions
-│   │
-│   ├── orchestrator/               # Supervisor / pipeline logic
-│   │   ├── __init__.py
-│   │   ├── supervisor.py           # Main orchestrator
-│   │   ├── scheduler.py            # APScheduler-based daily cron
-│   │   ├── rotation.py             # LLM rotation logic
-│   │   └── approval.py             # User approval flow (CLI + Telegram)
-│   │
-│   ├── reporting/                  # P&L and performance reports
-│   │   ├── __init__.py
-│   │   ├── pnl.py                  # P&L calculation engine
-│   │   ├── leaderboard.py          # LLM comparison / leaderboard
-│   │   └── formatter.py            # Report formatting (terminal tables, markdown)
-│   │
-│   ├── db/                         # Database layer
-│   │   ├── __init__.py
-│   │   ├── connection.py           # asyncpg connection pool
-│   │   ├── models.py               # Dataclasses / Pydantic models
-│   │   └── migrations/             # SQL migration files
-│   │       └── 001_initial.sql
-│   │
-│   └── config.py                   # Settings, env vars, constants
-│
-├── tests/
-│   ├── test_agents/
-│   ├── test_mcp_servers/
-│   ├── test_orchestrator/
-│   └── test_reporting/
-│
-└── scripts/
-    ├── run_daily.py                # Manual trigger for daily pipeline
-    ├── report.py                   # Generate P&L report on demand
-    └── setup_db.py                 # Initialize database + run migrations
+src/
+├── mcp_servers/
+│   ├── reddit/             # RSS scraping + sentiment
+│   ├── market_data/        # yfinance, NewsAPI, OpenInsider, FMP, screener
+│   └── trading/            # T212 client + portfolio helpers
+├── agents/
+│   ├── sentiment_agent.py  # Stage 1
+│   ├── research_agent.py   # Stage 2 (tool calling)
+│   ├── trader_agent.py     # Stage 3
+│   ├── risk_agent.py       # Stage 4
+│   ├── pipeline.py         # Orchestrates stages 1→4
+│   ├── providers/          # claude.py, minimax.py
+│   └── prompts/            # System prompts (markdown)
+├── orchestrator/
+│   ├── supervisor.py       # Main decision cycle
+│   ├── scheduler.py        # APScheduler cron jobs
+│   ├── sell_strategy.py    # Sell rule evaluation
+│   ├── trade_executor.py   # Fallback buy logic
+│   └── rotation.py         # Trading day check
+├── utils/
+│   └── recently_traded.py  # 3-day blacklist JSON file
+├── notifications/
+│   └── telegram.py         # Optional Telegram alerts
+├── reporting/
+│   └── daily_report.py     # Markdown report generation
+├── models.py               # All Pydantic models (no DB)
+└── config.py               # Pydantic Settings from .env
+
+scripts/
+├── run_scheduler.py        # Start the 24/7 daemon
+├── run_sell_checks.py      # Manual sell check
+└── report.py               # View live portfolio P&L from T212
+```
+
+---
+
+## API Keys Required
+
+```env
+ANTHROPIC_API_KEY=sk-ant-...        # Required — Claude Opus/Sonnet
+MINIMAX_API_KEY=...                  # Required — research pipeline
+T212_API_KEY=...                     # Required — live account
+T212_PRACTICE_API_KEY=...            # Optional — enables demo/aggressive strategy
+NEWS_API_KEY=...                     # Optional — falls back to yfinance news
+FMP_API_KEY=...                      # Optional — falls back to yfinance recommendations
 ```
 
 ---
@@ -427,118 +250,18 @@ trading-bot/
 
 | Component | Technology |
 |-----------|-----------|
-| Language | Python 3.12+ |
+| Language | Python 3.13+ |
 | Package Manager | `uv` |
-| MCP SDK | `mcp` (official Python SDK) |
-| LLM - Claude | `anthropic` SDK |
-| LLM - MiniMax | `openai` SDK (OpenAI-compatible) |
-| Reddit API | `asyncpraw` |
+| MCP SDK | `mcp` (FastMCP) |
+| LLM — Claude | `anthropic` SDK |
+| LLM — MiniMax | `openai` SDK (OpenAI-compatible) |
+| Reddit | RSS feeds via `feedparser` (no API key needed) |
 | Market Data | `yfinance` |
-| Broker | Trading 212 REST API + `httpx` |
-| Database | PostgreSQL + `asyncpg` |
-| Scheduling | `APScheduler` |
-| Data Validation | `pydantic` |
-| User Approval | CLI (rich/textual) + optional Telegram bot |
+| News | NewsAPI via `httpx` |
+| Insider Data | OpenInsider scraped via `httpx` + `beautifulsoup4` |
+| Broker | Trading 212 REST API via `httpx` |
+| Storage | No DB — T212 API live + `recently_traded.json` |
+| Scheduling | `APScheduler` (AsyncIOScheduler) |
+| Validation | `pydantic` v2 |
+| Notifications | Telegram bot (optional, no-op if disabled) |
 | Testing | `pytest` + `pytest-asyncio` |
-
----
-
-## API Keys Required
-
-```env
-# LLM APIs
-ANTHROPIC_API_KEY=sk-ant-...         # Claude
-MINIMAX_API_KEY=...                   # MiniMax 2.5
-
-# Reddit
-REDDIT_CLIENT_ID=...
-REDDIT_CLIENT_SECRET=...
-REDDIT_USER_AGENT=trading-bot/1.0
-
-# Broker (Trading 212)
-T212_API_KEY=...                      # Trading 212 API key (from app settings)
-
-# Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/trading_bot
-
-# Optional
-TELEGRAM_BOT_TOKEN=...               # For approval notifications
-TELEGRAM_CHAT_ID=...
-```
-
----
-
-## Sell Strategy
-
-Since we buy daily with small amounts, we need a sell strategy:
-
-1. **Hold period:** Each position is held for a configurable number of days (default: 5 trading days)
-2. **Stop-loss:** Auto-sell if a position drops more than 10% (configurable)
-3. **Take-profit:** Auto-sell if a position gains more than 15% (configurable)
-4. **LLM can recommend sells:** During daily analysis, LLMs can also recommend selling existing positions
-5. **End-of-week cleanup:** Option to liquidate all positions at end of week
-
----
-
-## Reporting Output Example
-
-```
-╔══════════════════════════════════════════════════════════╗
-║           WEEKLY TRADING REPORT (Feb 10-14, 2026)       ║
-╠══════════════════════════════════════════════════════════╣
-║                                                          ║
-║  LEADERBOARD                                             ║
-║  ┌────┬────────────┬──────────┬──────────┬────────────┐  ║
-║  │ #  │ LLM        │ P&L (€)  │ Win Rate │ Avg Return │  ║
-║  ├────┼────────────┼──────────┼──────────┼────────────┤  ║
-║  │ 1  │ Claude     │ +4.32    │ 66.7%    │ +2.1%      │  ║
-║  │ 2  │ MiniMax    │ +1.15    │ 50.0%    │ +0.8%      │  ║
-║  └────┴────────────┴──────────┴──────────┴────────────┘  ║
-║                                                          ║
-║  YOUR REAL PORTFOLIO                                     ║
-║  Total Invested:  €50.00                                 ║
-║  Current Value:   €51.87                                 ║
-║  Real P&L:        +€1.87 (+3.7%)                         ║
-║                                                          ║
-║  BEST PICK:  ASML.AS +8.2% (Claude, Mon)                ║
-║  WORST PICK: SAP.DE  -4.1% (MiniMax, Tue)               ║
-║                                                          ║
-╚══════════════════════════════════════════════════════════╝
-```
-
----
-
-## Implementation Phases
-
-### Phase 1 - Foundation
-- [ ] Project setup (uv, pyproject.toml, directory structure)
-- [ ] PostgreSQL database setup + migrations
-- [ ] Config management (.env, pydantic settings)
-- [ ] Base agent class with structured output
-
-### Phase 2 - MCP Servers
-- [ ] Reddit MCP server (scraping + sentiment)
-- [ ] Market Data MCP server (yfinance + EU stocks)
-- [ ] Trading MCP server (Trading 212 + virtual trades + portfolio)
-
-### Phase 3 - LLM Agents
-- [ ] Claude agent implementation
-- [ ] MiniMax agent implementation
-- [ ] Shared prompts and output parsing
-
-### Phase 4 - Orchestration
-- [ ] Supervisor / daily pipeline
-- [ ] LLM rotation logic
-- [ ] User approval flow (CLI first)
-- [ ] Scheduler (APScheduler)
-
-### Phase 5 - Reporting
-- [ ] P&L calculation engine
-- [ ] Leaderboard / LLM comparison
-- [ ] Terminal-formatted reports (rich)
-
-### Phase 6 - Polish & Optional
-- [ ] Telegram bot for approvals + notifications
-- [ ] Sell strategy automation (stop-loss, take-profit)
-- [ ] Historical backtesting mode
-- [ ] Dashboard (optional, Streamlit or similar)

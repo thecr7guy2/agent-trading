@@ -1,4 +1,5 @@
 from datetime import date
+from unittest.mock import patch
 
 import pytest
 
@@ -9,19 +10,50 @@ def _decision_result():
     return {
         "status": "ok",
         "date": "2026-02-16",
-        "main_trader": "claude",
-        "virtual_trader": "minimax",
-        "approval": {"action": "approve_all", "approved_indices": [0], "timed_out": False},
+        "conservative_trader": "claude",
+        "aggressive_trader": "claude_aggressive",
         "reddit_posts": 42,
         "tickers_analyzed": 5,
+        "blacklisted_candidates": ["NVDA"],
+        "signal_digest": {
+            "candidates": [
+                {
+                    "ticker": "ASML.AS",
+                    "sources": ["screener", "reddit"],
+                    "screener": {"name": "ASML Holding NV"},
+                },
+                {
+                    "ticker": "SAP.DE",
+                    "sources": ["insider"],
+                    "insider": {"company": "SAP SE"},
+                },
+            ]
+        },
         "real_execution": [
-            {"ticker": "ASML.AS", "action": "buy", "status": "filled"},
+            {
+                "ticker": "ASML.AS",
+                "status": "filled",
+                "amount_eur": 5.00,
+                "quantity": 0.028,
+                "broker_ticker": "ASML_AS_EQ",
+            },
         ],
-        "virtual_execution": [
-            {"ticker": "SAP.DE", "action": "buy", "status": "filled"},
+        "practice_execution": [
+            {
+                "ticker": "SAP.DE",
+                "status": "filled",
+                "amount_eur": 250.0,
+                "quantity": 1.38,
+                "broker_ticker": "SAP_DE_EQ",
+            },
+            {
+                "ticker": "RWE.DE",
+                "status": "failed",
+                "error": "not tradable on Trading 212",
+            },
         ],
         "pipeline_analysis": {
-            "claude": {
+            "conservative": {
                 "picks": [
                     {
                         "ticker": "ASML.AS",
@@ -32,26 +64,7 @@ def _decision_result():
                 ],
                 "confidence": 0.8,
                 "market_summary": "EU markets rallying on strong earnings.",
-                "researched_tickers": [
-                    {
-                        "ticker": "ASML.AS",
-                        "fundamental_score": 8.5,
-                        "technical_score": 7.0,
-                        "risk_score": 3.0,
-                        "summary": "Semiconductor leader with strong order book.",
-                        "catalyst": "Earnings beat expectations",
-                        "news_summary": "Q4 earnings above consensus",
-                    },
-                    {
-                        "ticker": "ING.AS",
-                        "fundamental_score": 5.0,
-                        "technical_score": 4.0,
-                        "risk_score": 6.0,
-                        "summary": "Banking sector under pressure.",
-                        "catalyst": "",
-                        "news_summary": "",
-                    },
-                ],
+                "researched_tickers": [],
                 "not_picked": [
                     {
                         "ticker": "ING.AS",
@@ -59,15 +72,9 @@ def _decision_result():
                         "technical_score": 4.0,
                         "risk_score": 6.0,
                         "summary": "Banking sector under pressure.",
-                        "catalyst": "",
-                        "news_summary": "",
                     },
                 ],
-                "risk_review": {
-                    "risk_notes": "Portfolio well diversified.",
-                    "adjustments": ["Reduced ASML.AS from 70% to 60%"],
-                    "vetoed_tickers": [],
-                },
+                "risk_review": {},
             },
         },
     }
@@ -78,85 +85,146 @@ def _eod_result():
         "status": "ok",
         "date": "2026-02-16",
         "snapshots": {
-            "claude_real": {
+            "conservative_real": {
                 "total_invested": "25.00",
                 "total_value": "26.50",
-                "realized_pnl": "0",
                 "unrealized_pnl": "1.50",
             },
-            "minimax_virtual": {
-                "total_invested": "25.00",
-                "total_value": "24.80",
-                "realized_pnl": "0",
-                "unrealized_pnl": "-0.20",
-            },
         },
+        "live_positions": [
+            {
+                "ticker": "ASML.AS",
+                "quantity": 0.14,
+                "avg_buy_price": 178.50,
+                "current_price": 181.20,
+                "open_date": "2026-02-15",
+            }
+        ],
+        "demo_positions": [],
     }
+
+
+def _mock_settings():
+    from types import SimpleNamespace
+    return SimpleNamespace(
+        daily_budget_eur=10.0,
+        practice_daily_budget_eur=500.0,
+        recently_traded_days=3,
+    )
 
 
 @pytest.mark.asyncio
 async def test_generate_daily_report_markdown():
-    content = await generate_daily_report(
-        run_date=date(2026, 2, 16),
-        decision_result=_decision_result(),
-        eod_result=_eod_result(),
-    )
+    with patch("src.reporting.daily_report.get_settings", return_value=_mock_settings()):
+        content = await generate_daily_report(
+            run_date=date(2026, 2, 16),
+            decision_result=_decision_result(),
+            eod_result=_eod_result(),
+        )
 
-    assert "# Daily Trading Report" in content
+    assert "# Trading Report — 2026-02-16" in content
     assert "2026-02-16" in content
-    assert "Claude" in content
     assert "ASML.AS" in content
-    assert "## Portfolio Snapshot" in content
-    assert "approve_all" in content
+    assert "## Summary" in content
+    assert "## Today's Buys" in content
+    assert "## Current Positions" in content
 
 
 @pytest.mark.asyncio
 async def test_generate_daily_report_no_trades():
     decision = _decision_result()
     decision["real_execution"] = []
-    decision["virtual_execution"] = []
+    decision["practice_execution"] = []
 
-    content = await generate_daily_report(
-        run_date=date(2026, 2, 16),
-        decision_result=decision,
-        eod_result=_eod_result(),
-    )
+    with patch("src.reporting.daily_report.get_settings", return_value=_mock_settings()):
+        content = await generate_daily_report(
+            run_date=date(2026, 2, 16),
+            decision_result=decision,
+            eod_result=_eod_result(),
+        )
 
-    assert "no trades" in content
+    assert "No positions taken today" in content
 
 
 @pytest.mark.asyncio
-async def test_report_includes_pick_reasoning():
-    content = await generate_daily_report(
-        run_date=date(2026, 2, 16),
-        decision_result=_decision_result(),
-        eod_result=_eod_result(),
-    )
+async def test_report_includes_buy_details():
+    with patch("src.reporting.daily_report.get_settings", return_value=_mock_settings()):
+        content = await generate_daily_report(
+            run_date=date(2026, 2, 16),
+            decision_result=_decision_result(),
+            eod_result=_eod_result(),
+        )
 
-    # Pick reasoning
+    # Buy table should contain ticker, company, signal source, reasoning
+    assert "ASML.AS" in content
+    assert "ASML Holding NV" in content
+    assert "Screener" in content
     assert "Strong fundamentals, bullish technicals" in content
-    assert "60%" in content
 
-    # Research scores
-    assert "### Research Scores" in content
-    assert "8.5" in content  # ASML fundamental score
-    assert "Semiconductor leader" in content
+    # Practice buy
+    assert "SAP.DE" in content
+    assert "SAP SE" in content
+    assert "Insider buy" in content
 
-    # Not picked section
-    assert "### Not Picked" in content
+
+@pytest.mark.asyncio
+async def test_report_skipped_section():
+    with patch("src.reporting.daily_report.get_settings", return_value=_mock_settings()):
+        content = await generate_daily_report(
+            run_date=date(2026, 2, 16),
+            decision_result=_decision_result(),
+            eod_result=_eod_result(),
+        )
+
+    assert "## Skipped / Failed" in content
+    # Blacklisted ticker
+    assert "NVDA" in content
+    assert "Blacklisted" in content
+    # Failed order
+    assert "RWE.DE" in content
+    assert "not tradable on Trading 212" in content
+    # Not-picked ticker from research
     assert "ING.AS" in content
-    assert "weak technicals" in content
 
-    # Risk review
-    assert "### Risk Review" in content
-    assert "Portfolio well diversified" in content
-    assert "Reduced ASML.AS from 70% to 60%" in content
 
-    # Market summary
-    assert "EU markets rallying" in content
+@pytest.mark.asyncio
+async def test_report_positions_table():
+    with patch("src.reporting.daily_report.get_settings", return_value=_mock_settings()):
+        content = await generate_daily_report(
+            run_date=date(2026, 2, 16),
+            decision_result=_decision_result(),
+            eod_result=_eod_result(),
+        )
 
-    # Confidence
-    assert "80%" in content
+    assert "## Current Positions" in content
+    assert "### Real Account" in content
+    assert "ASML.AS" in content
+    # Should show avg buy price and current price
+    assert "178.50" in content
+    assert "181.20" in content
+
+
+@pytest.mark.asyncio
+async def test_report_with_sell_results():
+    with patch("src.reporting.daily_report.get_settings", return_value=_mock_settings()):
+        content = await generate_daily_report(
+            run_date=date(2026, 2, 16),
+            decision_result=_decision_result(),
+            eod_result=_eod_result(),
+            sell_results=[
+                {
+                    "ticker": "SAP.DE",
+                    "signal_type": "take_profit",
+                    "return_pct": 15.3,
+                    "reasoning": "Take-profit: +15.3% (threshold: +15.0%)",
+                }
+            ],
+        )
+
+    assert "## Sell Triggers" in content
+    assert "SAP.DE" in content
+    assert "take_profit" in content
+    assert "+15.3%" in content
 
 
 @pytest.mark.asyncio
@@ -164,14 +232,15 @@ async def test_report_without_pipeline_analysis():
     decision = _decision_result()
     del decision["pipeline_analysis"]
 
-    content = await generate_daily_report(
-        run_date=date(2026, 2, 16),
-        decision_result=decision,
-        eod_result=_eod_result(),
-    )
+    with patch("src.reporting.daily_report.get_settings", return_value=_mock_settings()):
+        content = await generate_daily_report(
+            run_date=date(2026, 2, 16),
+            decision_result=decision,
+            eod_result=_eod_result(),
+        )
 
-    # Should still render execution tables without analysis
-    assert "## Execution" in content
+    # Should still render buy table without analysis
+    assert "## Today's Buys" in content
     assert "ASML.AS" in content
 
 

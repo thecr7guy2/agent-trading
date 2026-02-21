@@ -1,6 +1,6 @@
 from datetime import date
 
-from src.db.models import LLMProvider
+from src.models import LLMProvider
 from src.orchestrator.rotation import get_main_trader, get_virtual_trader, is_trading_day
 
 

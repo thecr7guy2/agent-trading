@@ -1,19 +1,18 @@
-# Trading Bot Server Deployment Guide
+# Trading Bot — Server Deployment Guide
 
-Complete guide for deploying the autonomous trading bot to a Linux server.
+Complete guide for deploying the autonomous trading bot to a Linux server. No database required — the bot is stateless except for a small JSON file and daily report files.
 
 ## Table of Contents
 
 1. [Prerequisites](#prerequisites)
 2. [Server Setup](#server-setup)
-3. [Database Setup (Docker)](#database-setup-docker)
-4. [Application Installation](#application-installation)
-5. [Environment Configuration](#environment-configuration)
-6. [Systemd Service Setup](#systemd-service-setup)
-7. [Monitoring & Logs](#monitoring--logs)
-8. [Backup Strategy](#backup-strategy)
-9. [Troubleshooting](#troubleshooting)
-10. [Security Checklist](#security-checklist)
+3. [Application Installation](#application-installation)
+4. [Environment Configuration](#environment-configuration)
+5. [Systemd Service Setup](#systemd-service-setup)
+6. [Monitoring & Logs](#monitoring--logs)
+7. [Backup Strategy](#backup-strategy)
+8. [Troubleshooting](#troubleshooting)
+9. [Security Checklist](#security-checklist)
 
 ---
 
@@ -21,14 +20,14 @@ Complete guide for deploying the autonomous trading bot to a Linux server.
 
 **Recommended server specs:**
 - **OS:** Ubuntu 22.04 LTS or later
-- **RAM:** 2GB minimum (4GB recommended)
-- **Disk:** 20GB minimum (for logs, DB, and reports)
-- **Network:** Static IP or domain name (optional but recommended)
+- **RAM:** 1GB minimum (2GB recommended)
+- **Disk:** 10GB minimum (for logs and daily reports)
+- **Network:** Outbound HTTPS access required (T212 API, Anthropic, MiniMax, yfinance, OpenInsider)
 
-**Required services:**
-- Docker (for PostgreSQL)
-- Python 3.13+
-- systemd (for service management)
+**No database needed** — the bot stores nothing except:
+- `recently_traded.json` — 3-day buy blacklist (tiny JSON file)
+- `reports/YYYY-MM-DD.md` — one markdown file per trading day
+- `logs/scheduler.log` — application logs
 
 ---
 
@@ -43,116 +42,35 @@ sudo apt update && sudo apt upgrade -y
 ### 2. Install system dependencies
 
 ```bash
-sudo apt install -y \
-    git \
-    curl \
-    build-essential \
-    libssl-dev \
-    libpq-dev
+sudo apt install -y git curl build-essential libssl-dev
 ```
 
-### 3. Install Docker
+### 3. Install Python 3.13
 
 ```bash
-# Install Docker
-curl -fsSL https://get.docker.com | sh
-
-# Add your user to the docker group
-sudo usermod -aG docker $USER
-
-# Enable and start Docker
-sudo systemctl enable docker
-sudo systemctl start docker
-
-# Log out and back in for group changes to take effect, then verify:
-docker --version
-```
-
-### 4. Install Python 3.13
-
-```bash
-# Use deadsnakes PPA if not available in your distro
 sudo add-apt-repository ppa:deadsnakes/ppa -y
 sudo apt update
 sudo apt install -y python3.13 python3.13-venv python3.13-dev
 ```
 
-### 5. Install uv (Python package manager)
+### 4. Install uv (Python package manager)
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-source $HOME/.cargo/env  # Add to PATH
+source $HOME/.cargo/env
 ```
 
-Verify installation:
+Verify:
 ```bash
 uv --version
 python3.13 --version
 ```
 
-### 6. Create a dedicated user (recommended)
+### 5. Create a dedicated user (recommended)
 
 ```bash
 sudo useradd -m -s /bin/bash tradingbot
-sudo usermod -aG docker tradingbot
 sudo su - tradingbot
-```
-
----
-
-## Database Setup (Docker)
-
-### 1. Start PostgreSQL in Docker
-
-```bash
-docker run -d \
-    --name trading-bot-postgres \
-    -e POSTGRES_USER=tradingbot \
-    -e POSTGRES_PASSWORD=your_secure_password_here \
-    -e POSTGRES_DB=trading_bot \
-    -p 5432:5432 \
-    -v trading_bot_pgdata:/var/lib/postgresql/data \
-    --restart unless-stopped \
-    postgres:16-alpine
-```
-
-This creates a PostgreSQL 16 container with:
-- A named volume (`trading_bot_pgdata`) for persistent data
-- Automatic restart on crash or server reboot
-- Port 5432 exposed to localhost
-
-### 2. Verify the container is running
-
-```bash
-docker ps | grep trading-bot-postgres
-```
-
-### 3. Test the connection
-
-```bash
-docker exec -it trading-bot-postgres psql -U tradingbot -d trading_bot -c "SELECT 1;"
-```
-
-Or from the host (requires `libpq-dev`):
-```bash
-psql -U tradingbot -d trading_bot -h localhost
-# Enter password when prompted
-```
-
-### 4. Useful Docker commands
-
-```bash
-# View logs
-docker logs trading-bot-postgres
-
-# Stop the container
-docker stop trading-bot-postgres
-
-# Start the container
-docker start trading-bot-postgres
-
-# Access psql shell
-docker exec -it trading-bot-postgres psql -U tradingbot -d trading_bot
 ```
 
 ---
@@ -167,11 +85,15 @@ git clone <your-repo-url> trading-bot
 cd trading-bot
 ```
 
-If you're migrating from your local machine, use rsync instead:
+Or sync from your local machine:
 ```bash
 # Run from your LOCAL machine:
-rsync -avz --exclude='.venv' --exclude='__pycache__' \
-    --exclude='.git' --exclude='logs/*' \
+rsync -avz \
+    --exclude='.venv' \
+    --exclude='__pycache__' \
+    --exclude='.git' \
+    --exclude='logs/*' \
+    --exclude='reports/*' \
     /Users/sai/Documents/Projects/trading-bot/ \
     tradingbot@your-server-ip:/home/tradingbot/trading-bot/
 ```
@@ -186,14 +108,10 @@ uv sync
 ### 3. Create required directories
 
 ```bash
-mkdir -p logs reports reports/backtests
+mkdir -p logs reports
 ```
 
-### 4. Run database migrations
-
-```bash
-uv run python scripts/setup_db.py
-```
+No database setup needed — that's it.
 
 ---
 
@@ -206,31 +124,32 @@ cp .env.example .env
 nano .env
 ```
 
-### 2. Configure all environment variables
+### 2. Configure environment variables
 
 ```bash
-# LLM APIs
+# LLM APIs (required)
 ANTHROPIC_API_KEY=sk-ant-...
 MINIMAX_API_KEY=your-minimax-key
-MINIMAX_BASE_URL=https://api.minimaxi.chat/v1
+MINIMAX_BASE_URL=https://api.minimax.io/v1
 
-# Reddit (optional — RSS feeds don't require credentials)
-REDDIT_USER_AGENT=trading-bot/1.0
-
-# Trading 212
+# Broker — Live account (required, real money)
 T212_API_KEY=your-t212-api-key
 
-# Database (matches Docker container credentials)
-DATABASE_URL=postgresql://tradingbot:your_secure_password_here@localhost:5432/trading_bot
+# Broker — Practice / Demo account (optional, enables aggressive strategy)
+T212_PRACTICE_API_KEY=your-t212-demo-key
+PRACTICE_DAILY_BUDGET_EUR=500.0
 
-# Trading settings
+# Data sources (optional — bot degrades gracefully if missing)
+NEWS_API_KEY=           # NewsAPI free tier (1000 req/day)
+FMP_API_KEY=            # Financial Modeling Prep free tier (250 req/day)
+
+# Trading
 DAILY_BUDGET_EUR=10.0
-MARKET_DATA_TICKER_LIMIT=12
+MAX_CANDIDATES=15
+RECENTLY_TRADED_DAYS=3
 
 # Orchestration
 ORCHESTRATOR_TIMEZONE=Europe/Berlin
-APPROVAL_TIMEOUT_SECONDS=120
-APPROVAL_TIMEOUT_ACTION=approve_all
 SCHEDULER_COLLECT_TIMES=08:00,12:00,16:30
 SCHEDULER_EXECUTE_TIME=17:10
 SCHEDULER_EOD_TIME=17:35
@@ -241,21 +160,10 @@ SELL_TAKE_PROFIT_PCT=15.0
 SELL_MAX_HOLD_DAYS=5
 SELL_CHECK_SCHEDULE=09:30,12:30,16:45
 
-# Backtesting
-BACKTEST_DAILY_BUDGET_EUR=10.0
-
-# Claude models
-CLAUDE_HAIKU_MODEL=claude-haiku-4-5-20251001
-CLAUDE_SONNET_MODEL=claude-sonnet-4-5-20250929
-CLAUDE_OPUS_MODEL=claude-opus-4-6
-
-# MiniMax model
-MINIMAX_MODEL=MiniMax-Text-01
-
 # Telegram (optional — no-op if disabled)
 TELEGRAM_ENABLED=false
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
+# TELEGRAM_BOT_TOKEN=
+# TELEGRAM_CHAT_ID=
 ```
 
 ### 3. Secure the `.env` file
@@ -274,13 +182,10 @@ chmod 600 .env
 sudo nano /etc/systemd/system/trading-bot.service
 ```
 
-Paste this configuration:
-
 ```ini
 [Unit]
 Description=Trading Bot Autonomous Scheduler
-After=network.target docker.service
-Wants=docker.service
+After=network.target
 
 [Service]
 Type=simple
@@ -289,14 +194,11 @@ Group=tradingbot
 WorkingDirectory=/home/tradingbot/trading-bot
 Environment="PATH=/home/tradingbot/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
 
-# Run the scheduler daemon
 ExecStart=/home/tradingbot/.cargo/bin/uv run python scripts/run_scheduler.py
 
-# Restart policy
 Restart=always
 RestartSec=10
 
-# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=trading-bot
@@ -306,7 +208,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/tradingbot/trading-bot/logs /home/tradingbot/trading-bot/reports
+ReadWritePaths=/home/tradingbot/trading-bot/logs /home/tradingbot/trading-bot/reports /home/tradingbot/trading-bot/recently_traded.json
 
 [Install]
 WantedBy=multi-user.target
@@ -332,7 +234,7 @@ sudo systemctl status trading-bot.service
 # Systemd journal
 sudo journalctl -u trading-bot.service -f
 
-# Application logs
+# Application log file
 tail -f /home/tradingbot/trading-bot/logs/scheduler.log
 ```
 
@@ -340,7 +242,7 @@ tail -f /home/tradingbot/trading-bot/logs/scheduler.log
 
 ## Monitoring & Logs
 
-### 1. Log rotation
+### Log rotation
 
 Create `/etc/logrotate.d/trading-bot`:
 
@@ -360,9 +262,7 @@ sudo nano /etc/logrotate.d/trading-bot
 }
 ```
 
-### 2. Monitor service health
-
-Create a simple health check script:
+### Health check script
 
 ```bash
 nano ~/check_trading_bot.sh
@@ -371,7 +271,7 @@ nano ~/check_trading_bot.sh
 ```bash
 #!/bin/bash
 if ! systemctl is-active --quiet trading-bot.service; then
-    echo "Trading bot service is DOWN!" | mail -s "Alert: Trading Bot Down" your@email.com
+    echo "Trading bot is DOWN — restarting" | mail -s "Alert: Trading Bot Down" your@email.com
     sudo systemctl restart trading-bot.service
 fi
 ```
@@ -380,24 +280,21 @@ fi
 chmod +x ~/check_trading_bot.sh
 ```
 
-Add to cron (runs every 15 minutes):
+Add to cron (every 15 minutes):
 ```bash
 crontab -e
-```
-
-```
+# Add:
 */15 * * * * /home/tradingbot/check_trading_bot.sh
 ```
 
-### 3. Daily report access
+### Access daily reports
 
-Daily reports are saved to:
+Reports are saved to:
 ```
 /home/tradingbot/trading-bot/reports/YYYY-MM-DD.md
 ```
 
-You can sync them to your local machine:
-
+Sync to local machine:
 ```bash
 # From your LOCAL machine:
 rsync -avz tradingbot@your-server-ip:/home/tradingbot/trading-bot/reports/ \
@@ -408,64 +305,30 @@ rsync -avz tradingbot@your-server-ip:/home/tradingbot/trading-bot/reports/ \
 
 ## Backup Strategy
 
-### 1. Database backups
+No database to back up. Just two things matter:
 
-Create backup script:
+### 1. recently_traded.json (blacklist)
 
-```bash
-nano ~/backup_db.sh
-```
+Small file, but losing it means the bot might re-buy recently bought stocks. Back up daily:
 
 ```bash
-#!/bin/bash
-BACKUP_DIR="/home/tradingbot/backups"
-DATE=$(date +%Y%m%d_%H%M%S)
-mkdir -p $BACKUP_DIR
-
-docker exec trading-bot-postgres \
-    pg_dump -U tradingbot trading_bot \
-    > $BACKUP_DIR/trading_bot_$DATE.sql
-
-# Keep only last 30 days of backups
-find $BACKUP_DIR -name "trading_bot_*.sql" -mtime +30 -delete
-
-echo "Backup completed: trading_bot_$DATE.sql"
+# Add to cron:
+0 20 * * * cp /home/tradingbot/trading-bot/recently_traded.json \
+    /home/tradingbot/backups/recently_traded_$(date +\%Y\%m\%d).json
 ```
+
+### 2. Reports and .env
 
 ```bash
-chmod +x ~/backup_db.sh
-```
-
-Add to cron (daily at 23:00):
-```bash
-crontab -e
-```
-
-```
-0 23 * * * /home/tradingbot/backup_db.sh
-```
-
-### 2. Restore from backup
-
-```bash
-# Stop the trading bot first
-sudo systemctl stop trading-bot.service
-
-# Restore
-cat /home/tradingbot/backups/trading_bot_YYYYMMDD_HHMMSS.sql | \
-    docker exec -i trading-bot-postgres psql -U tradingbot -d trading_bot
-
-# Restart
-sudo systemctl start trading-bot.service
-```
-
-### 3. Application state backups
-
-```bash
-# Backup .env and reports weekly
-0 2 * * 0 tar -czf /home/tradingbot/backups/app_state_$(date +\%Y\%m\%d).tar.gz \
+# Weekly backup of reports and config:
+0 2 * * 0 tar -czf /home/tradingbot/backups/state_$(date +\%Y\%m\%d).tar.gz \
     /home/tradingbot/trading-bot/.env \
-    /home/tradingbot/trading-bot/reports/
+    /home/tradingbot/trading-bot/reports/ \
+    /home/tradingbot/trading-bot/recently_traded.json
+```
+
+```bash
+mkdir -p /home/tradingbot/backups
 ```
 
 ---
@@ -478,38 +341,36 @@ sudo systemctl start trading-bot.service
 # Check logs
 sudo journalctl -u trading-bot.service -n 50 --no-pager
 
-# Check if port conflicts exist
-sudo ss -tulpn | grep python
-
-# Verify environment
-sudo -u tradingbot bash -c "cd /home/tradingbot/trading-bot && uv run python -c 'from src.config import get_settings; print(get_settings())'"
-```
-
-### Database connection errors
-
-```bash
-# Check Docker container is running
-docker ps | grep trading-bot-postgres
-
-# If stopped, start it
-docker start trading-bot-postgres
-
-# View container logs
-docker logs trading-bot-postgres --tail 50
-
-# Test connection manually
-docker exec -it trading-bot-postgres psql -U tradingbot -d trading_bot -c "SELECT 1;"
+# Verify config loads correctly
+sudo -u tradingbot bash -c "cd /home/tradingbot/trading-bot && uv run python -c 'from src.config import get_settings; s = get_settings(); print(\"Config OK:\", s.orchestrator_timezone)'"
 ```
 
 ### Scheduler not executing jobs
 
 ```bash
-# Check timezone settings
+# Check timezone
 timedatectl
 
 # Verify APScheduler jobs are configured
-uv run python -c "from src.orchestrator.scheduler import OrchestratorScheduler; s = OrchestratorScheduler(); s.configure_jobs(); print(s.scheduler.get_jobs())"
+sudo -u tradingbot bash -c "cd /home/tradingbot/trading-bot && uv run python -c \"
+from src.orchestrator.scheduler import OrchestratorScheduler
+s = OrchestratorScheduler()
+s.configure_jobs()
+for job in s.scheduler.get_jobs():
+    print(job.id, job.next_run_time)
+\""
 ```
+
+### T212 API errors
+
+```bash
+grep -i "T212\|t212\|trading212" logs/scheduler.log | tail -20
+```
+
+Common issues:
+- `not tradable` — ticker not available on T212, fallback executor tries next candidate automatically
+- `insufficient funds` — check account cash balance and `DAILY_BUDGET_EUR` setting
+- `401 Unauthorized` — API key expired or wrong key (live vs demo key mismatch)
 
 ### Missing dependencies
 
@@ -518,28 +379,26 @@ cd /home/tradingbot/trading-bot
 uv sync --reinstall
 ```
 
-### API rate limits or failures
+### API rate limits
 
-Check logs for API errors:
 ```bash
-grep -i "error\|exception" logs/scheduler.log | tail -20
+grep -i "rate limit\|429\|error" logs/scheduler.log | tail -20
 ```
+
+The anthropic SDK has `max_retries=5` configured — rate limits are handled automatically with backoff.
 
 ---
 
 ## Security Checklist
 
-- [ ] `.env` file has 600 permissions (not world-readable)
-- [ ] PostgreSQL container uses a strong password
-- [ ] PostgreSQL port (5432) not exposed to the internet (only localhost)
+- [ ] `.env` file has 600 permissions (`chmod 600 .env`)
 - [ ] SSH key-based authentication enabled (disable password auth)
-- [ ] Firewall configured (ufw or iptables)
-- [ ] API keys rotated periodically
-- [ ] Server OS updates enabled
-- [ ] Backups tested and verified
+- [ ] Firewall configured (only allow SSH inbound)
+- [ ] API keys use minimum required permissions (read-only where possible)
+- [ ] `T212_API_KEY` is live account key; `T212_PRACTICE_API_KEY` is demo key — don't mix them up
+- [ ] Server OS auto-updates enabled
 - [ ] Non-root user running the service
-- [ ] systemd service hardening enabled
-- [ ] Docker daemon access restricted to `tradingbot` user
+- [ ] systemd service hardening enabled (`NoNewPrivileges`, `ProtectSystem`, etc.)
 
 ### Basic firewall setup (UFW)
 
@@ -548,36 +407,6 @@ sudo ufw default deny incoming
 sudo ufw default allow outgoing
 sudo ufw allow ssh
 sudo ufw enable
-```
-
----
-
-## Post-Deployment Verification
-
-### 1. Run a manual test cycle
-
-```bash
-cd /home/tradingbot/trading-bot
-uv run python scripts/run_daily.py --no-approval
-```
-
-### 2. Verify scheduler is running
-
-```bash
-sudo systemctl status trading-bot.service
-```
-
-### 3. Check next scheduled job
-
-```bash
-grep "Next run time" logs/scheduler.log
-```
-
-### 4. Monitor first automated run
-
-Wait until the next scheduled collection time (08:00, 12:00, or 16:30) and watch logs:
-```bash
-tail -f logs/scheduler.log
 ```
 
 ---
@@ -591,7 +420,7 @@ sudo systemctl restart trading-bot.service
 # Stop service
 sudo systemctl stop trading-bot.service
 
-# View logs
+# View live logs
 sudo journalctl -u trading-bot.service -f
 
 # Update code from git
@@ -600,42 +429,77 @@ git pull
 uv sync
 sudo systemctl restart trading-bot.service
 
-# Run manual report
-uv run python scripts/report.py --period week
+# View current portfolio P&L from T212
+uv run python scripts/report.py
 
 # Run manual sell checks
 uv run python scripts/run_sell_checks.py
 
-# Run a backtest
-uv run python scripts/backtest.py --start 2025-01-01 --end 2025-01-31
+# View the 3-day blacklist
+cat recently_traded.json
 
-# Check database size
-docker exec trading-bot-postgres psql -U tradingbot -d trading_bot \
-    -c "SELECT pg_size_pretty(pg_database_size('trading_bot'));"
+# Clear the blacklist (if needed)
+echo '{}' > recently_traded.json
+
+# Check today's report
+cat reports/$(date +%Y-%m-%d).md
 ```
 
 ---
 
-## Migration Checklist
+## Post-Deployment Verification
 
-Before shutting down your local instance:
+### 1. Verify the service starts cleanly
 
-- [ ] Push latest code to git repository
-- [ ] Export local `.env` settings
-- [ ] Backup local PostgreSQL database
-- [ ] Verify all API keys are valid
-- [ ] Test one manual run on server before enabling scheduler
-- [ ] Confirm daily reports are being generated
-- [ ] Set up Telegram alerts for failures (optional)
-- [ ] Document any custom configurations
+```bash
+sudo systemctl status trading-bot.service
+sudo journalctl -u trading-bot.service -n 30
+```
 
-After server deployment:
+### 2. Check the scheduler is configured correctly
 
-- [ ] Docker PostgreSQL container is running: `docker ps`
+```bash
+grep "Scheduler running" logs/scheduler.log
+```
+
+### 3. Wait for first collection job (08:00 Berlin time)
+
+```bash
+tail -f logs/scheduler.log
+```
+
+Should see: `Collection round finished`
+
+### 4. Check first report after 17:35
+
+```bash
+ls -la reports/
+cat reports/$(date +%Y-%m-%d).md
+```
+
+### 5. Monitor for 2-3 days before trusting fully
+
+Watch for:
+- Reddit collection completing without errors
+- Sell checks running at 09:30, 12:30, 16:45
+- Trade execution at 17:10 producing buys or clear skip reasons
+- Daily reports being written to `reports/`
+- Trades appearing in your T212 app
+
+---
+
+## Migration Checklist (Local → Server)
+
+Before moving:
+- [ ] Push latest code to git
+- [ ] Export `.env` settings
+- [ ] Note current `recently_traded.json` contents (copy it to server)
+- [ ] Verify all API keys are valid and active
+
+After deployment:
 - [ ] Service is running: `systemctl status trading-bot`
-- [ ] Check logs for errors: `journalctl -u trading-bot -f`
+- [ ] Logs show no errors: `journalctl -u trading-bot -f`
 - [ ] Wait for first scheduled job execution
-- [ ] Verify trades appear in Trading 212
+- [ ] Verify trades appear in T212 app
 - [ ] Confirm daily reports are written to `reports/`
-- [ ] Test backup and restoration process
-- [ ] Monitor for 3-5 days before trusting fully
+- [ ] Monitor for 2-3 days before fully trusting

@@ -6,90 +6,120 @@ from yfinance import EquityQuery
 
 logger = logging.getLogger(__name__)
 
-VALID_EU_SUFFIXES = (".AS", ".PA", ".DE", ".MI", ".MC", ".L")
+# EU ticker suffixes — used for soft preference bonus only, no hard filtering
+EU_SUFFIXES = {".AS", ".PA", ".DE", ".MI", ".MC", ".L", ".BR", ".SW", ".ST", ".CO", ".OL", ".HE"}
 
-EXCHANGE_MAP = {
-    "AMS": "AMS",
-    "PAR": "PAR",
-    "GER": "GER",
-    "MIL": "MIL",
-    "MCE": "MCE",
-    "LSE": "LSE",
-}
+# EU exchanges to screen explicitly so EU stocks get fair representation
+EU_EXCHANGES = ["AMS", "PAR", "GER", "MIL", "MCE", "LSE"]
 
 QUERY_CONFIGS = {
-    "day_gainers": {"sortField": "percentchange", "sort_asc": False},
-    "day_losers": {"sortField": "percentchange", "sort_asc": True},
-    "most_active": {"sortField": "dayvolume", "sort_asc": False},
+    "day_gainers": {"sortField": "percentchange", "sortAsc": False},
+    "most_active": {"sortField": "dayvolume", "sortAsc": False},
 }
 
 
-def _is_valid_eu_ticker(ticker: str) -> bool:
-    return any(ticker.endswith(s) for s in VALID_EU_SUFFIXES)
+def is_eu_ticker(ticker: str) -> bool:
+    return any(ticker.endswith(s) for s in EU_SUFFIXES)
 
 
-async def screen_eu_exchange(
-    exchange: str,
-    query_type: str = "day_gainers",
-    min_market_cap: int = 1_000_000_000,
-    count: int = 10,
-) -> list[dict]:
+async def _screen_eu_exchange(exchange: str, query_type: str, count: int) -> list[dict]:
     config = QUERY_CONFIGS.get(query_type)
     if not config:
         return []
 
     def _fetch():
         try:
-            query = EquityQuery(
-                "and",
-                [
-                    EquityQuery("eq", ["exchange", exchange]),
-                    EquityQuery("gt", ["intradaymarketcap", min_market_cap]),
-                ],
-            )
+            query = EquityQuery("eq", ["exchange", exchange])
             result = yf.screen(
                 query,
                 sortField=config["sortField"],
-                sortAsc=config["sort_asc"],
+                sortAsc=config["sortAsc"],
                 size=count,
             )
             rows = []
             for quote in result.get("quotes", []):
                 ticker = quote.get("symbol", "")
-                if not ticker or not _is_valid_eu_ticker(ticker):
+                if not ticker:
                     continue
-                rows.append(
-                    {
-                        "ticker": ticker,
-                        "name": quote.get("shortName") or quote.get("longName", ""),
-                        "price": quote.get("regularMarketPrice"),
-                        "change_pct": quote.get("regularMarketChangePercent"),
-                        "volume": quote.get("regularMarketVolume"),
-                        "market_cap": quote.get("marketCap"),
-                        "exchange": exchange,
-                        "query_type": query_type,
-                    }
-                )
+                rows.append({
+                    "ticker": ticker,
+                    "name": quote.get("shortName") or quote.get("longName", ""),
+                    "price": quote.get("regularMarketPrice"),
+                    "change_pct": quote.get("regularMarketChangePercent"),
+                    "volume": quote.get("regularMarketVolume"),
+                    "market_cap": quote.get("marketCap"),
+                    "source": f"eu_{query_type}",
+                    "is_eu": True,
+                })
             return rows
         except Exception:
-            logger.exception("Screener failed for exchange=%s query=%s", exchange, query_type)
+            logger.exception("EU screener failed: exchange=%s query=%s", exchange, query_type)
             return []
 
     return await asyncio.to_thread(_fetch)
 
 
-async def screen_all_eu(
-    exchanges: str = "AMS,PAR,GER,MIL,MCE,LSE",
-    min_market_cap: int = 1_000_000_000,
+async def _screen_global(query_type: str, count: int) -> list[dict]:
+    config = QUERY_CONFIGS.get(query_type)
+    if not config:
+        return []
+
+    def _fetch():
+        try:
+            # Global screen — no exchange restriction, min $500M market cap to exclude micro-caps
+            query = EquityQuery("gt", ["intradaymarketcap", 500_000_000])
+            result = yf.screen(
+                query,
+                sortField=config["sortField"],
+                sortAsc=config["sortAsc"],
+                size=count,
+            )
+            rows = []
+            for quote in result.get("quotes", []):
+                ticker = quote.get("symbol", "")
+                if not ticker:
+                    continue
+                rows.append({
+                    "ticker": ticker,
+                    "name": quote.get("shortName") or quote.get("longName", ""),
+                    "price": quote.get("regularMarketPrice"),
+                    "change_pct": quote.get("regularMarketChangePercent"),
+                    "volume": quote.get("regularMarketVolume"),
+                    "market_cap": quote.get("marketCap"),
+                    "source": f"global_{query_type}",
+                    "is_eu": is_eu_ticker(ticker),
+                })
+            return rows
+        except Exception:
+            logger.exception("Global screener failed: query=%s", query_type)
+            return []
+
+    return await asyncio.to_thread(_fetch)
+
+
+async def screen_markets(
+    eu_preference_bonus: float = 0.1,
     per_query_count: int = 10,
 ) -> list[dict]:
-    exchange_list = [e.strip() for e in exchanges.split(",") if e.strip()]
+    """
+    Screen both EU exchanges and global markets.
+    EU-listed stocks receive a soft scoring bonus — no hard exclusions.
+    Returns candidates ranked by adjusted score, deduplicated.
+    """
     tasks = []
-    for exchange in exchange_list:
+
+    # EU exchange queries — ensures EU stocks get fair representation
+    for exchange in EU_EXCHANGES:
         for query_type in QUERY_CONFIGS:
-            tasks.append(screen_eu_exchange(exchange, query_type, min_market_cap, per_query_count))
+            tasks.append(_screen_eu_exchange(exchange, query_type, per_query_count))
+
+    # Global queries — catches non-EU opportunities
+    for query_type in QUERY_CONFIGS:
+        tasks.append(_screen_global(query_type, per_query_count))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Deduplicate: track hit count per ticker
     seen: dict[str, dict] = {}
     for result in results:
         if isinstance(result, Exception):
@@ -98,19 +128,19 @@ async def screen_all_eu(
         for item in result:
             ticker = item["ticker"]
             if ticker not in seen:
-                seen[ticker] = {
-                    "ticker": ticker,
-                    "name": item.get("name", ""),
-                    "price": item.get("price"),
-                    "change_pct": item.get("change_pct"),
-                    "volume": item.get("volume"),
-                    "market_cap": item.get("market_cap"),
-                    "exchange": item.get("exchange"),
-                    "screener_hits": [item.get("query_type", "")],
-                }
+                seen[ticker] = {**item, "hits": 1}
             else:
-                hit = item.get("query_type", "")
-                if hit not in seen[ticker]["screener_hits"]:
-                    seen[ticker]["screener_hits"].append(hit)
+                seen[ticker]["hits"] += 1
+                # Keep is_eu=True if either pass flagged it
+                if item.get("is_eu"):
+                    seen[ticker]["is_eu"] = True
 
-    return sorted(seen.values(), key=lambda x: len(x.get("screener_hits", [])), reverse=True)
+    # Apply EU soft bonus to score
+    for entry in seen.values():
+        base_score = float(entry["hits"])
+        if entry.get("is_eu"):
+            entry["score"] = base_score * (1.0 + eu_preference_bonus)
+        else:
+            entry["score"] = base_score
+
+    return sorted(seen.values(), key=lambda x: x["score"], reverse=True)

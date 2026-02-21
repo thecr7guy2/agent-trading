@@ -7,19 +7,16 @@ from zoneinfo import ZoneInfo
 
 from src.agents.pipeline import AgentPipeline
 from src.config import Settings, get_settings
-from src.db.connection import get_pool
-from src.db.models import (
+from src.mcp_servers.trading.portfolio import get_demo_positions, get_live_positions
+from src.mcp_servers.trading.t212_client import T212Client
+from src.models import (
     DailyPicks,
     LLMProvider,
     PickReview,
     Position,
     ResearchReport,
-    SellSignal,
-    StockPick,
 )
-from src.mcp_servers.trading.portfolio import PortfolioManager
 from src.notifications.telegram import TelegramNotifier
-from src.orchestrator.approval import ApprovalDecision, CLIApprovalFlow
 from src.orchestrator.mcp_client import (
     MCPToolClient,
     create_market_data_client,
@@ -28,97 +25,26 @@ from src.orchestrator.mcp_client import (
 )
 from src.orchestrator.rotation import is_trading_day
 from src.orchestrator.sell_strategy import SellStrategyEngine
+from src.orchestrator.trade_executor import ExecutionSummary, execute_with_fallback
+from src.utils.recently_traded import get_blacklist
 
 logger = logging.getLogger(__name__)
 
 # Reddit noise: common acronyms, indices, and ETFs that aren't individual stock picks
 _NOISE_TICKERS = {
-    # Reddit acronyms often parsed as tickers
-    "FAQ",
-    "DD",
-    "CEO",
-    "GDP",
-    "IPO",
-    "ATH",
-    "ATL",
-    "IMO",
-    "YOLO",
-    "FYI",
-    "EPS",
-    "USA",
-    "USD",
-    "EUR",
-    "GBP",
-    "ETF",
-    "SEC",
-    "FED",
-    "CPI",
-    "PPI",
-    "FOMC",
-    "HODL",
-    "DCA",
-    "OEM",
-    "LLC",
-    "INC",
-    "YOY",
-    "QOQ",
-    "MOM",
-    "RIP",
-    "FUD",
-    "APE",
-    "TLDR",
+    "FAQ", "DD", "CEO", "GDP", "IPO", "ATH", "ATL", "IMO", "YOLO", "FYI",
+    "EPS", "USA", "USD", "EUR", "GBP", "ETF", "SEC", "FED", "CPI", "PPI",
+    "FOMC", "HODL", "DCA", "OEM", "LLC", "INC", "YOY", "QOQ", "MOM",
+    "RIP", "FUD", "APE", "TLDR",
 }
 _INDEX_TICKERS = {"VIX", "GSPC", "DJI", "IXIC", "FTSE", "DAX", "CAC"}
 _COMMON_ETFS = {
-    "VOO",
-    "SPY",
-    "QQQ",
-    "SCHD",
-    "VTI",
-    "VEA",
-    "VXUS",
-    "BND",
-    "VIG",
-    "IWM",
-    "DIA",
-    "ARKK",
-    "ARKW",
-    "ARKG",
-    "VGT",
-    "SOXL",
-    "SOXS",
-    "TQQQ",
-    "SQQQ",
-    "VT",
-    "QQQM",
-    "JEPI",
-    "JEPQ",
-    "RSP",
-    "XLF",
-    "XLE",
-    "XLK",
-    "VYM",
-    "VNQ",
-    "GLD",
-    "SLV",
-    "TLT",
-    "HYG",
-    "LQD",
-    "AGG",
-    "EFA",
-    "EEM",
-    "IEMG",
-    "SCHG",
-    "QQQI",
-    "SPYI",
-    "VWCE",
-    "NEOS",
-    "IWDA",
-    "VUSA",
-    "CSPX",
-    "VUAA",
-    "VWRL",
-    "SWDA",
+    "VOO", "SPY", "QQQ", "SCHD", "VTI", "VEA", "VXUS", "BND", "VIG",
+    "IWM", "DIA", "ARKK", "ARKW", "ARKG", "VGT", "SOXL", "SOXS", "TQQQ",
+    "SQQQ", "VT", "QQQM", "JEPI", "JEPQ", "RSP", "XLF", "XLE", "XLK",
+    "VYM", "VNQ", "GLD", "SLV", "TLT", "HYG", "LQD", "AGG", "EFA", "EEM",
+    "IEMG", "SCHG", "QQQI", "SPYI", "VWCE", "NEOS", "IWDA", "VUSA",
+    "CSPX", "VUAA", "VWRL", "SWDA",
 }
 _EXCLUDED = _NOISE_TICKERS | _INDEX_TICKERS | _COMMON_ETFS
 
@@ -127,29 +53,25 @@ def _is_valid_stock_ticker(ticker: str) -> bool:
     upper = ticker.upper()
     if upper in _EXCLUDED:
         return False
-    # 1-2 char tickers from Reddit are almost always noise (II, PC, AI, EU, UK)
     if len(ticker) <= 2:
         return False
     return True
 
 
 def _select_candidates(candidates: dict[str, dict], limit: int) -> list[dict]:
-    # Multi-source candidates are the highest value (confirmed by 2+ independent signals)
+    """Rank and deduplicate candidates from multiple signal sources."""
     multi_source = sorted(
         [c for c in candidates.values() if len(c.get("sources", [])) >= 2],
         key=lambda c: (len(c["sources"]), c.get("reddit_mentions", 0)),
         reverse=True,
     )
 
-    # Single-source buckets
     reddit_only = sorted(
         [c for c in candidates.values() if c.get("sources") == ["reddit"]],
         key=lambda c: c.get("reddit_mentions", 0),
         reverse=True,
     )
-    screener_only = [
-        c for c in candidates.values() if c.get("sources") == ["screener"]
-    ]  # Already sorted by screener_hits from screener.py
+    screener_only = [c for c in candidates.values() if c.get("sources") == ["screener"]]
     earnings_only = [c for c in candidates.values() if c.get("sources") == ["earnings"]]
     insider_only = sorted(
         [c for c in candidates.values() if c.get("sources") == ["insider"]],
@@ -157,16 +79,12 @@ def _select_candidates(candidates: dict[str, dict], limit: int) -> list[dict]:
         reverse=True,
     )
 
-    # Build final list: multi-source first, then guaranteed slots per source
     result = list(multi_source[:limit])
     remaining = limit - len(result)
     if remaining <= 0:
         return result[:limit]
 
-    # Reserve ~40% for EU screener, ~10% for earnings, ~10% for insider, rest for Reddit
-    screener_quota = min(remaining * 2 // 5, len(screener_only))
-    # Minimum 8 screener slots if available (EU stocks are the trading target)
-    screener_quota = max(screener_quota, min(8, len(screener_only), remaining))
+    screener_quota = max(min(remaining * 2 // 5, len(screener_only)), min(8, len(screener_only), remaining))
     result.extend(screener_only[:screener_quota])
     remaining -= screener_quota
 
@@ -178,7 +96,6 @@ def _select_candidates(candidates: dict[str, dict], limit: int) -> list[dict]:
     result.extend(insider_only[:insider_quota])
     remaining -= insider_quota
 
-    # Fill rest with Reddit
     result.extend(reddit_only[:remaining])
     return result[:limit]
 
@@ -188,29 +105,26 @@ class PipelineResult:
     llm: LLMProvider
     picks: PickReview | DailyPicks
     research: ResearchReport | None
-    portfolio: list[Position]
+    portfolio: list[dict]
 
 
 class Supervisor:
     def __init__(
         self,
         settings: Settings | None = None,
-        approval_flow: CLIApprovalFlow | None = None,
         trading_client: MCPToolClient | None = None,
         reddit_client: MCPToolClient | None = None,
         market_data_client: MCPToolClient | None = None,
     ):
         self._settings = settings or get_settings()
-        self._approval = approval_flow or CLIApprovalFlow(
-            timeout_seconds=self._settings.approval_timeout_seconds,
-            timeout_action=self._settings.approval_timeout_action,
-        )
-        self._pipelines: dict[LLMProvider, AgentPipeline] = {}
+        self._pipelines: dict[tuple, AgentPipeline] = {}
         self._trading_client = trading_client
         self._reddit_client = reddit_client
         self._market_data_client = market_data_client
         self._sell_engine = SellStrategyEngine(self._settings)
         self._notifier = TelegramNotifier(self._settings)
+        self._t212_live: T212Client | None = None
+        self._t212_demo: T212Client | None = None
 
     def _ensure_clients(self) -> None:
         if self._trading_client is None:
@@ -220,9 +134,25 @@ class Supervisor:
         if self._market_data_client is None:
             self._market_data_client = create_market_data_client()
 
-    async def _get_portfolio_manager(self) -> PortfolioManager:
-        pool = await get_pool()
-        return PortfolioManager(pool)
+    def _get_t212_live(self) -> T212Client:
+        if self._t212_live is None:
+            self._t212_live = T212Client(
+                api_key=self._settings.t212_api_key,
+                api_secret=self._settings.t212_api_secret,
+                use_demo=False,
+            )
+        return self._t212_live
+
+    def _get_t212_demo(self) -> T212Client | None:
+        if not self._settings.t212_practice_api_key:
+            return None
+        if self._t212_demo is None:
+            self._t212_demo = T212Client(
+                api_key=self._settings.t212_practice_api_key,
+                api_secret=self._settings.t212_practice_api_secret or "",
+                use_demo=True,
+            )
+        return self._t212_demo
 
     async def collect_reddit_round(self, subreddits: list[str] | None = None) -> dict:
         self._ensure_clients()
@@ -239,11 +169,13 @@ class Supervisor:
         return await self._reddit_client.call_tool("get_daily_digest", args)
 
     async def build_signal_digest(self, subreddits: list[str] | None = None) -> dict:
+        """Merge signals from Reddit, screener, earnings, and insider sources."""
         self._ensure_clients()
         reddit_digest = await self.build_reddit_digest(subreddits)
         candidates: dict[str, dict] = {}
         screener_count = 0
 
+        # Reddit signals
         for t in reddit_digest.get("tickers", []):
             ticker = t.get("ticker", "")
             if not ticker or not _is_valid_stock_ticker(ticker):
@@ -257,15 +189,10 @@ class Supervisor:
                 "subreddits": t.get("subreddits", {}),
             }
 
+        # Screener signals (global markets with EU soft bonus)
         try:
             screener_result = await asyncio.wait_for(
-                self._market_data_client.call_tool(
-                    "screen_eu_markets",
-                    {
-                        "exchanges": self._settings.screener_exchanges,
-                        "min_market_cap": self._settings.screener_min_market_cap,
-                    },
-                ),
+                self._market_data_client.call_tool("screen_global_markets", {}),
                 timeout=60.0,
             )
             screener_count = screener_result.get("count", 0)
@@ -285,8 +212,9 @@ class Supervisor:
                         "screener": item,
                     }
         except Exception:
-            logger.exception("Screener call failed, continuing with Reddit-only")
+            logger.exception("Screener call failed — continuing with Reddit-only")
 
+        # Earnings calendar signals
         try:
             earnings_result = await asyncio.wait_for(
                 self._market_data_client.call_tool("get_earnings_calendar", {}),
@@ -308,37 +236,36 @@ class Supervisor:
                         "earnings": event,
                     }
         except Exception:
-            logger.exception("Earnings calendar call failed, continuing without it")
+            logger.exception("Earnings calendar call failed — continuing without it")
 
+        # Insider buying signals (OpenInsider cluster buys)
         try:
             insider_result = await asyncio.wait_for(
-                self._market_data_client.call_tool(
-                    "get_insider_buys",
-                    {"lookback_days": getattr(self._settings, "bafin_lookback_days", 7)},
-                ),
+                self._market_data_client.call_tool("get_insider_activity", {"days": 7}),
                 timeout=60.0,
             )
-            for trade in insider_result.get("trades", []):
-                ticker = trade.get("ticker", "")
+            for cluster in insider_result.get("cluster_buys", []):
+                ticker = cluster.get("ticker", "")
                 if not ticker or not _is_valid_stock_ticker(ticker):
                     continue
                 if ticker in candidates:
                     candidates[ticker]["sources"].append("insider")
-                    candidates[ticker]["insider"] = trade
+                    candidates[ticker]["insider"] = cluster
                 else:
                     candidates[ticker] = {
                         "ticker": ticker,
                         "sources": ["insider"],
                         "reddit_mentions": 0,
                         "sentiment_score": 0.0,
-                        "insider": trade,
+                        "insider": cluster,
                     }
         except Exception:
-            logger.exception("BAFIN insider trades call failed, continuing without it")
+            logger.exception("Insider activity call failed — continuing without it")
 
-        limit = getattr(self._settings, "signal_candidate_limit", 25)
+        limit = self._settings.max_candidates
         sorted_candidates = _select_candidates(candidates, limit)
 
+        # Enrich candidates with recent news headlines
         top_tickers = [c["ticker"] for c in sorted_candidates]
         news_map = await self._fetch_news_batch(top_tickers)
         for candidate in sorted_candidates:
@@ -376,58 +303,10 @@ class Supervisor:
                 news_map[ticker] = news
         return news_map
 
-    async def build_market_data(self, digest: dict) -> dict[str, dict]:
-        self._ensure_clients()
-        if "candidates" in digest:
-            tickers = [c.get("ticker", "") for c in digest["candidates"] if c.get("ticker")]
-            limit = getattr(self._settings, "signal_candidate_limit", 25)
-            tickers = tickers[:limit]
-        else:
-            tickers = [t.get("ticker", "") for t in digest.get("tickers", []) if t.get("ticker")]
-            tickers = tickers[: self._settings.market_data_ticker_limit]
-        if not tickers:
-            return {}
-
-        async def _fetch(ticker: str) -> tuple[str, dict]:
-            try:
-                price, fundamentals, technicals = await asyncio.wait_for(
-                    asyncio.gather(
-                        self._market_data_client.call_tool("get_stock_price", {"ticker": ticker}),
-                        self._market_data_client.call_tool("get_fundamentals", {"ticker": ticker}),
-                        self._market_data_client.call_tool(
-                            "get_technical_indicators", {"ticker": ticker}
-                        ),
-                    ),
-                    timeout=30.0,
-                )
-            except TimeoutError:
-                logger.warning("Market data fetch timed out for %s", ticker)
-                return (ticker, {"price": {}, "fundamentals": {}, "technicals": {}})
-            return (
-                ticker,
-                {
-                    "price": price,
-                    "fundamentals": fundamentals,
-                    "technicals": technicals,
-                },
-            )
-
-        results = await asyncio.gather(
-            *(_fetch(ticker) for ticker in tickers), return_exceptions=True
-        )
-        market_data: dict[str, dict] = {}
-        for result in results:
-            if isinstance(result, Exception):
-                logger.warning("Market data fetch failed: %s", result)
-                continue
-            ticker, payload = result
-            market_data[ticker] = payload
-        return market_data
-
     async def run_decision_cycle(
         self,
         run_date: date | None = None,
-        require_approval: bool = True,
+        require_approval: bool = False,
         force: bool = False,
         collect_rounds: int = 0,
     ) -> dict:
@@ -442,7 +321,22 @@ class Supervisor:
         if digest.get("error"):
             return {"status": "error", "stage": "signal_digest", "error": digest["error"]}
 
-        # Run conservative (real money) and aggressive (practice) pipelines in parallel
+        # Filter blacklisted tickers (bought in last N days)
+        blacklist = get_blacklist(
+            path=self._settings.recently_traded_path,
+            days=self._settings.recently_traded_days,
+        )
+        all_candidates = digest.get("candidates", [])
+        blacklisted_candidates: list[str] = []
+        if blacklist:
+            blacklisted_candidates = [
+                c.get("ticker") for c in all_candidates if c.get("ticker") in blacklist
+            ]
+            digest["candidates"] = [c for c in all_candidates if c.get("ticker") not in blacklist]
+            if blacklisted_candidates:
+                logger.info("Filtered %d blacklisted tickers", len(blacklisted_candidates))
+
+        # Run research + decision pipelines
         pipeline_results = await self._run_pipelines(digest, run_date)
         result_by_llm = {item.llm: item for item in pipeline_results}
 
@@ -452,64 +346,40 @@ class Supervisor:
         if conservative_result is None:
             return {"status": "error", "stage": "pipeline", "error": "conservative pipeline failed"}
 
-        pm = await self._get_portfolio_manager()
-        conservative_daily = self._to_daily_picks(conservative_result.picks)
-        await pm.save_daily_picks(conservative_daily, is_main=True)
-        if aggressive_result is not None:
-            aggressive_daily = self._to_daily_picks(aggressive_result.picks)
-            await pm.save_daily_picks(aggressive_daily, is_main=False)
-
-        decision = await self._resolve_approval(conservative_daily, require_approval)
-        approved_picks = self._select_picks(conservative_daily.picks, decision)
-        approved_daily = DailyPicks(
-            llm=conservative_daily.llm,
-            pick_date=conservative_daily.pick_date,
-            picks=approved_picks,
-            sell_recommendations=conservative_daily.sell_recommendations,
-            confidence=conservative_daily.confidence,
-            market_summary=conservative_daily.market_summary,
-        )
-        self._normalize_allocations(approved_daily)
-
-        # Conservative → real T212 live account
-        real_execution = await self._execute_real_trades(
-            llm=LLMProvider.CLAUDE,
-            picks=approved_daily,
-            budget_eur=self._settings.daily_budget_eur,
-            portfolio=conservative_result.portfolio,
-            force=force,
+        # Execute conservative → real T212 live account
+        t212_live = self._get_t212_live()
+        real_candidates = await self._picks_to_candidates(conservative_result.picks)
+        real_summary = await execute_with_fallback(
+            candidates=real_candidates,
+            is_real=True,
+            t212=t212_live,
         )
 
-        # Aggressive → T212 practice account (virtual budget)
-        practice_execution = []
-        if aggressive_result is not None:
-            agg_daily = self._to_daily_picks(aggressive_result.picks)
-            self._normalize_allocations(agg_daily)
-            practice_execution = await self._execute_practice_trades(
-                llm=LLMProvider.CLAUDE_AGGRESSIVE,
-                picks=agg_daily,
-                budget_eur=getattr(self._settings, "practice_daily_budget_eur", 500.0),
-                portfolio=aggressive_result.portfolio,
-                force=force,
+        # Execute aggressive → T212 practice account
+        practice_summary: ExecutionSummary | None = None
+        t212_demo = self._get_t212_demo()
+        if t212_demo and aggressive_result:
+            practice_candidates = await self._picks_to_candidates(aggressive_result.picks)
+            practice_summary = await execute_with_fallback(
+                candidates=practice_candidates,
+                is_real=False,
+                t212=t212_demo,
             )
 
-        await self._persist_sentiment(digest, run_date)
-        await self._persist_signals(digest, run_date)
+        real_exec = self._summary_to_list(real_summary)
+        practice_exec = self._summary_to_list(practice_summary)
 
         decision_result = {
             "status": "ok",
             "date": str(run_date),
             "conservative_trader": LLMProvider.CLAUDE.value,
             "aggressive_trader": LLMProvider.CLAUDE_AGGRESSIVE.value,
-            "approval": {
-                "action": decision.action,
-                "approved_indices": decision.approved_indices,
-                "timed_out": decision.timed_out,
-            },
+            "approval": {"action": "approve_all", "approved_indices": [], "timed_out": False},
             "reddit_posts": digest.get("total_posts", 0),
             "tickers_analyzed": len(digest.get("candidates", [])),
-            "real_execution": real_execution,
-            "practice_execution": practice_execution,
+            "blacklisted_candidates": blacklisted_candidates,
+            "real_execution": real_exec,
+            "practice_execution": practice_exec,
             "signal_digest": digest,
             "pipeline_analysis": {
                 "conservative": self._build_analysis_summary(conservative_result),
@@ -524,12 +394,59 @@ class Supervisor:
         await self._notifier.notify_daily_summary(decision_result)
         return decision_result
 
+    async def _picks_to_candidates(self, picks: PickReview | DailyPicks) -> list[dict]:
+        """Convert pipeline picks to a ranked candidates list for execute_with_fallback.
+
+        Sorted by allocation_pct descending — top conviction pick first.
+        """
+        self._ensure_clients()
+        buy_picks = sorted(
+            [p for p in picks.picks if p.action == "buy"],
+            key=lambda p: p.allocation_pct,
+            reverse=True,
+        )
+
+        candidates: list[dict] = []
+        for pick in buy_picks:
+            price = await self._fetch_price(pick.ticker)
+            if price > 0:
+                candidates.append({
+                    "ticker": pick.ticker,
+                    "price": price,
+                    "allocation_pct": pick.allocation_pct,
+                    "reasoning": pick.reasoning,
+                })
+            else:
+                logger.warning("No price for %s — excluded from execution candidates", pick.ticker)
+
+        return candidates
+
+    @staticmethod
+    def _summary_to_list(summary: ExecutionSummary | None) -> list[dict]:
+        if summary is None:
+            return []
+        result = []
+        for r in summary.bought:
+            result.append({
+                "status": "filled",
+                "ticker": r.ticker,
+                "amount_eur": r.amount_spent,
+                "quantity": r.quantity,
+                "broker_ticker": r.broker_ticker,
+            })
+        for r in summary.failed:
+            result.append({
+                "status": "failed",
+                "ticker": r.ticker,
+                "error": r.error,
+            })
+        return result
+
     @staticmethod
     def _build_analysis_summary(result: PipelineResult) -> dict:
         picks_obj = result.picks
         picked_tickers = {p.ticker for p in picks_obj.picks}
 
-        # Per-pick reasoning from the trader
         pick_reasoning = [
             {
                 "ticker": p.ticker,
@@ -540,7 +457,6 @@ class Supervisor:
             for p in picks_obj.picks
         ]
 
-        # Research summaries for all analyzed tickers (picked and not picked)
         researched: list[dict] = []
         not_picked: list[dict] = []
         if result.research and hasattr(result.research, "tickers"):
@@ -558,7 +474,6 @@ class Supervisor:
                 if finding.ticker not in picked_tickers:
                     not_picked.append(entry)
 
-        # Risk review details
         risk_review = {}
         if isinstance(picks_obj, PickReview):
             risk_review = {
@@ -595,55 +510,81 @@ class Supervisor:
         run_date: date,
     ) -> list[PipelineResult]:
         self._ensure_clients()
-        timeout = getattr(self._settings, "pipeline_timeout_seconds", 600)
+        timeout = self._settings.pipeline_timeout_seconds
+        practice_budget = self._settings.practice_daily_budget_eur
 
-        async def _run_for(llm: LLMProvider, strategy: str, budget: float) -> PipelineResult:
-            pm = await self._get_portfolio_manager()
-            positions = await pm.get_positions_typed(llm.value)
-            portfolio_dicts = [
-                {
-                    "ticker": p.ticker,
-                    "quantity": str(p.quantity),
-                    "avg_buy_price": str(p.avg_buy_price),
-                    "is_real": p.is_real,
-                }
-                for p in positions
-            ]
-            output = await self._get_pipeline(llm, strategy).run(
-                signal_digest=digest,
-                portfolio=portfolio_dicts,
-                budget_eur=budget,
-                run_date=run_date,
+        # Stages 1-2: run research once, shared across both strategies
+        research_pipeline = self._get_pipeline(LLMProvider.CLAUDE, "conservative")
+        try:
+            sentiment, research = await asyncio.wait_for(
+                research_pipeline.run_research(digest),
+                timeout=float(timeout),
             )
-            research = output.research if isinstance(output.research, ResearchReport) else None
-            return PipelineResult(
-                llm=llm, picks=output.picks, research=research, portfolio=positions
-            )
+        except TimeoutError:
+            logger.error("Shared research phase timed out after %ds", timeout)
+            return []
+        except Exception:
+            logger.exception("Shared research phase failed")
+            return []
 
-        async def _run_with_timeout(
+        shared_research = research if isinstance(research, ResearchReport) else None
+
+        # Stages 3-4: fan out to both strategies in parallel using shared research
+        async def _run_decision(
             llm: LLMProvider, strategy: str, budget: float
         ) -> PipelineResult | None:
             try:
-                return await asyncio.wait_for(
-                    _run_for(llm, strategy, budget), timeout=float(timeout)
+                # Get current positions from T212 as portfolio context for the trader
+                portfolio_dicts = await self._get_portfolio_dicts(llm)
+                output = await asyncio.wait_for(
+                    self._get_pipeline(llm, strategy).run_decision(
+                        sentiment,
+                        research,
+                        portfolio_dicts,
+                        budget,
+                        run_date,
+                    ),
+                    timeout=float(timeout),
+                )
+                return PipelineResult(
+                    llm=llm,
+                    picks=output.picks,
+                    research=shared_research,
+                    portfolio=portfolio_dicts,
                 )
             except TimeoutError:
-                logger.error("Pipeline timed out for %s after %ds", llm.value, timeout)
+                logger.error("Decision stage timed out for %s after %ds", llm.value, timeout)
                 return None
             except Exception:
-                logger.exception("Pipeline failed for %s", llm.value)
+                logger.exception("Decision stage failed for %s", llm.value)
                 return None
 
-        practice_budget = getattr(self._settings, "practice_daily_budget_eur", 500.0)
         results = await asyncio.gather(
-            _run_with_timeout(LLMProvider.CLAUDE, "conservative", self._settings.daily_budget_eur),
-            _run_with_timeout(LLMProvider.CLAUDE_AGGRESSIVE, "aggressive", practice_budget),
+            _run_decision(LLMProvider.CLAUDE, "conservative", self._settings.daily_budget_eur),
+            _run_decision(LLMProvider.CLAUDE_AGGRESSIVE, "aggressive", practice_budget),
         )
         return [r for r in results if r is not None]
 
+    async def _get_portfolio_dicts(self, llm: LLMProvider) -> list[dict]:
+        """Fetch current positions from T212 and convert to dicts for trader context."""
+        try:
+            is_real = llm == LLMProvider.CLAUDE
+            if is_real:
+                t212 = self._get_t212_live()
+                positions = await get_live_positions(t212)
+            else:
+                t212 = self._get_t212_demo()
+                if t212 is None:
+                    return []
+                positions = await get_demo_positions(t212)
+            return positions  # already dicts from _normalise_positions
+        except Exception:
+            logger.exception("Failed to fetch portfolio for %s", llm.value)
+            return []
+
     def _get_pipeline(self, llm: LLMProvider, strategy: str = "conservative") -> AgentPipeline:
         key = (llm, strategy)
-        pipeline = self._pipelines.get(key)  # type: ignore[arg-type]
+        pipeline = self._pipelines.get(key)
         if pipeline is None:
             pipeline = AgentPipeline(
                 llm,
@@ -651,38 +592,11 @@ class Supervisor:
                 trading_client=self._trading_client,
                 strategy=strategy,
             )
-            self._pipelines[key] = pipeline  # type: ignore[index]
+            self._pipelines[key] = pipeline
         return pipeline
 
-    async def _resolve_approval(
-        self, picks: DailyPicks, require_approval: bool
-    ) -> ApprovalDecision:
-        if not require_approval:
-            return ApprovalDecision(
-                action="approve_all",
-                approved_indices=list(range(len(picks.picks))),
-                timed_out=False,
-                raw_input="--no-approval",
-            )
-        return await self._approval.request(picks)
-
-    def _select_picks(self, picks: list[StockPick], decision: ApprovalDecision) -> list[StockPick]:
-        if decision.action == "reject_all":
-            return []
-        if decision.action == "approve_all":
-            return picks
-        return [picks[i] for i in decision.approved_indices if i < len(picks)]
-
-    def _normalize_allocations(self, picks: DailyPicks) -> None:
-        total = sum(max(0.0, pick.allocation_pct) for pick in picks.picks if pick.action == "buy")
-        if total <= 100.0 or total == 0:
-            return
-        ratio = 100.0 / total
-        for pick in picks.picks:
-            if pick.action == "buy":
-                pick.allocation_pct = round(pick.allocation_pct * ratio, 2)
-
     async def _fetch_price(self, ticker: str) -> float:
+        self._ensure_clients()
         try:
             price_resp = await asyncio.wait_for(
                 self._market_data_client.call_tool("get_stock_price", {"ticker": ticker}),
@@ -693,274 +607,56 @@ class Supervisor:
             price_resp = {}
         return self._extract_price(price_resp)
 
-    async def _execute_real_trades(
-        self,
-        llm: LLMProvider,
-        picks: DailyPicks,
-        budget_eur: float,
-        portfolio: list[Position],
-        force: bool,
-    ) -> list[dict]:
-        self._ensure_clients()
-        executions: list[dict] = []
-        pm = await self._get_portfolio_manager()
-
-        real_positions = {p.ticker: p for p in portfolio if p.is_real}
-
-        for pick in picks.picks:
-            if pick.action != "buy":
-                continue
-            amount = round(budget_eur * (pick.allocation_pct / 100.0), 2)
-            if amount <= 0:
-                continue
-            price = await self._fetch_price(pick.ticker)
-            if price <= 0:
-                executions.append(
-                    {"status": "skipped", "reason": "missing_price", "ticker": pick.ticker}
-                )
-                continue
-            if not force and await pm.trade_exists(
-                llm.value, picks.pick_date, pick.ticker, "buy", True
-            ):
-                executions.append(
-                    {"status": "skipped", "reason": "duplicate", "ticker": pick.ticker}
-                )
-                continue
-            result = await self._trading_client.call_tool(
-                "place_buy_order",
-                {
-                    "llm_name": llm.value,
-                    "ticker": pick.ticker,
-                    "amount_eur": amount,
-                    "current_price": price,
-                },
-            )
-            executions.append(result)
-
-        for pick in picks.sell_recommendations:
-            ticker = pick.ticker
-            position = real_positions.get(ticker)
-            if not position:
-                continue
-            quantity = float(position.quantity)
-            if quantity <= 0:
-                continue
-            if not force and await pm.trade_exists(
-                llm.value, picks.pick_date, ticker, "sell", True
-            ):
-                executions.append({"status": "skipped", "reason": "duplicate", "ticker": ticker})
-                continue
-            result = await self._trading_client.call_tool(
-                "place_sell_order",
-                {"llm_name": llm.value, "ticker": ticker, "quantity": quantity},
-            )
-            executions.append(result)
-
-        return executions
-
-    async def _execute_virtual_trades(
-        self,
-        llm: LLMProvider,
-        picks: DailyPicks,
-        budget_eur: float,
-        portfolio: list[Position],
-        force: bool,
-    ) -> list[dict]:
-        self._ensure_clients()
-        executions: list[dict] = []
-        pm = await self._get_portfolio_manager()
-        virtual_positions = {p.ticker: p for p in portfolio if not p.is_real}
-
-        for pick in picks.picks:
-            if pick.action != "buy":
-                continue
-            amount = budget_eur * (pick.allocation_pct / 100.0)
-            if amount <= 0:
-                continue
-            price = await self._fetch_price(pick.ticker)
-            if price <= 0:
-                executions.append(
-                    {
-                        "status": "skipped",
-                        "reason": "missing_price",
-                        "ticker": pick.ticker,
-                    }
-                )
-                continue
-            quantity = amount / price
-            if not force and await pm.trade_exists(
-                llm.value, picks.pick_date, pick.ticker, "buy", False
-            ):
-                executions.append(
-                    {"status": "skipped", "reason": "duplicate", "ticker": pick.ticker}
-                )
-                continue
-            result = await self._trading_client.call_tool(
-                "record_virtual_trade",
-                {
-                    "llm_name": llm.value,
-                    "ticker": pick.ticker,
-                    "action": "buy",
-                    "quantity": quantity,
-                    "price": price,
-                },
-            )
-            executions.append(result)
-
-        for pick in picks.sell_recommendations:
-            ticker = pick.ticker
-            position = virtual_positions.get(ticker)
-            if not position:
-                continue
-            quantity = float(position.quantity)
-            if quantity <= 0:
-                continue
-            price = await self._fetch_price(ticker)
-            if price <= 0:
-                price = float(position.avg_buy_price)
-            if price <= 0:
-                continue
-            if not force and await pm.trade_exists(
-                llm.value, picks.pick_date, ticker, "sell", False
-            ):
-                executions.append({"status": "skipped", "reason": "duplicate", "ticker": ticker})
-                continue
-            result = await self._trading_client.call_tool(
-                "record_virtual_trade",
-                {
-                    "llm_name": llm.value,
-                    "ticker": ticker,
-                    "action": "sell",
-                    "quantity": quantity,
-                    "price": price,
-                },
-            )
-            executions.append(result)
-
-        return executions
-
-    async def _execute_practice_trades(
-        self,
-        llm: LLMProvider,
-        picks: DailyPicks,
-        budget_eur: float,
-        portfolio: list[Position],
-        force: bool,
-    ) -> list[dict]:
-        """Execute aggressive strategy trades on the T212 practice (demo) account."""
-        self._ensure_clients()
-        executions: list[dict] = []
-        pm = await self._get_portfolio_manager()
-        practice_positions = {p.ticker: p for p in portfolio if not p.is_real}
-
-        for pick in picks.picks:
-            if pick.action != "buy":
-                continue
-            amount = round(budget_eur * (pick.allocation_pct / 100.0), 2)
-            if amount <= 0:
-                continue
-            price = await self._fetch_price(pick.ticker)
-            if price <= 0:
-                executions.append(
-                    {"status": "skipped", "reason": "missing_price", "ticker": pick.ticker}
-                )
-                continue
-            if not force and await pm.trade_exists(
-                llm.value, picks.pick_date, pick.ticker, "buy", False
-            ):
-                executions.append(
-                    {"status": "skipped", "reason": "duplicate", "ticker": pick.ticker}
-                )
-                continue
-            # Route to T212 practice account via place_buy_order with is_real=False
-            result = await self._trading_client.call_tool(
-                "place_buy_order",
-                {
-                    "llm_name": llm.value,
-                    "ticker": pick.ticker,
-                    "amount_eur": amount,
-                    "current_price": price,
-                    "is_real": False,
-                },
-            )
-            executions.append(result)
-
-        for pick in picks.sell_recommendations:
-            ticker = pick.ticker
-            position = practice_positions.get(ticker)
-            if not position:
-                continue
-            quantity = float(position.quantity)
-            if quantity <= 0:
-                continue
-            if not force and await pm.trade_exists(
-                llm.value, picks.pick_date, ticker, "sell", False
-            ):
-                executions.append({"status": "skipped", "reason": "duplicate", "ticker": ticker})
-                continue
-            result = await self._trading_client.call_tool(
-                "place_sell_order",
-                {"llm_name": llm.value, "ticker": ticker, "quantity": quantity, "is_real": False},
-            )
-            executions.append(result)
-
-        return executions
-
     async def run_end_of_day(self, run_date: date | None = None) -> dict:
+        """Fetch current T212 positions and calculate portfolio snapshot."""
         self._ensure_clients()
         run_date = run_date or datetime.now(ZoneInfo(self._settings.orchestrator_timezone)).date()
-        pm = await self._get_portfolio_manager()
         snapshots = {}
+        live_positions: list[dict] = []
+        demo_positions: list[dict] = []
 
-        for llm in LLMProvider:
-            positions = await pm.get_positions_typed(llm.value)
+        async def _snapshot(label: str, positions: list[dict]) -> dict:
+            total_invested = Decimal("0")
+            total_value = Decimal("0")
+            for pos in positions:
+                qty = Decimal(str(pos.get("quantity", 0)))
+                avg = Decimal(str(pos.get("avg_buy_price", 0)))
+                invested = qty * avg
+                total_invested += invested
+                current = pos.get("current_price", 0.0)
+                if current > 0:
+                    total_value += qty * Decimal(str(current))
+                else:
+                    total_value += invested
+            unrealized = total_value - total_invested
+            return {
+                "total_invested": str(round(total_invested, 2)),
+                "total_value": str(round(total_value, 2)),
+                "unrealized_pnl": str(round(unrealized, 2)),
+            }
 
-            for is_real in (True, False):
-                filtered = [p for p in positions if p.is_real == is_real]
-                total_invested = Decimal("0")
-                total_value = Decimal("0")
+        try:
+            t212_live = self._get_t212_live()
+            live_positions = await get_live_positions(t212_live)
+            snapshots["conservative_real"] = await _snapshot("conservative_real", live_positions)
+        except Exception:
+            logger.exception("Failed to fetch live positions for EOD snapshot")
 
-                for pos in filtered:
-                    total_invested += pos.quantity * pos.avg_buy_price
-                    try:
-                        price_resp = await asyncio.wait_for(
-                            self._market_data_client.call_tool(
-                                "get_stock_price", {"ticker": pos.ticker}
-                            ),
-                            timeout=15.0,
-                        )
-                    except TimeoutError:
-                        logger.warning("Price fetch timed out for %s in EOD", pos.ticker)
-                        price_resp = {}
-                    current_price = self._extract_price(price_resp)
-                    if current_price > 0:
-                        total_value += pos.quantity * Decimal(str(current_price))
-                    else:
-                        total_value += pos.quantity * pos.avg_buy_price
+        t212_demo = self._get_t212_demo()
+        if t212_demo:
+            try:
+                demo_positions = await get_demo_positions(t212_demo)
+                snapshots["aggressive_demo"] = await _snapshot("aggressive_demo", demo_positions)
+            except Exception:
+                logger.exception("Failed to fetch demo positions for EOD snapshot")
 
-                unrealized_pnl = total_value - total_invested
-                pnl_data = await pm.calculate_pnl(llm.value, run_date, run_date, is_real=is_real)
-                realized_pnl = Decimal(pnl_data.get("realized_pnl", "0"))
-
-                await pm.save_portfolio_snapshot(
-                    llm_name=llm.value,
-                    snapshot_date=run_date,
-                    total_invested=total_invested,
-                    total_value=total_value,
-                    realized_pnl=realized_pnl,
-                    unrealized_pnl=unrealized_pnl,
-                    is_real=is_real,
-                )
-
-                label = f"{llm.value}_{'real' if is_real else 'virtual'}"
-                snapshots[label] = {
-                    "total_invested": str(total_invested),
-                    "total_value": str(total_value),
-                    "realized_pnl": str(realized_pnl),
-                    "unrealized_pnl": str(unrealized_pnl),
-                }
-
-        return {"status": "ok", "date": str(run_date), "snapshots": snapshots}
+        return {
+            "status": "ok",
+            "date": str(run_date),
+            "snapshots": snapshots,
+            "live_positions": live_positions,
+            "demo_positions": demo_positions,
+        }
 
     async def run_sell_checks(
         self,
@@ -968,31 +664,41 @@ class Supervisor:
         include_real: bool = True,
         include_virtual: bool = True,
     ) -> dict:
+        """Evaluate sell rules against current T212 positions and execute signals."""
         self._ensure_clients()
         run_date = run_date or datetime.now(ZoneInfo(self._settings.orchestrator_timezone)).date()
-        pm = await self._get_portfolio_manager()
 
-        positions = await pm.get_all_positions()
-        if not include_real:
-            positions = [p for p in positions if not p.is_real]
-        if not include_virtual:
-            positions = [p for p in positions if p.is_real]
+        positions: list[Position] = []
+
+        if include_real:
+            try:
+                t212_live = self._get_t212_live()
+                live_dicts = await get_live_positions(t212_live)
+                for p in live_dicts:
+                    positions.append(self._dict_to_position(p, is_real=True, llm=LLMProvider.CLAUDE))
+            except Exception:
+                logger.exception("Failed to fetch live positions for sell check")
+
+        if include_virtual:
+            t212_demo = self._get_t212_demo()
+            if t212_demo:
+                try:
+                    demo_dicts = await get_demo_positions(t212_demo)
+                    for p in demo_dicts:
+                        positions.append(
+                            self._dict_to_position(p, is_real=False, llm=LLMProvider.CLAUDE_AGGRESSIVE)
+                        )
+                except Exception:
+                    logger.exception("Failed to fetch demo positions for sell check")
 
         if not positions:
             return {"status": "ok", "date": str(run_date), "executed_sells": []}
 
+        # Fetch current prices for all unique tickers
         tickers = list({p.ticker for p in positions})
         prices: dict[str, float] = {}
         for ticker in tickers:
-            try:
-                price_resp = await asyncio.wait_for(
-                    self._market_data_client.call_tool("get_stock_price", {"ticker": ticker}),
-                    timeout=15.0,
-                )
-            except TimeoutError:
-                logger.warning("Price fetch timed out for %s in sell check", ticker)
-                price_resp = {}
-            prices[ticker] = self._extract_price(price_resp)
+            prices[ticker] = await self._fetch_price(ticker)
 
         signals = self._sell_engine.evaluate_positions(positions, prices, run_date)
         if not signals:
@@ -1000,7 +706,7 @@ class Supervisor:
 
         executed_sells: list[dict] = []
         for signal in signals:
-            result = await self._execute_sell_signal(signal, run_date)
+            result = await self._execute_sell_signal(signal)
             executed_sells.append(result)
 
         sell_result = {
@@ -1011,38 +717,18 @@ class Supervisor:
         await self._notifier.notify_sell_signals(sell_result)
         return sell_result
 
-    async def _execute_sell_signal(self, signal: SellSignal, run_date: date) -> dict:
+    async def _execute_sell_signal(self, signal) -> dict:
         self._ensure_clients()
-        pm = await self._get_portfolio_manager()
         quantity = float(signal.position_qty)
 
-        if await pm.trade_exists(
-            signal.llm_name.value, run_date, signal.ticker, "sell", signal.is_real
-        ):
-            return {
-                "status": "skipped",
-                "reason": "duplicate",
+        result = await self._trading_client.call_tool(
+            "place_sell_order",
+            {
                 "ticker": signal.ticker,
-                "signal_type": signal.signal_type,
-            }
-
-        if signal.is_real:
-            result = await self._trading_client.call_tool(
-                "place_sell_order",
-                {"llm_name": signal.llm_name.value, "ticker": signal.ticker, "quantity": quantity},
-            )
-        else:
-            result = await self._trading_client.call_tool(
-                "record_virtual_trade",
-                {
-                    "llm_name": signal.llm_name.value,
-                    "ticker": signal.ticker,
-                    "action": "sell",
-                    "quantity": quantity,
-                    "price": float(signal.trigger_price),
-                },
-            )
-
+                "quantity": quantity,
+                "is_real": signal.is_real,
+            },
+        )
         result["signal_type"] = signal.signal_type
         result["reasoning"] = signal.reasoning
         result["return_pct"] = signal.return_pct
@@ -1051,66 +737,36 @@ class Supervisor:
             signal.ticker,
             signal.signal_type,
             signal.llm_name.value,
-            "real" if signal.is_real else "virtual",
+            "real" if signal.is_real else "demo",
         )
         return result
 
-    async def _persist_sentiment(self, digest: dict, run_date: date) -> None:
-        pm = await self._get_portfolio_manager()
-        if "candidates" in digest:
-            items = [c for c in digest["candidates"] if "reddit" in c.get("sources", [])]
-        else:
-            items = digest.get("tickers", [])
-        for ticker_data in items:
-            ticker = ticker_data.get("ticker")
-            if not ticker:
-                continue
-            try:
-                await pm.save_sentiment_snapshot(
-                    ticker=ticker,
-                    scrape_date=run_date,
-                    mention_count=ticker_data.get(
-                        "reddit_mentions", ticker_data.get("mention_count", 0)
-                    ),
-                    avg_sentiment=ticker_data.get("sentiment_score", 0.0),
-                    top_posts=ticker_data.get("top_quotes", []),
-                    subreddits=ticker_data.get("subreddits", {}),
-                )
-            except Exception:
-                logger.exception("Failed to persist sentiment for %s", ticker)
+    @staticmethod
+    def _dict_to_position(p: dict, is_real: bool, llm: LLMProvider) -> Position:
+        """Convert a normalised T212 position dict to a Position model."""
+        import re
+        from datetime import date as date_type
 
-    async def _persist_signals(self, digest: dict, run_date: date) -> None:
-        if "candidates" not in digest:
-            return
-        pm = await self._get_portfolio_manager()
-        for candidate in digest["candidates"]:
-            ticker = candidate.get("ticker")
-            if not ticker:
-                continue
-            for source in candidate.get("sources", []):
+        opened_at = None
+        raw_date = p.get("open_date", "")
+        if raw_date:
+            # T212 dates may be ISO timestamps like "2026-02-18T09:31:22Z"
+            match = re.match(r"(\d{4}-\d{2}-\d{2})", str(raw_date))
+            if match:
                 try:
-                    evidence = {}
-                    if source == "reddit":
-                        evidence = {
-                            "mentions": candidate.get("reddit_mentions", 0),
-                            "sentiment": candidate.get("sentiment_score", 0.0),
-                        }
-                    elif source == "screener":
-                        evidence = candidate.get("screener", {})
-                    elif source == "earnings":
-                        evidence = candidate.get("earnings", {})
-                    elif source == "insider":
-                        evidence = candidate.get("insider", {})
-                    await pm.save_signal_source(
-                        scrape_date=run_date,
-                        ticker=ticker,
-                        source=source,
-                        reason=source,
-                        score=candidate.get("sentiment_score"),
-                        evidence=evidence,
-                    )
-                except Exception:
-                    logger.exception("Failed to persist signal source for %s/%s", ticker, source)
+                    opened_at = date_type.fromisoformat(match.group(1))
+                except ValueError:
+                    pass
+
+        return Position(
+            ticker=p.get("ticker", ""),
+            quantity=Decimal(str(p.get("quantity", 0))),
+            avg_buy_price=Decimal(str(p.get("avg_buy_price", 0))),
+            current_price=float(p.get("current_price", 0)),
+            is_real=is_real,
+            llm_name=llm,
+            opened_at=opened_at,
+        )
 
     @staticmethod
     def _extract_price(price_payload: dict) -> float:

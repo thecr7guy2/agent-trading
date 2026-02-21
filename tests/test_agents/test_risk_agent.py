@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.agents.risk_agent import RiskReviewAgent
-from src.db.models import (
+from src.models import (
     AgentStage,
     DailyPicks,
     LLMProvider,

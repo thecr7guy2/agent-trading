@@ -7,7 +7,7 @@ import pytest
 from src.agents.market_agent import MarketAgent
 from src.agents.sentiment_agent import SentimentAgent
 from src.agents.trader_agent import TraderAgent
-from src.db.models import (
+from src.models import (
     AgentStage,
     DailyPicks,
     LLMProvider,

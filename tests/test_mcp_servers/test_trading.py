@@ -1,16 +1,9 @@
-from contextlib import asynccontextmanager
-from datetime import date, datetime
-from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from src.db.models import DailyPicks, LLMProvider, Position, StockPick
 from src.mcp_servers.trading import server as trading_server
-from src.mcp_servers.trading.portfolio import PortfolioManager
 from src.mcp_servers.trading.t212_client import T212Client, T212Error
-
-# --- T212Client ---
 
 
 class TestT212Client:
@@ -177,10 +170,8 @@ class TestT212Client:
 
     @pytest.mark.asyncio
     async def test_resolve_ticker_prefix_fallback(self):
-        """When exact candidates fail, prefix matching finds T212's shorter base symbol."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        # T212 has STM_US_EQ but Yahoo uses STMPA.PA for the same company
         mock_response.json.return_value = [
             {"ticker": "STM_US_EQ"},
             {"ticker": "AAPL_US_EQ"},
@@ -195,10 +186,8 @@ class TestT212Client:
 
     @pytest.mark.asyncio
     async def test_resolve_ticker_cross_exchange(self):
-        """EU ticker resolves via a different country listing on T212."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        # Yahoo uses RED.MC (Madrid) but T212 lists RED_ES_EQ
         mock_response.json.return_value = [
             {"ticker": "RED_ES_EQ"},
             {"ticker": "AAPL_US_EQ"},
@@ -213,10 +202,8 @@ class TestT212Client:
 
     @pytest.mark.asyncio
     async def test_resolve_ticker_cross_exchange_different_country(self):
-        """EU ticker listed on different exchange than Yahoo suffix suggests."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        # Yahoo: CCEP.AS (Amsterdam/NL) but T212 has it as CCEP_US_EQ
         mock_response.json.return_value = [
             {"ticker": "CCEP_US_EQ"},
         ]
@@ -230,11 +217,8 @@ class TestT212Client:
 
     @pytest.mark.asyncio
     async def test_resolve_ticker_name_fallback(self):
-        """When all ticker-based matching fails, fall back to instrument name search."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        # T212 uses a completely different ticker for Adyen (e.g. 0YXG_GB_EQ)
-        # but the instrument name contains "Adyen"
         mock_response.json.return_value = [
             {"ticker": "AAPL_US_EQ", "name": "Apple Inc"},
             {"ticker": "0YXG_GB_EQ", "name": "Adyen NV"},
@@ -249,10 +233,8 @@ class TestT212Client:
 
     @pytest.mark.asyncio
     async def test_resolve_ticker_name_fallback_skips_short_base(self):
-        """Name fallback requires base >= 4 chars to avoid false positives."""
         mock_response = MagicMock()
         mock_response.status_code = 200
-        # XYZ has a 3-char base — no ticker/prefix match, only name contains "XYZ"
         mock_response.json.return_value = [
             {"ticker": "0ABC_GB_EQ", "name": "XYZ Holdings Plc"},
         ]
@@ -261,384 +243,46 @@ class TestT212Client:
         client._client = AsyncMock()
         client._client.request = AsyncMock(return_value=mock_response)
 
-        # XYZ (3 chars) should NOT match via name search — too short
         resolved = await client.resolve_ticker("XYZ.L")
         assert resolved is None
 
 
 class TestTradingServerOrders:
     @pytest.mark.asyncio
-    async def test_place_buy_order_records_llm_name(self, monkeypatch):
+    async def test_place_buy_order_success(self, monkeypatch):
         mock_t212 = AsyncMock()
         mock_t212.resolve_ticker = AsyncMock(return_value="ASML_NL_EQ")
+        mock_t212.get_account_cash = AsyncMock(return_value={"free": 1000.0})
         mock_t212.place_market_order = AsyncMock(
             return_value={"id": "order-1", "filledQuantity": 0.01, "filledValue": 10.0}
         )
-        mock_portfolio = AsyncMock()
-        mock_portfolio.record_trade = AsyncMock(return_value={"id": 1})
 
         monkeypatch.setattr(trading_server, "_get_t212_live", AsyncMock(return_value=mock_t212))
-        monkeypatch.setattr(
-            trading_server, "_get_portfolio", AsyncMock(return_value=mock_portfolio)
-        )
 
-        result = await trading_server.place_buy_order("claude", "ASML.AS", 10.0, 850.0)
+        result = await trading_server.place_buy_order("ASML.AS", 10.0, 850.0, is_real=True)
         assert result["status"] == "filled"
-        assert result["llm_name"] == "claude"
+        assert result["ticker"] == "ASML.AS"
         assert result["broker_ticker"] == "ASML_NL_EQ"
-
-        record_call = mock_portfolio.record_trade.await_args.kwargs
-        assert record_call["llm_name"] == "claude"
-        assert record_call["ticker"] == "ASML.AS"
-        assert record_call["is_real"] is True
+        assert result["is_real"] is True
 
     @pytest.mark.asyncio
     async def test_place_buy_order_rejects_unmapped_ticker(self, monkeypatch):
         mock_t212 = AsyncMock()
         mock_t212.resolve_ticker = AsyncMock(return_value=None)
-        mock_portfolio = AsyncMock()
+        mock_t212.get_account_cash = AsyncMock(return_value={"free": 1000.0})
 
         monkeypatch.setattr(trading_server, "_get_t212_live", AsyncMock(return_value=mock_t212))
-        monkeypatch.setattr(
-            trading_server, "_get_portfolio", AsyncMock(return_value=mock_portfolio)
-        )
 
-        result = await trading_server.place_buy_order("claude", "UNKNOWN", 10.0, 100.0)
-        assert "error" in result
+        result = await trading_server.place_buy_order("UNKNOWN", 10.0, 100.0, is_real=True)
+        assert "error" in result or result.get("status") == "error"
         assert result["ticker"] == "UNKNOWN"
 
-
-# --- PortfolioManager ---
-
-# Helper to create a mock asyncpg pool
-
-
-def _make_mock_pool():
-    conn = AsyncMock()
-
-    # conn.transaction() must return an async context manager
-    @asynccontextmanager
-    async def _transaction():
-        yield
-
-    conn.transaction = _transaction
-
-    pool = MagicMock()
-
-    @asynccontextmanager
-    async def _acquire():
-        yield conn
-
-    pool.acquire = _acquire
-    return pool, conn
-
-
-class TestPortfolioManagerRecordTrade:
     @pytest.mark.asyncio
-    async def test_record_buy_new_position(self):
-        pool, conn = _make_mock_pool()
-
-        # fetchrow for INSERT RETURNING
-        conn.fetchrow.return_value = {
-            "id": 1,
-            "trade_date": date(2026, 2, 15),
-            "created_at": "2026-02-15T10:00:00",
-        }
-        # fetchrow for position lookup (no existing position)
-        conn.fetchrow.side_effect = [
-            {"id": 1, "trade_date": date(2026, 2, 15), "created_at": "2026-02-15T10:00:00"},
-            None,  # No existing position
-        ]
-
-        pm = PortfolioManager(pool)
-        result = await pm.record_trade(
-            llm_name="claude",
-            ticker="ASML.AS",
-            action="buy",
-            quantity=Decimal("0.5"),
-            price_per_share=Decimal("850"),
-            is_real=False,
-        )
-
-        assert result["llm_name"] == "claude"
-        assert result["ticker"] == "ASML.AS"
-        assert result["action"] == "buy"
-        assert result["status"] == "filled"
-        # Should have called INSERT for position (no existing)
-        assert conn.execute.call_count >= 1
+    async def test_place_buy_order_rejects_zero_amount(self):
+        result = await trading_server.place_buy_order("ASML.AS", 0.0, 850.0)
+        assert "error" in result
 
     @pytest.mark.asyncio
-    async def test_record_buy_existing_position_avg_price(self):
-        pool, conn = _make_mock_pool()
-
-        conn.fetchrow.side_effect = [
-            {"id": 2, "trade_date": date(2026, 2, 15), "created_at": "2026-02-15T10:00:00"},
-            {"quantity": Decimal("1.0"), "avg_buy_price": Decimal("800")},  # Existing position
-        ]
-
-        pm = PortfolioManager(pool)
-        result = await pm.record_trade(
-            llm_name="claude",
-            ticker="ASML.AS",
-            action="buy",
-            quantity=Decimal("1.0"),
-            price_per_share=Decimal("900"),
-            is_real=False,
-        )
-
-        assert result["action"] == "buy"
-        # Should have called UPDATE (not INSERT) on positions
-        update_call = conn.execute.call_args_list[-1]
-        args = update_call[0]
-        assert "UPDATE positions" in args[0]
-        # New avg = (1.0 * 800 + 1.0 * 900) / 2.0 = 850
-        new_qty = args[1]
-        new_avg = args[2]
-        assert new_qty == Decimal("2.0")
-        assert new_avg == Decimal("850")
-
-    @pytest.mark.asyncio
-    async def test_record_sell_reduces_position(self):
-        pool, conn = _make_mock_pool()
-
-        conn.fetchrow.side_effect = [
-            {"id": 3, "trade_date": date(2026, 2, 15), "created_at": "2026-02-15T10:00:00"},
-            {"quantity": Decimal("2.0")},  # Existing position
-        ]
-
-        pm = PortfolioManager(pool)
-        result = await pm.record_trade(
-            llm_name="minimax",
-            ticker="SAP.DE",
-            action="sell",
-            quantity=Decimal("0.5"),
-            price_per_share=Decimal("200"),
-            is_real=False,
-        )
-
-        assert result["action"] == "sell"
-        # Should UPDATE position with reduced quantity
-        update_call = conn.execute.call_args_list[-1]
-        args = update_call[0]
-        assert "UPDATE positions" in args[0]
-        remaining = args[1]
-        assert remaining == Decimal("1.5")
-
-    @pytest.mark.asyncio
-    async def test_record_sell_removes_empty_position(self):
-        pool, conn = _make_mock_pool()
-
-        conn.fetchrow.side_effect = [
-            {"id": 4, "trade_date": date(2026, 2, 15), "created_at": "2026-02-15T10:00:00"},
-            {"quantity": Decimal("0.5")},  # Existing position — selling all of it
-        ]
-
-        pm = PortfolioManager(pool)
-        await pm.record_trade(
-            llm_name="claude",
-            ticker="ASML.AS",
-            action="sell",
-            quantity=Decimal("0.5"),
-            price_per_share=Decimal("900"),
-            is_real=False,
-        )
-
-        # Should DELETE the position (quantity reaches 0)
-        delete_call = conn.execute.call_args_list[-1]
-        args = delete_call[0]
-        assert "DELETE FROM positions" in args[0]
-
-
-class TestPortfolioManagerQueries:
-    @pytest.mark.asyncio
-    async def test_get_portfolio(self):
-        pool, conn = _make_mock_pool()
-        conn.fetch.return_value = [
-            {
-                "id": 1,
-                "llm_name": "claude",
-                "ticker": "ASML.AS",
-                "quantity": Decimal("0.5"),
-                "avg_buy_price": Decimal("850"),
-                "is_real": False,
-                "opened_at": "2026-02-15T10:00:00",
-            }
-        ]
-
-        pm = PortfolioManager(pool)
-        result = await pm.get_portfolio("claude")
-        assert len(result) == 1
-        assert result[0]["ticker"] == "ASML.AS"
-        assert result[0]["quantity"] == "0.5"
-
-    @pytest.mark.asyncio
-    async def test_get_trade_history(self):
-        pool, conn = _make_mock_pool()
-        conn.fetch.return_value = [
-            {
-                "id": 1,
-                "llm_name": "claude",
-                "trade_date": date(2026, 2, 15),
-                "ticker": "ASML.AS",
-                "action": "buy",
-                "quantity": Decimal("0.5"),
-                "price_per_share": Decimal("850"),
-                "total_cost": Decimal("425"),
-                "is_real": False,
-                "broker_order_id": None,
-                "status": "filled",
-            }
-        ]
-
-        pm = PortfolioManager(pool)
-        result = await pm.get_trade_history("claude", limit=10)
-        assert len(result) == 1
-        assert result[0]["action"] == "buy"
-        assert result[0]["total_cost"] == "425"
-
-    @pytest.mark.asyncio
-    async def test_get_leaderboard(self):
-        pool, conn = _make_mock_pool()
-        conn.fetch.return_value = [
-            {
-                "llm_name": "claude",
-                "total_trades": 10,
-                "total_invested": Decimal("50"),
-                "total_proceeds": Decimal("55"),
-            },
-            {
-                "llm_name": "minimax",
-                "total_trades": 10,
-                "total_invested": Decimal("50"),
-                "total_proceeds": Decimal("48"),
-            },
-        ]
-
-        pm = PortfolioManager(pool)
-        result = await pm.get_leaderboard()
-        assert len(result) == 2
-        assert result[0]["llm_name"] == "claude"
-        assert result[0]["realized_pnl"] == "5"
-        assert result[1]["realized_pnl"] == "-2"
-
-    @pytest.mark.asyncio
-    async def test_calculate_pnl(self):
-        pool, conn = _make_mock_pool()
-        # fetchval for invested, proceeds
-        # fetch for sell_trades
-        conn.fetchval.side_effect = [
-            Decimal("100"),  # total invested
-            Decimal("110"),  # total proceeds
-        ]
-        conn.fetch.return_value = [
-            {"ticker": "ASML.AS", "sell_price": Decimal("900"), "quantity": Decimal("0.5")},
-        ]
-        # fetchval for avg buy price of that sell
-        conn.fetchval.side_effect = [
-            Decimal("100"),  # total invested
-            Decimal("110"),  # total proceeds
-            Decimal("850"),  # avg buy price for ASML.AS (< 900 sell price => win)
-        ]
-
-        pm = PortfolioManager(pool)
-        result = await pm.calculate_pnl("claude", date(2026, 2, 1), date(2026, 2, 15), is_real=True)
-        assert result["llm_name"] == "claude"
-        assert result["realized_pnl"] == "10"
-        assert result["win_count"] == 1
-        assert result["loss_count"] == 0
-        assert result["win_rate"] == 1.0
-
-    @pytest.mark.asyncio
-    async def test_save_portfolio_snapshot(self):
-        pool, conn = _make_mock_pool()
-
-        pm = PortfolioManager(pool)
-        result = await pm.save_portfolio_snapshot(
-            llm_name="claude",
-            snapshot_date=date(2026, 2, 15),
-            total_invested=Decimal("50"),
-            total_value=Decimal("52"),
-            realized_pnl=Decimal("1.5"),
-            unrealized_pnl=Decimal("0.5"),
-            is_real=False,
-        )
-
-        assert result["llm_name"] == "claude"
-        assert result["total_value"] == "52"
-        conn.execute.assert_called_once()
-        call_sql = conn.execute.call_args[0][0]
-        assert "ON CONFLICT" in call_sql
-
-
-class TestPortfolioManagerDailyPicks:
-    @pytest.mark.asyncio
-    async def test_save_daily_picks(self):
-        pool, conn = _make_mock_pool()
-        pm = PortfolioManager(pool)
-        picks = DailyPicks(
-            llm=LLMProvider.CLAUDE,
-            pick_date=date(2026, 2, 16),
-            picks=[
-                StockPick(ticker="ASML.AS", allocation_pct=60.0, action="buy", exchange="AMS"),
-                StockPick(ticker="SAP.DE", allocation_pct=40.0, action="buy", exchange="FRA"),
-            ],
-            confidence=0.85,
-            market_summary="test",
-        )
-
-        await pm.save_daily_picks(picks, is_main=True)
-
-        assert conn.execute.call_count == 2
-        first_call_args = conn.execute.call_args_list[0][0]
-        assert "INSERT INTO daily_picks" in first_call_args[0]
-        assert first_call_args[1] == "claude"
-        assert first_call_args[4] == "ASML.AS"
-        assert first_call_args[5] == "AMS"
-
-    @pytest.mark.asyncio
-    async def test_trade_exists_true(self):
-        pool, conn = _make_mock_pool()
-        conn.fetchval.return_value = 1
-        pm = PortfolioManager(pool)
-
-        result = await pm.trade_exists("claude", date(2026, 2, 16), "ASML.AS", "buy", True)
-
-        assert result is True
-        call_args = conn.fetchval.call_args[0]
-        assert "SELECT 1" in call_args[0]
-        assert call_args[1] == "claude"
-        assert call_args[3] == "ASML.AS"
-
-    @pytest.mark.asyncio
-    async def test_trade_exists_false(self):
-        pool, conn = _make_mock_pool()
-        conn.fetchval.return_value = None
-        pm = PortfolioManager(pool)
-
-        result = await pm.trade_exists("claude", date(2026, 2, 16), "ASML.AS", "buy", True)
-
-        assert result is False
-
-    @pytest.mark.asyncio
-    async def test_get_positions_typed(self):
-        pool, conn = _make_mock_pool()
-        conn.fetch.return_value = [
-            {
-                "id": 1,
-                "llm_name": "claude",
-                "ticker": "ASML.AS",
-                "quantity": Decimal("0.5"),
-                "avg_buy_price": Decimal("850"),
-                "is_real": False,
-                "opened_at": datetime(2026, 2, 15, 10, 0, 0),
-            }
-        ]
-
-        pm = PortfolioManager(pool)
-        result = await pm.get_positions_typed("claude")
-
-        assert len(result) == 1
-        assert isinstance(result[0], Position)
-        assert result[0].ticker == "ASML.AS"
-        assert isinstance(result[0].quantity, Decimal)
-        assert result[0].quantity == Decimal("0.5")
+    async def test_place_buy_order_rejects_empty_ticker(self):
+        result = await trading_server.place_buy_order("", 10.0, 850.0)
+        assert "error" in result

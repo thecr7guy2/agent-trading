@@ -4,7 +4,7 @@ from pathlib import Path
 from src.agents.base_agent import BaseAgent
 from src.agents.providers.claude import ClaudeProvider
 from src.agents.providers.minimax import MiniMaxProvider
-from src.db.models import AgentStage, LLMProvider, MarketAnalysis, SentimentReport
+from src.models import AgentStage, LLMProvider, MarketAnalysis, SentimentReport
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "market_analysis.md"
 

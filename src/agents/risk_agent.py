@@ -4,7 +4,7 @@ from pathlib import Path
 from src.agents.base_agent import BaseAgent
 from src.agents.providers.claude import ClaudeProvider
 from src.agents.providers.minimax import MiniMaxProvider
-from src.db.models import (
+from src.models import (
     AgentStage,
     DailyPicks,
     LLMProvider,

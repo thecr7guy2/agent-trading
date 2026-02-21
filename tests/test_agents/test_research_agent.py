@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from src.agents.research_agent import ResearchAgent
-from src.db.models import (
+from src.models import (
     AgentStage,
     LLMProvider,
     ResearchFinding,

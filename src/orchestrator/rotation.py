@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
-from src.db.models import LLMProvider
+from src.models import LLMProvider
 
 
 def get_main_trader(run_date: date) -> LLMProvider:

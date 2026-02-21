@@ -1,13 +1,14 @@
 import logging
 import sys
-from datetime import date
-from decimal import Decimal
 
 from mcp.server.fastmcp import FastMCP
 
 from src.config import get_settings
-from src.db.connection import get_pool
-from src.mcp_servers.trading.portfolio import PortfolioManager
+from src.mcp_servers.trading.portfolio import (
+    get_account_cash,
+    get_demo_positions,
+    get_live_positions,
+)
 from src.mcp_servers.trading.t212_client import T212Client, T212Error
 
 # MCP stdio uses stdout for JSON-RPC — log to stderr only
@@ -18,7 +19,6 @@ mcp = FastMCP("trading")
 
 _t212_live: T212Client | None = None
 _t212_demo: T212Client | None = None
-_portfolio: PortfolioManager | None = None
 
 
 async def _get_t212_live() -> T212Client:
@@ -34,288 +34,174 @@ async def _get_t212_live() -> T212Client:
 
 
 async def _get_t212_demo() -> T212Client | None:
-    """Returns demo T212 client if practice credentials are configured, else None."""
     global _t212_demo
     if _t212_demo is None:
         settings = get_settings()
-        if not settings.t212_practice_api_key or not settings.t212_practice_api_secret:
+        if not settings.t212_practice_api_key:
             return None
         _t212_demo = T212Client(
             api_key=settings.t212_practice_api_key,
-            api_secret=settings.t212_practice_api_secret,
+            api_secret=settings.t212_practice_api_secret or "",
             use_demo=True,
         )
     return _t212_demo
 
 
-async def _get_portfolio() -> PortfolioManager:
-    global _portfolio
-    if _portfolio is None:
-        pool = await get_pool()
-        _portfolio = PortfolioManager(pool)
-    return _portfolio
-
-
 @mcp.tool()
 async def place_buy_order(
-    llm_name: str,
     ticker: str,
     amount_eur: float,
     current_price: float,
     is_real: bool = True,
 ) -> dict:
-    """Place a buy order via Trading 212 for a specified EUR amount.
+    """Place a market buy order via Trading 212 for a specified EUR amount.
     Set is_real=True for the live account, is_real=False for the practice (demo) account.
-    Calculates quantity from amount_eur / current_price and places a market order."""
+    Calculates quantity from amount_eur / current_price and places a market order.
+    Returns status 'filled' on success or 'error' with a reason on failure."""
     if amount_eur <= 0:
-        return {"error": "amount_eur must be positive", "llm_name": llm_name, "ticker": ticker}
+        return {"error": "amount_eur must be positive", "ticker": ticker}
     if current_price <= 0:
-        return {"error": "current_price must be positive", "llm_name": llm_name, "ticker": ticker}
+        return {"error": "current_price must be positive", "ticker": ticker}
     if not ticker or not ticker.strip():
-        return {"error": "ticker must not be empty", "llm_name": llm_name, "ticker": ticker}
-    if not llm_name or not llm_name.strip():
-        return {"error": "llm_name must not be empty", "ticker": ticker}
+        return {"error": "ticker must not be empty"}
+
     try:
-        if is_real:
-            t212 = await _get_t212_live()
-        else:
-            t212 = await _get_t212_demo()
+        t212 = await _get_t212_live() if is_real else await _get_t212_demo()
 
         if t212 is None:
-            # No practice credentials — fall through to virtual DB recording only
-            quantity = amount_eur / current_price
-            pm = await _get_portfolio()
-            await pm.record_trade(
-                llm_name=llm_name,
-                ticker=ticker,
-                action="buy",
-                quantity=Decimal(str(quantity)),
-                price_per_share=Decimal(str(current_price)),
-                is_real=False,
-            )
             return {
-                "status": "recorded_virtual",
-                "llm_name": llm_name,
+                "status": "error",
                 "ticker": ticker,
-                "amount_eur": amount_eur,
-                "quantity": quantity,
-                "note": "No practice T212 credentials configured — recorded as virtual trade",
+                "error": "No practice T212 credentials configured",
             }
+
+        # Pre-flight cash check
+        try:
+            cash = await t212.get_account_cash()
+            free = float(cash.get("free", cash.get("freeForStocks", 0)))
+            if free < amount_eur:
+                return {
+                    "status": "error",
+                    "ticker": ticker,
+                    "error": f"insufficient_funds (free: €{free:.2f}, requested: €{amount_eur:.2f})",
+                }
+        except Exception:
+            pass  # let order attempt proceed if cash check fails
 
         broker_ticker = await t212.resolve_ticker(ticker)
         if not broker_ticker:
             return {
-                "error": "Ticker not tradable on Trading 212",
-                "llm_name": llm_name,
+                "status": "error",
                 "ticker": ticker,
+                "error": "ticker not tradable on Trading 212",
             }
-        quantity = amount_eur / current_price
-        result = await t212.place_market_order(broker_ticker, quantity)
 
-        # Record in DB
-        pm = await _get_portfolio()
-        filled_qty = Decimal(str(result.get("filledQuantity", quantity)))
-        filled_value = Decimal(str(result.get("filledValue", amount_eur)))
-        filled_price = filled_value / filled_qty if filled_qty else Decimal("0")
-        await pm.record_trade(
-            llm_name=llm_name,
-            ticker=ticker,
-            action="buy",
-            quantity=filled_qty,
-            price_per_share=filled_price,
-            is_real=is_real,
-            broker_order_id=str(result.get("id", "")),
-        )
+        quantity = amount_eur / current_price
+        order = await t212.place_market_order(broker_ticker, quantity)
+
+        filled_qty = float(order.get("filledQuantity", quantity))
+        filled_value = float(order.get("filledValue", amount_eur))
 
         return {
             "status": "filled",
-            "llm_name": llm_name,
             "ticker": ticker,
             "broker_ticker": broker_ticker,
-            "amount_eur": amount_eur,
-            "quantity": quantity,
+            "amount_eur": filled_value,
+            "quantity": filled_qty,
             "is_real": is_real,
-            "order": result,
+            "order_id": str(order.get("id", "")),
         }
+
     except T212Error as e:
-        logger.exception("place_buy_order failed for %s", ticker)
-        return {
-            "error": e.message,
-            "status_code": e.status_code,
-            "llm_name": llm_name,
-            "ticker": ticker,
-        }
+        return {"status": "error", "ticker": ticker, "error": f"T212 {e.status_code}: {e.message}"}
     except Exception as e:
         logger.exception("place_buy_order failed for %s", ticker)
-        return {"error": str(e), "llm_name": llm_name, "ticker": ticker}
+        return {"status": "error", "ticker": ticker, "error": str(e)}
 
 
 @mcp.tool()
 async def place_sell_order(
-    llm_name: str, ticker: str, quantity: float, is_real: bool = True
+    ticker: str,
+    quantity: float,
+    is_real: bool = True,
 ) -> dict:
-    """Place a sell order via Trading 212 for a specified share quantity.
+    """Place a market sell order via Trading 212 for a specified share quantity.
     Set is_real=True for the live account, is_real=False for the practice (demo) account."""
     if quantity <= 0:
-        return {"error": "quantity must be positive", "llm_name": llm_name, "ticker": ticker}
+        return {"error": "quantity must be positive", "ticker": ticker}
     if not ticker or not ticker.strip():
-        return {"error": "ticker must not be empty", "llm_name": llm_name, "ticker": ticker}
+        return {"error": "ticker must not be empty"}
+
+    try:
+        t212 = await _get_t212_live() if is_real else await _get_t212_demo()
+        if t212 is None:
+            return {"status": "error", "ticker": ticker, "error": "No practice T212 credentials configured"}
+
+        broker_ticker = await t212.resolve_ticker(ticker)
+        if not broker_ticker:
+            return {"status": "error", "ticker": ticker, "error": "ticker not tradable on Trading 212"}
+
+        order = await t212.place_market_order(broker_ticker, -abs(quantity))
+        filled_qty = float(abs(order.get("filledQuantity", quantity)))
+        filled_value = float(order.get("filledValue", 0))
+
+        return {
+            "status": "filled",
+            "ticker": ticker,
+            "broker_ticker": broker_ticker,
+            "quantity": filled_qty,
+            "proceeds_eur": filled_value,
+            "is_real": is_real,
+            "order_id": str(order.get("id", "")),
+        }
+
+    except T212Error as e:
+        return {"status": "error", "ticker": ticker, "error": f"T212 {e.status_code}: {e.message}"}
+    except Exception as e:
+        logger.exception("place_sell_order failed for %s", ticker)
+        return {"status": "error", "ticker": ticker, "error": str(e)}
+
+
+@mcp.tool()
+async def get_positions(is_real: bool = True) -> dict:
+    """Get all current open positions from Trading 212.
+    Set is_real=True for the live account, is_real=False for the practice (demo) account."""
+    try:
+        if is_real:
+            t212 = await _get_t212_live()
+            positions = await get_live_positions(t212)
+        else:
+            t212 = await _get_t212_demo()
+            if t212 is None:
+                return {"error": "No practice T212 credentials configured", "positions": []}
+            positions = await get_demo_positions(t212)
+
+        return {"is_real": is_real, "count": len(positions), "positions": positions}
+
+    except T212Error as e:
+        return {"error": f"T212 {e.status_code}: {e.message}", "positions": []}
+    except Exception as e:
+        logger.exception("get_positions failed")
+        return {"error": str(e), "positions": []}
+
+
+@mcp.tool()
+async def get_cash(is_real: bool = True) -> dict:
+    """Get available cash balance from Trading 212.
+    Set is_real=True for the live account, is_real=False for the practice (demo) account."""
     try:
         if is_real:
             t212 = await _get_t212_live()
         else:
             t212 = await _get_t212_demo()
-
-        if t212 is None:
-            # No practice credentials configured
-            return {
-                "error": "No practice T212 credentials configured",
-                "llm_name": llm_name,
-                "ticker": ticker,
-            }
-
-        broker_ticker = await t212.resolve_ticker(ticker)
-        if not broker_ticker:
-            return {
-                "error": "Ticker not tradable on Trading 212",
-                "llm_name": llm_name,
-                "ticker": ticker,
-            }
-        result = await t212.place_market_order(broker_ticker, -abs(quantity))
-
-        pm = await _get_portfolio()
-        filled_qty = Decimal(str(abs(result.get("filledQuantity", quantity))))
-        filled_value = Decimal(str(result.get("filledValue", 0)))
-        filled_price = filled_value / filled_qty if filled_qty else Decimal("0")
-        await pm.record_trade(
-            llm_name=llm_name,
-            ticker=ticker,
-            action="sell",
-            quantity=filled_qty,
-            price_per_share=filled_price,
-            is_real=is_real,
-            broker_order_id=str(result.get("id", "")),
-        )
-
-        return {
-            "status": "filled",
-            "llm_name": llm_name,
-            "ticker": ticker,
-            "broker_ticker": broker_ticker,
-            "quantity": quantity,
-            "is_real": is_real,
-            "order": result,
-        }
+            if t212 is None:
+                return {"error": "No practice T212 credentials configured"}
+        return {**await get_account_cash(t212), "is_real": is_real}
     except T212Error as e:
-        logger.exception("place_sell_order failed for %s", ticker)
-        return {
-            "error": e.message,
-            "status_code": e.status_code,
-            "llm_name": llm_name,
-            "ticker": ticker,
-        }
+        return {"error": f"T212 {e.status_code}: {e.message}"}
     except Exception as e:
-        logger.exception("place_sell_order failed for %s", ticker)
-        return {"error": str(e), "llm_name": llm_name, "ticker": ticker}
-
-
-@mcp.tool()
-async def get_positions() -> dict:
-    """Get current real positions from Trading 212 live account."""
-    try:
-        t212 = await _get_t212_live()
-        positions = await t212.get_positions()
-        return {"count": len(positions), "positions": positions}
-    except T212Error as e:
-        logger.exception("get_positions failed")
-        return {"error": e.message, "status_code": e.status_code}
-    except Exception as e:
-        logger.exception("get_positions failed")
+        logger.exception("get_cash failed")
         return {"error": str(e)}
-
-
-@mcp.tool()
-async def record_virtual_trade(
-    llm_name: str, ticker: str, action: str, quantity: float, price: float
-) -> dict:
-    """Record a virtual (simulated) trade in the database for tracking.
-    Used for the non-main-trader LLM's picks."""
-    if quantity <= 0:
-        return {"error": "quantity must be positive", "llm_name": llm_name, "ticker": ticker}
-    if price <= 0:
-        return {"error": "price must be positive", "llm_name": llm_name, "ticker": ticker}
-    if action not in ("buy", "sell"):
-        return {"error": "action must be 'buy' or 'sell'", "llm_name": llm_name, "ticker": ticker}
-    if not ticker or not ticker.strip():
-        return {"error": "ticker must not be empty", "llm_name": llm_name}
-    try:
-        pm = await _get_portfolio()
-        return await pm.record_trade(
-            llm_name=llm_name,
-            ticker=ticker,
-            action=action,
-            quantity=Decimal(str(quantity)),
-            price_per_share=Decimal(str(price)),
-            is_real=False,
-        )
-    except Exception as e:
-        logger.exception("record_virtual_trade failed")
-        return {"error": str(e), "llm_name": llm_name, "ticker": ticker}
-
-
-@mcp.tool()
-async def get_portfolio(llm_name: str) -> dict:
-    """Get the full portfolio (all current positions) for a specific LLM from the database."""
-    try:
-        pm = await _get_portfolio()
-        positions = await pm.get_portfolio(llm_name)
-        return {"llm_name": llm_name, "count": len(positions), "positions": positions}
-    except Exception as e:
-        logger.exception("get_portfolio failed for %s", llm_name)
-        return {"error": str(e), "llm_name": llm_name}
-
-
-@mcp.tool()
-async def get_pnl_report(
-    llm_name: str, start_date: str, end_date: str, is_real: bool | None = None
-) -> dict:
-    """Calculate profit & loss for an LLM over a date range.
-    Dates in ISO format (YYYY-MM-DD). Optionally filter by is_real (true/false).
-    Returns realized P&L from completed trades."""
-    try:
-        pm = await _get_portfolio()
-        start = date.fromisoformat(start_date)
-        end = date.fromisoformat(end_date)
-        return await pm.calculate_pnl(llm_name, start, end, is_real=is_real)
-    except ValueError as e:
-        return {"error": f"Invalid date format: {e}"}
-    except Exception as e:
-        logger.exception("get_pnl_report failed for %s", llm_name)
-        return {"error": str(e), "llm_name": llm_name}
-
-
-@mcp.tool()
-async def get_leaderboard() -> dict:
-    """Compare performance of all LLMs side by side, ranked by realized P&L."""
-    try:
-        pm = await _get_portfolio()
-        entries = await pm.get_leaderboard()
-        return {"count": len(entries), "leaderboard": entries}
-    except Exception as e:
-        logger.exception("get_leaderboard failed")
-        return {"error": str(e)}
-
-
-@mcp.tool()
-async def get_trade_history(llm_name: str, limit: int = 50) -> dict:
-    """Get recent trade history for a specific LLM, ordered by most recent first."""
-    try:
-        pm = await _get_portfolio()
-        trades = await pm.get_trade_history(llm_name, limit)
-        return {"llm_name": llm_name, "count": len(trades), "trades": trades}
-    except Exception as e:
-        logger.exception("get_trade_history failed for %s", llm_name)
-        return {"error": str(e), "llm_name": llm_name}
 
 
 if __name__ == "__main__":

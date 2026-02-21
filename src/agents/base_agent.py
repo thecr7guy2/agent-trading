@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel
 
-from src.db.models import AgentStage, LLMProvider
+from src.models import AgentStage, LLMProvider
 
 
 class BaseAgent(ABC):
