@@ -97,7 +97,6 @@ class T212Client:
             await self.get_instrument_quantity_precision(ticker),
             self.MARKET_ORDER_QUANTITY_DECIMALS,
         )
-        last_error: T212Error | None = None
         for precision in range(max_precision, -1, -1):
             step = Decimal("1").scaleb(-precision)
             normalized_quantity = float(
@@ -121,7 +120,6 @@ class T212Client:
                     last_error = e
                     continue
                 raise
-        raise last_error or T212Error(400, f"Could not place order for {ticker} at any precision")
 
     async def get_positions(self) -> list:
         return await self._request("GET", "/equity/portfolio")

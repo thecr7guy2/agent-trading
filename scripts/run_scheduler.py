@@ -37,12 +37,12 @@ class SchedulerDaemon:
 
     async def run(self) -> None:
         logger.info("Starting trading bot scheduler daemon...")
-        logger.info("Timezone: Europe/Berlin")
-        logger.info("Schedule:")
-        logger.info("  - Trade execution: 17:10 (Mon-Fri)")
-        logger.info("  - End-of-day snapshot: 17:35 (Mon-Fri)")
-
         self.scheduler = OrchestratorScheduler()
+        s = self.scheduler._settings
+        logger.info("Timezone: %s", s.orchestrator_timezone)
+        logger.info("Schedule:")
+        logger.info("  - Trade execution: %s (%s)", s.scheduler_execute_time, s.scheduler_trade_days)
+        logger.info("  - End-of-day snapshot: %s (%s)", s.scheduler_eod_time, s.scheduler_trade_days)
         self.scheduler.start()
 
         logger.info("Scheduler running. Press Ctrl+C to stop.")
