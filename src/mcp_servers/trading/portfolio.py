@@ -61,14 +61,16 @@ def _normalise_positions(raw: list) -> list[dict]:
         pnl = current_value - invested
         pnl_pct = (pnl / invested * 100) if invested else 0.0
 
-        positions.append({
-            "ticker": ticker,
-            "quantity": quantity,
-            "avg_buy_price": avg_price,
-            "current_price": current_price,
-            "current_value": round(current_value, 2),
-            "pnl_eur": round(pnl, 2),
-            "pnl_pct": round(pnl_pct, 2),
-            "open_date": p.get("initialFillDate", p.get("openDate", "")),
-        })
+        positions.append(
+            {
+                "ticker": ticker,
+                "quantity": quantity,
+                "avg_buy_price": avg_price,
+                "current_price": current_price,
+                "current_value": round(current_value, 2),
+                "pnl_eur": round(pnl, 2),
+                "pnl_pct": round(pnl_pct, 2),
+                "open_date": p.get("initialFillDate", p.get("openDate", "")),
+            }
+        )
     return positions

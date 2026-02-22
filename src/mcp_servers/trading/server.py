@@ -33,15 +33,13 @@ async def _get_t212_live() -> T212Client:
     return _t212_live
 
 
-async def _get_t212_demo() -> T212Client | None:
+async def _get_t212_demo() -> T212Client:
     global _t212_demo
     if _t212_demo is None:
         settings = get_settings()
-        if not settings.t212_practice_api_key:
-            return None
         _t212_demo = T212Client(
-            api_key=settings.t212_practice_api_key,
-            api_secret=settings.t212_practice_api_secret or "",
+            api_key=settings.t212_api_key,
+            api_secret=settings.t212_api_secret,
             use_demo=True,
         )
     return _t212_demo
@@ -67,13 +65,6 @@ async def place_buy_order(
 
     try:
         t212 = await _get_t212_live() if is_real else await _get_t212_demo()
-
-        if t212 is None:
-            return {
-                "status": "error",
-                "ticker": ticker,
-                "error": "No practice T212 credentials configured",
-            }
 
         # Pre-flight cash check
         try:
@@ -134,12 +125,14 @@ async def place_sell_order(
 
     try:
         t212 = await _get_t212_live() if is_real else await _get_t212_demo()
-        if t212 is None:
-            return {"status": "error", "ticker": ticker, "error": "No practice T212 credentials configured"}
 
         broker_ticker = await t212.resolve_ticker(ticker)
         if not broker_ticker:
-            return {"status": "error", "ticker": ticker, "error": "ticker not tradable on Trading 212"}
+            return {
+                "status": "error",
+                "ticker": ticker,
+                "error": "ticker not tradable on Trading 212",
+            }
 
         order = await t212.place_market_order(broker_ticker, -abs(quantity))
         filled_qty = float(abs(order.get("filledQuantity", quantity)))
@@ -172,8 +165,6 @@ async def get_positions(is_real: bool = True) -> dict:
             positions = await get_live_positions(t212)
         else:
             t212 = await _get_t212_demo()
-            if t212 is None:
-                return {"error": "No practice T212 credentials configured", "positions": []}
             positions = await get_demo_positions(t212)
 
         return {"is_real": is_real, "count": len(positions), "positions": positions}
@@ -194,8 +185,6 @@ async def get_cash(is_real: bool = True) -> dict:
             t212 = await _get_t212_live()
         else:
             t212 = await _get_t212_demo()
-            if t212 is None:
-                return {"error": "No practice T212 credentials configured"}
         return {**await get_account_cash(t212), "is_real": is_real}
     except T212Error as e:
         return {"error": f"T212 {e.status_code}: {e.message}"}

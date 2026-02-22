@@ -10,7 +10,7 @@ uv run pytest tests/ -v
 uv run pytest tests/test_orchestrator/test_supervisor.py -v
 
 # Run tests matching a keyword
-uv run pytest tests/ -k "sell_strategy" -v
+uv run pytest tests/ -k "supervisor" -v
 
 # Run with short output
 uv run pytest tests/ -q
@@ -29,12 +29,8 @@ uv run ruff format src/
 # Start the full scheduler daemon (24/7)
 uv run python scripts/run_scheduler.py
 
-# Manually trigger sell checks
-uv run python scripts/run_sell_checks.py
-
 # Show current portfolio P&L from T212
 uv run python scripts/report.py
-uv run python scripts/report.py --account live
 uv run python scripts/report.py --account demo
 ```
 
@@ -46,9 +42,6 @@ uv run python -m src.mcp_servers.market_data.server
 
 # Start trading server
 uv run python -m src.mcp_servers.trading.server
-
-# Start Reddit server
-uv run python -m src.mcp_servers.reddit.server
 ```
 
 ## Quick Smoke Tests
@@ -57,25 +50,7 @@ uv run python -m src.mcp_servers.reddit.server
 # Test config loads from .env
 uv run python -c "from src.config import get_settings; s = get_settings(); print('Config OK:', s.orchestrator_timezone)"
 
-# Test T212 live connection
-uv run python -c "
-import asyncio
-from src.config import get_settings
-from src.mcp_servers.trading.t212_client import T212Client
-from src.mcp_servers.trading.portfolio import get_live_positions
-
-async def test():
-    s = get_settings()
-    t212 = T212Client(api_key=s.t212_api_key, use_demo=False)
-    positions = await get_live_positions(t212)
-    print(f'Live positions: {len(positions)}')
-    for p in positions:
-        print(f'  {p[\"ticker\"]}: {p[\"quantity\"]} @ {p[\"avg_buy_price\"]}')
-
-asyncio.run(test())
-"
-
-# Test T212 demo connection (if configured)
+# Test T212 demo connection
 uv run python -c "
 import asyncio
 from src.config import get_settings
@@ -84,12 +59,11 @@ from src.mcp_servers.trading.portfolio import get_demo_positions
 
 async def test():
     s = get_settings()
-    if not s.t212_practice_api_key:
-        print('No demo account configured')
-        return
-    t212 = T212Client(api_key=s.t212_practice_api_key, use_demo=True)
+    t212 = T212Client(api_key=s.t212_api_key, use_demo=True)
     positions = await get_demo_positions(t212)
     print(f'Demo positions: {len(positions)}')
+    for p in positions:
+        print(f'  {p[\"ticker\"]}: {p[\"quantity\"]} @ {p[\"avg_buy_price\"]}')
 
 asyncio.run(test())
 "
@@ -112,50 +86,47 @@ async def test():
 asyncio.run(test())
 "
 
-# Test signal digest (runs screener + reddit + insider + earnings)
-uv run python - <<'PY'
-import asyncio
-from src.orchestrator.supervisor import Supervisor
-
-async def test():
-    supervisor = Supervisor()
-    digest = await supervisor.build_signal_digest()
-    print(f"Candidates: {len(digest.get('candidates', []))}")
-    print(f"Reddit posts: {digest.get('total_posts', 0)}")
-    print(f"Screener count: {digest.get('screener_count', 0)}")
-    for c in digest.get('candidates', [])[:5]:
-        print(f"  {c['ticker']}: sources={c['sources']}")
-
-asyncio.run(test())
-PY
-
 # Test insider scraper
 uv run python -c "
 import asyncio
-from src.mcp_servers.market_data.insider import get_insider_cluster_buys
+from src.mcp_servers.market_data.insider import get_insider_candidates
 
 async def test():
-    clusters = await get_insider_cluster_buys(days=7)
-    print(f'Cluster buys found: {len(clusters)}')
-    for c in clusters[:3]:
-        print(f'  {c[\"ticker\"]} - {c[\"insider_count\"]} insiders, \${c[\"total_value_usd\"]:,.0f}')
+    candidates = await get_insider_candidates(days=7, top_n=10)
+    print(f'Candidates found: {len(candidates)}')
+    for c in candidates[:3]:
+        print(f'  {c[\"ticker\"]} - {c[\"insider_count\"]} insiders, \${c[\"total_value_usd\"]:,.0f}, score={c[\"conviction_score\"]}')
 
 asyncio.run(test())
 "
 
-# Test sell strategy (evaluate current positions)
+# Test insider digest (full enrichment pipeline)
 uv run python - <<'PY'
 import asyncio
-from datetime import date
 from src.orchestrator.supervisor import Supervisor
 
 async def test():
     supervisor = Supervisor()
-    result = await supervisor.run_sell_checks()
-    sells = result.get('executed_sells', [])
-    print(f'Sell signals: {len(sells)}')
-    for s in sells:
-        print(f'  {s}')
+    digest = await supervisor.build_insider_digest()
+    print(f"Insider candidates: {digest.get('insider_count', 0)}")
+    for c in digest.get('candidates', [])[:5]:
+        print(f"  {c['ticker']}: score={c['conviction_score']}, news={len(c.get('news', []))} items")
+
+asyncio.run(test())
+PY
+
+# Test full decision cycle (dry run — will actually trade if budget > 0!)
+# Only use this to test the pipeline, not in production
+uv run python - <<'PY'
+import asyncio
+from src.orchestrator.supervisor import Supervisor
+
+async def test():
+    supervisor = Supervisor()
+    # force=True bypasses the trading-day and cadence checks
+    result = await supervisor.run_decision_cycle(force=True)
+    print(f"Status: {result.get('status')}")
+    print(f"Picks: {result.get('picks', [])}")
 
 asyncio.run(test())
 PY
@@ -177,8 +148,8 @@ cat reports/$(date +%Y-%m-%d).md
 ls -la reports/*.md
 
 # Check scheduler log
-tail -50 logs/scheduler.log
+tail -50 run_daily.log
 
 # Watch live log
-tail -f logs/scheduler.log
+tail -f run_daily.log
 ```

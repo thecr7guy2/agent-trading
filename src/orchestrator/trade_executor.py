@@ -1,10 +1,9 @@
 """
-Trade executor with fallback logic.
+Trade executor with fallback logic — demo (practice) account only.
 
 Tries to spend the full budget across a ranked candidate list.
-If a buy order fails for any reason (ticker not on T212, insufficient funds,
-order rejected), it skips to the next candidate and tries again.
-Continues until the budget is spent or all candidates are exhausted.
+If a buy order fails (ticker not on T212, order rejected), it skips to the
+next candidate and tries again until the budget is spent or candidates exhausted.
 """
 
 import logging
@@ -30,7 +29,6 @@ class TradeResult:
 
 @dataclass
 class ExecutionSummary:
-    is_real: bool
     budget: float
     available_cash: float
     total_spent: float
@@ -50,33 +48,26 @@ class ExecutionSummary:
 
 async def execute_with_fallback(
     candidates: list[dict],
-    is_real: bool,
     t212: T212Client,
 ) -> ExecutionSummary:
     """
-    Try to fully spend the configured daily budget across the candidate list.
+    Try to spend the configured budget across the candidate list on the demo account.
 
     Args:
-        candidates: Ranked list of dicts with at least 'ticker' and 'price' keys.
-                    Claude's top pick should be first. Each must have a valid price.
-        is_real:    True = live account (real money), False = demo (practice).
-        t212:       Pre-initialised T212Client for the correct account.
-
-    Returns:
-        ExecutionSummary with bought/failed lists and spend stats.
+        candidates: Ranked list of dicts with 'ticker', 'price', 'allocation_pct'.
+                    Claude's top pick should be first.
+        t212:       Pre-initialised T212Client (demo account).
     """
     settings = get_settings()
-    budget = settings.daily_budget_eur if is_real else settings.practice_daily_budget_eur
+    budget = settings.budget_per_run_eur
 
-    # Get actual available cash — cap budget to what's actually there
     available_cash = budget
     try:
         cash_info = await t212.get_account_cash()
         available_cash = float(cash_info.get("free", cash_info.get("freeForStocks", budget)))
         effective_budget = min(budget, available_cash)
         logger.info(
-            "[%s] Budget: €%.2f | Cash available: €%.2f | Effective: €%.2f",
-            "REAL" if is_real else "DEMO",
+            "[DEMO] Budget: €%.2f | Cash available: €%.2f | Effective: €%.2f",
             budget,
             available_cash,
             effective_budget,
@@ -86,7 +77,6 @@ async def execute_with_fallback(
         logger.warning("Could not fetch cash balance — using configured budget: €%.2f", budget)
 
     summary = ExecutionSummary(
-        is_real=is_real,
         budget=budget,
         available_cash=available_cash,
         total_spent=0.0,
@@ -107,16 +97,17 @@ async def execute_with_fallback(
             continue
 
         if not price or float(price) <= 0:
-            summary.failed.append(TradeResult(
-                ticker=ticker,
-                success=False,
-                error="no valid price — skipping",
-            ))
+            summary.failed.append(
+                TradeResult(
+                    ticker=ticker,
+                    success=False,
+                    error="no valid price — skipping",
+                )
+            )
             logger.warning("No valid price for %s — skipping", ticker)
             continue
 
-        # Respect Claude's allocation — spend only the pick's share of the budget,
-        # capped at whatever is still remaining
+        # Respect Claude's allocation — spend the pick's share of the budget
         target_amount = min(remaining, effective_budget * allocation_pct / 100.0)
         if target_amount < 1.0:
             logger.info("Skipping %s — target amount €%.2f below minimum", ticker, target_amount)
@@ -128,16 +119,17 @@ async def execute_with_fallback(
             summary.total_spent += result.amount_spent
             summary.bought.append(result)
             logger.info(
-                "✓ Bought %s — €%.2f spent | total: €%.2f / €%.2f",
-                ticker, result.amount_spent, summary.total_spent, effective_budget,
+                "✓ Bought %s — €%.2f | total: €%.2f / €%.2f",
+                ticker,
+                result.amount_spent,
+                summary.total_spent,
+                effective_budget,
             )
         else:
             summary.failed.append(result)
             logger.warning("✗ Skipped %s — %s", ticker, result.error)
 
-    # Blacklist everything that was successfully bought
     if summary.bought:
-        settings = get_settings()
         add_many(
             [r.ticker for r in summary.bought],
             path=settings.recently_traded_path,
@@ -158,15 +150,10 @@ async def _try_buy(
     amount_eur: float,
     current_price: float,
 ) -> TradeResult:
-    """Attempt a single buy. Returns TradeResult regardless of outcome."""
     try:
         broker_ticker = await t212.resolve_ticker(ticker)
         if not broker_ticker:
-            return TradeResult(
-                ticker=ticker,
-                success=False,
-                error="not tradable on Trading 212",
-            )
+            return TradeResult(ticker=ticker, success=False, error="not tradable on Trading 212")
 
         quantity = amount_eur / current_price
         order = await t212.place_market_order(broker_ticker, quantity)
@@ -185,12 +172,9 @@ async def _try_buy(
 
     except T212Error as e:
         return TradeResult(
-            ticker=ticker,
-            success=False,
-            error=f"T212 error {e.status_code}: {e.message}",
+            ticker=ticker, success=False, error=f"T212 error {e.status_code}: {e.message}"
         )
     except ValueError as e:
-        # e.g. quantity rounds to 0
         return TradeResult(ticker=ticker, success=False, error=str(e))
     except Exception as e:
         return TradeResult(ticker=ticker, success=False, error=str(e))

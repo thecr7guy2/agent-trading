@@ -30,37 +30,25 @@ class OrchestratorScheduler:
             },
         )
         self._last_decision_result: dict | None = None
-        self._last_sell_results: list[dict] = []
-
-    async def _run_collection_job(self) -> None:
-        result = await self._supervisor.collect_reddit_round()
-        logger.info("Collection round finished: %s", result)
 
     async def _run_decision_job(self) -> None:
-        result = await self._supervisor.run_decision_cycle(require_approval=False)
+        result = await self._supervisor.run_decision_cycle()
         logger.info("Decision cycle finished: %s", result)
-        self._last_decision_result = result
-
-    async def _run_sell_check_job(self) -> None:
-        result = await self._supervisor.run_sell_checks()
-        logger.info("Sell check finished: %s", result)
-        sells = result.get("executed_sells", [])
-        if sells:
-            self._last_sell_results.extend(sells)
+        if result.get("status") == "ok":
+            self._last_decision_result = result
 
     async def _run_eod_job(self) -> None:
         result = await self._supervisor.run_end_of_day()
         logger.info("End-of-day snapshot finished: %s", result)
 
         decision_result = self._last_decision_result or {}
-        if decision_result.get("status") == "ok" and result.get("status") == "ok":
+        if result.get("status") == "ok":
             run_date = date.fromisoformat(result["date"])
             try:
                 report = await generate_daily_report(
                     run_date=run_date,
                     decision_result=decision_result,
                     eod_result=result,
-                    sell_results=self._last_sell_results,
                 )
                 path = write_daily_report(report, run_date)
                 logger.info("Daily report written to %s", path)
@@ -68,55 +56,30 @@ class OrchestratorScheduler:
                 logger.exception("Failed to generate daily report")
 
         self._last_decision_result = None
-        self._last_sell_results = []
 
     def configure_jobs(self) -> None:
         if self._scheduler.get_jobs():
             return
 
-        collect_times = [part.strip() for part in self._settings.scheduler_collect_times.split(",")]
-        for index, collect_time in enumerate(collect_times, start=1):
-            hour, minute = _parse_hhmm(collect_time)
-            self._scheduler.add_job(
-                self._run_collection_job,
-                trigger="cron",
-                id=f"collect_round_{index}",
-                day_of_week="mon-fri",
-                hour=hour,
-                minute=minute,
-                replace_existing=True,
-            )
-
-        sell_times = [part.strip() for part in self._settings.sell_check_schedule.split(",")]
-        for index, sell_time in enumerate(sell_times, start=1):
-            hour, minute = _parse_hhmm(sell_time)
-            self._scheduler.add_job(
-                self._run_sell_check_job,
-                trigger="cron",
-                id=f"sell_check_{index}",
-                day_of_week="mon-fri",
-                hour=hour,
-                minute=minute,
-                replace_existing=True,
-            )
-
+        # Trade execution — Tuesday and Friday only (busiest filing days)
         decision_hour, decision_minute = _parse_hhmm(self._settings.scheduler_execute_time)
         self._scheduler.add_job(
             self._run_decision_job,
             trigger="cron",
             id="decision_and_execution",
-            day_of_week="mon-fri",
+            day_of_week=self._settings.scheduler_trade_days,
             hour=decision_hour,
             minute=decision_minute,
             replace_existing=True,
         )
 
+        # EOD snapshot + report — same days as trade execution
         eod_hour, eod_minute = _parse_hhmm(self._settings.scheduler_eod_time)
         self._scheduler.add_job(
             self._run_eod_job,
             trigger="cron",
             id="end_of_day_snapshot",
-            day_of_week="mon-fri",
+            day_of_week=self._settings.scheduler_trade_days,
             hour=eod_hour,
             minute=eod_minute,
             replace_existing=True,

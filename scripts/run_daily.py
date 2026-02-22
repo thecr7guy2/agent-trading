@@ -16,20 +16,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run a single decision cycle")
     parser.add_argument("--date", dest="run_date", help="Run date in YYYY-MM-DD format")
     parser.add_argument(
-        "--no-approval",
-        action="store_true",
-        help="Skip CLI approval and auto-approve all picks",
-    )
-    parser.add_argument(
         "--force",
         action="store_true",
-        help="Ignore duplicate-trade guard and execute anyway",
-    )
-    parser.add_argument(
-        "--collect-rounds",
-        type=int,
-        default=0,
-        help="If > 0, trigger a single Reddit RSS collection round before running pipeline",
+        help="Bypass weekday check and N-day frequency guard (useful for testing on weekends)",
     )
     parser.add_argument(
         "--skip-eod",
@@ -45,9 +34,7 @@ async def _run(args: argparse.Namespace) -> dict:
 
     decision_result = await supervisor.run_decision_cycle(
         run_date=run_date,
-        require_approval=not args.no_approval,
         force=args.force,
-        collect_rounds=args.collect_rounds,
     )
 
     if decision_result.get("status") != "ok" or args.skip_eod:

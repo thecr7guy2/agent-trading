@@ -2,66 +2,64 @@
 
 ## Current Status (as of Feb 2026)
 
-**Overhaul complete.** All 9 phases of the overhaul plan (`plans/overhaul.md`) implemented. The system is running fully autonomously with no database.
+**Overhaul complete.** The system runs fully autonomously as a single-strategy, single-account demo trading bot. No database.
 
 ---
 
-## Architecture (Post-Overhaul)
+## Architecture (Current)
 
 - **No database** — positions from T212 API live, blacklist in `recently_traded.json`
-- **No LLM rotation** — Claude always trades, both strategies run every day
-- **No approval gate** — fully autonomous, €10/day real money budget is the safety net
-- **Two strategies:** Conservative (real, €10/day, T212 live) + Aggressive (practice, €500/day, T212 demo)
-- **4-stage pipeline:** MiniMax-M2.5 (sentiment) → MiniMax-M2.5 with tools (research) → Claude Opus 4.6 (trader) → Claude Sonnet 4.6 (risk review)
-- **Stages 1-2 shared** — run once, results handed to both strategies
-- **Stages 3-4 fan out** — both strategies run in parallel using shared research
+- **Single strategy** — one demo/practice T212 account, `budget_per_run_eur` (default €1000/run)
+- **No approval gate** — fully autonomous
+- **2-stage pipeline:** MiniMax-M2.5 (research analyst) → Claude Opus 4.6 (trader/buy decision)
+- **No strategy fan-out** — one pipeline, one account, one budget
 
 ---
 
 ## Key Implementation Notes
 
 ### Config (`src/config.py`)
-New fields added in overhaul:
-- `news_api_key` — NewsAPI (optional)
-- `fmp_api_key` — Financial Modeling Prep (optional)
-- `recently_traded_path` — path to blacklist JSON (default: `recently_traded.json`)
-- `recently_traded_days` — blacklist duration (default: 3)
-- `max_candidates` — pipeline candidate limit (default: 15)
-- `eu_preference_bonus` — soft scoring bonus for EU stocks (default: 0.1)
+Active fields:
+- `anthropic_api_key`, `minimax_api_key`, `minimax_base_url`
+- `t212_api_key` (demo account), `t212_api_secret` (optional)
+- `budget_per_run_eur` (default 1000.0), `max_picks_per_run` (default 5)
+- `insider_lookback_days` (default 3), `insider_top_n` (default 25), `min_insider_tickers` (default 10)
+- `trade_every_n_days` (default 2), `pipeline_timeout_seconds` (default 900), `max_tool_rounds` (default 10)
+- `recently_traded_path`, `recently_traded_days` (default 3)
+- `claude_opus_model`, `claude_sonnet_model`, `claude_haiku_model`, `minimax_model`
+- `scheduler_execute_time` (default `17:10`), `scheduler_eod_time` (default `17:35`)
+- `news_api_key`, `fmp_api_key` (both optional)
+- `telegram_bot_token`, `telegram_chat_id`, `telegram_enabled`
 
-Removed: `sqlite_path`, `database_url`, `bafin_lookback_days`, `signal_candidate_limit`, `screener_min_market_cap`, `screener_exchanges`
+Removed: `eu_preference_bonus`, `t212_practice_api_key`, `practice_daily_budget_eur`, `max_candidates`, `sqlite_path`, `sell_*` settings, `scheduler_collect_times`
 
 ### Tests
 - Tests use `SimpleNamespace` for settings mocks — when adding config fields, update fixtures in `test_scheduler.py` and `test_supervisor.py`
-- `test_reporting/test_daily_report.py` uses `patch("src.reporting.daily_report.get_settings", ...)`
 - Never hit real APIs in tests
 
 ### Models (`src/models.py`)
-All Pydantic models live here (no DB). Import from `src.models` everywhere. Key models: `SentimentReport`, `ResearchReport`, `ResearchFinding`, `DailyPicks`, `PickReview`, `StockPick`, `Position`, `SellSignal`.
+All Pydantic models live here (no DB). Key active models: `ResearchReport`, `ResearchFinding`, `DailyPicks`, `PickReview`, `StockPick`, `Position`.
+Inactive/legacy models still present: `SentimentReport`, `TickerSentiment`, `MarketAnalysis`, `TickerAnalysis`.
+`SellSignal` does NOT exist in the current codebase.
 
 ### Signal Sources
-- `screen_global_markets` MCP tool (was `screen_eu_markets`) — global, EU soft bonus
-- `get_insider_activity` — OpenInsider cluster buys scraper
-- `get_analyst_revisions` — FMP or yfinance fallback for earnings revisions
-- `get_news` — NewsAPI or yfinance news fallback
+Only **OpenInsider** — `get_insider_candidates()` in `src/mcp_servers/market_data/insider.py`.
+No Reddit, no screener sourcing, no BAFIN, no earnings calendar as candidate source.
+Enrichment (parallel, per candidate): yfinance returns/fundamentals/technicals/earnings, insider history (30/60/90d), news (NewsAPI first, yfinance fallback).
 
 ### Trade Executor (`src/orchestrator/trade_executor.py`)
-`execute_with_fallback()` tries candidates in rank order until budget is spent. Blacklists successful buys in `recently_traded.json`.
+`execute_with_fallback()` tries candidates in rank order until budget is spent. Records successful buys in `recently_traded.json`.
 
 ### Daily Report (`src/reporting/daily_report.py`)
-Clean format: Summary → Today's Buys (tables with company, amount, price, signal sources, reasoning) → Skipped/Failed → Current Positions (from EOD raw positions) → Sell Triggers.
-
-Uses `get_settings()` for budget values. EOD result must include `live_positions` and `demo_positions` (raw lists, not just aggregates).
+Auto-generated at EOD. Format: Summary → Buys → Skipped/Failed → Current Positions → P&L snapshot.
 
 ---
 
 ## LLMProvider Enum
 
-`LLMProvider` identifies the **strategy**, not the underlying API:
-- `CLAUDE` = conservative strategy (real money, T212 live)
-- `CLAUDE_AGGRESSIVE` = aggressive strategy (practice money, T212 demo)
-
-Both strategies use MiniMax for stages 1-2 and Claude for stages 3-4.
+`LLMProvider` (in `models.py`) identifies the strategy label, not the API:
+- `CLAUDE` — default label
+- `CLAUDE_AGGRESSIVE` — exists but currently unused (no strategy split in pipeline)
 
 ---
 
@@ -69,26 +67,19 @@ Both strategies use MiniMax for stages 1-2 and Claude for stages 3-4.
 
 - `src/db/` — entire database layer
 - `src/backtesting/` — backtesting engine
-- `src/mcp_servers/market_data/bafin.py` — BAFIN scraper (didn't work)
+- `src/mcp_servers/market_data/bafin.py` — BAFIN scraper
+- `src/mcp_servers/reddit/` — Reddit RSS scraper
 - `src/orchestrator/approval.py` — approval flow
-- `src/reporting/leaderboard.py` and `pnl.py` — DB-dependent reporting
-- `scripts/setup_db.py`, `scripts/backtest.py`, `scripts/run_daily.py`
-- `trading_bot.db` — SQLite database file
+- `src/orchestrator/sell_strategy.py` — sell rule engine
+- `src/reporting/leaderboard.py`, `pnl.py`
+- `scripts/setup_db.py`, `scripts/backtest.py`, `scripts/run_sell_checks.py`
 
 ---
 
-## Daily Schedule (Europe/Berlin, weekdays)
+## Daily Schedule (Europe/Berlin, weekdays only)
 
-- 08:00, 12:00, 16:30 — Reddit RSS collection
-- 09:30, 12:30, 16:45 — Sell rule checks (stop-loss / take-profit / hold-period)
-- 17:10 — Trade execution (signal digest → pipelines → buy orders)
-- 17:35 — EOD snapshot + daily markdown report
+Scheduler has **exactly 2 cron jobs**:
+- **17:10** — `run_decision_cycle()` — insider digest → pipeline → buy orders
+- **17:35** — `run_end_of_day()` → EOD snapshot + daily MD report
 
----
-
-## Things That Could Be Built Next
-
-- **Performance tracking** — JSON or CSV log of daily P&L since no DB is available
-- **Better Telegram alerts** — include the full buy table in notifications, not just a summary
-- **Prompt tuning** — adjust trader/research prompts based on what the bot is buying
-- **Deployment** — `DEPLOYMENT.md` in project-information has been updated for DB-free setup
+No Reddit collection, no sell checks, no mid-day jobs.

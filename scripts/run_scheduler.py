@@ -8,6 +8,8 @@ from pathlib import Path
 
 from src.orchestrator.scheduler import OrchestratorScheduler
 
+Path("logs").mkdir(exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -34,14 +36,9 @@ class SchedulerDaemon:
         signal.signal(signal.SIGTERM, lambda s, f: signal_handler(s))
 
     async def run(self) -> None:
-        logs_dir = Path("logs")
-        logs_dir.mkdir(exist_ok=True)
-
         logger.info("Starting trading bot scheduler daemon...")
         logger.info("Timezone: Europe/Berlin")
         logger.info("Schedule:")
-        logger.info("  - Reddit collection: 08:00, 12:00, 16:30 (Mon-Fri)")
-        logger.info("  - Sell checks: 09:30, 12:30, 16:45 (Mon-Fri)")
         logger.info("  - Trade execution: 17:10 (Mon-Fri)")
         logger.info("  - End-of-day snapshot: 17:35 (Mon-Fri)")
 

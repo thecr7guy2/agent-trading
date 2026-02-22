@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field
 class LLMProvider(StrEnum):
     CLAUDE = "claude"
     CLAUDE_AGGRESSIVE = "claude_aggressive"
+    MINIMAX = "minimax"
 
 
 class AgentStage(StrEnum):
@@ -148,13 +149,3 @@ class Position(BaseModel):
     opened_at: date | None = None
 
 
-class SellSignal(BaseModel):
-    ticker: str
-    llm_name: LLMProvider
-    signal_type: str  # "stop_loss" | "take_profit" | "hold_period"
-    trigger_price: Decimal
-    position_qty: Decimal
-    avg_buy_price: Decimal
-    return_pct: float
-    is_real: bool
-    reasoning: str

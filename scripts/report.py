@@ -84,19 +84,16 @@ async def _run(args: argparse.Namespace) -> None:
             print(f"\nFailed to fetch live positions: {e}")
 
     if args.account in ("demo", "both"):
-        if not settings.t212_practice_api_key:
-            print("\nNo practice account configured (T212_PRACTICE_API_KEY not set)")
-        else:
-            try:
-                t212_demo = T212Client(
-                    api_key=settings.t212_practice_api_key,
-                    api_secret=settings.t212_practice_api_secret or "",
-                    use_demo=True,
-                )
-                demo_positions = await get_demo_positions(t212_demo)
-                _format_positions(demo_positions, "DEMO ACCOUNT (Practice)")
-            except Exception as e:
-                print(f"\nFailed to fetch demo positions: {e}")
+        try:
+            t212_demo = T212Client(
+                api_key=settings.t212_api_key,
+                api_secret=settings.t212_api_secret or "",
+                use_demo=True,
+            )
+            demo_positions = await get_demo_positions(t212_demo)
+            _format_positions(demo_positions, "DEMO ACCOUNT (Practice)")
+        except Exception as e:
+            print(f"\nFailed to fetch demo positions: {e}")
 
     print()
 

@@ -4,45 +4,48 @@
 
 - [x] Remove LLM vs LLM competition — Claude always trades, no rotation
 - [x] Replace DB with T212 API live for positions — no database needed
-- [x] Paper trading (demo) vs real trading — conservative (€10 real) + aggressive (€500 practice)
-- [x] MiniMax for research/tool calls, Claude for decision making
-- [x] OpenInsider cluster buys as a data source (replaces BAFIN — BAFIN didn't work)
-- [x] Risk review agent added as Stage 4 (debates picks before buying)
+- [x] Single demo/practice account (T212 demo), configurable budget per run
+- [x] MiniMax for research analysis, Claude Opus for final buy decisions
+- [x] OpenInsider cluster buys as the only candidate source (replaces BAFIN — BAFIN didn't work)
+- [x] Conviction scoring: delta_own_pct × title_multiplier × recency_decay
 - [x] Trade fallback — if a stock isn't on T212, try the next best candidate
 - [x] 3-day blacklist to stop buying same stocks every day
-- [x] Global screener (not just EU) with EU soft preference bonus
-- [x] NewsAPI + FMP earnings revisions as enrichment data
+- [x] Parallel enrichment of all candidates (yfinance + news + insider history)
 - [x] Clean daily report format (company names, amounts, signal sources, reasoning)
-- [x] Current positions with per-ticker P&L in daily report
+- [x] Current positions in daily report from T212 EOD snapshot
 - [x] Skipped/Failed/Blacklisted section in daily report
 
 ---
 
 ## Potential Next Features
 
-### Performance Tracking (no DB needed)
-The bot currently has no way to look back at historical P&L since there's no database. A lightweight solution: append daily snapshots to a JSON or CSV file.
+### Sell Automation
+No automated sell logic exists. Options:
+- Add stop-loss / take-profit rules back to the supervisor (was removed in overhaul)
+- Or let Claude's `sell_recommendations` in `DailyPicks` drive sell orders
 
-- `snapshots/portfolio_history.json` — daily entry per account with total value, invested, unrealized P&L
+### Performance Tracking (no DB needed)
+The bot has no historical P&L view. A lightweight solution: append daily snapshots to a JSON file.
+- `snapshots/portfolio_history.json` — daily entry with total value, invested, unrealized P&L
 - `scripts/perf.py` — show week/month P&L from snapshot file
-- Could also parse the daily report markdown files to extract this data
+- Could also parse existing `reports/YYYY-MM-DD.md` files to extract this
 
 ### Telegram Notifications — Richer Format
-Currently Telegram just sends a text summary. Could send the full formatted buy table as a message so you see exactly what was bought without opening the report file.
+Currently Telegram sends a text summary. Could include the full buy table in the notification so you see exactly what was bought without opening the report.
 
 ### Prompt Tuning
-After running for a few weeks, review what the bot is actually buying and whether it's working. Tune the trader prompts based on patterns (e.g., if it always picks the same type of stocks, adjust the instructions).
+After running for a few weeks, review what the bot is actually buying and whether the conviction scoring is working. Tune `trader_aggressive.md` based on observed patterns.
 
 ### Agent Trace / Debug Mode
-A flag (`--trace` or env var) that logs every agent's full input/output to a file. Useful for debugging why Claude made a particular pick or why research scored a ticker the way it did.
+A flag (`--trace` or env var) that logs every agent's full input/output to a file. Useful for debugging why Claude made a particular pick.
 
-### Email Fallback
-If Telegram is disabled, email the daily report using Python's smtplib. Cheaper than a Telegram bot for simple alerting.
+### Real Account Support
+Currently demo only. To add a live account: add a second T212 client with `use_demo=False` and a separate budget config, then run both in parallel in the supervisor.
 
 ---
 
 ## Scratch Notes / Ideas
 
-- T212 has a demo/practice account — already implemented (aggressive strategy)
-- For paper trades, if a stock is unknown/unavailable, try next candidate — already implemented (fallback executor)
+- If a ticker is not tradable on T212, the fallback executor already handles it automatically
 - Notification when no stocks were bought (budget not spent) — currently logged, could Telegram alert
+- The `sell_recommendations` field in DailyPicks is populated by Claude but not acted on — easy to wire up

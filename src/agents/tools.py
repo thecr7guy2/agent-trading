@@ -232,8 +232,8 @@ RESEARCH_TOOLS: list[ToolDef] = [
         name="screen_global_markets",
         description=(
             "Screen global markets for top movers and most active stocks. "
-            "EU-listed stocks receive a soft scoring bonus for preference. "
-            "Returns candidates ranked by score — use this to discover investment opportunities."
+            "Returns candidates ranked by score — use this for supplementary context only, "
+            "not as a primary candidate source."
         ),
         parameters={
             "type": "object",

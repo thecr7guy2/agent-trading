@@ -66,7 +66,9 @@ async def _fmp_revisions(ticker: str, api_key: str) -> dict:
             price_target = {}
 
     # Summarise upgrades/downgrades
-    recent_upgrades = [u for u in upgrades if u.get("action") in ("upgrade", "initiated", "reiterated")]
+    recent_upgrades = [
+        u for u in upgrades if u.get("action") in ("upgrade", "initiated", "reiterated")
+    ]
     recent_downgrades = [u for u in upgrades if u.get("action") == "downgrade"]
 
     # EPS revision direction
@@ -128,14 +130,16 @@ async def _yfinance_fallback(ticker: str) -> dict:
             recent = recs.tail(2)
             result = []
             for _, row in recent.iterrows():
-                result.append({
-                    "period": str(row.name) if hasattr(row, "name") else "",
-                    "strong_buy": int(row.get("strongBuy", 0)),
-                    "buy": int(row.get("buy", 0)),
-                    "hold": int(row.get("hold", 0)),
-                    "sell": int(row.get("sell", 0)),
-                    "strong_sell": int(row.get("strongSell", 0)),
-                })
+                result.append(
+                    {
+                        "period": str(row.name) if hasattr(row, "name") else "",
+                        "strong_buy": int(row.get("strongBuy", 0)),
+                        "buy": int(row.get("buy", 0)),
+                        "hold": int(row.get("hold", 0)),
+                        "sell": int(row.get("sell", 0)),
+                        "strong_sell": int(row.get("strongSell", 0)),
+                    }
+                )
 
             # Simple revision signal: more buys in latest period vs previous
             revision = "flat"

@@ -22,7 +22,7 @@ Complete guide for deploying the autonomous trading bot to a Linux server. No da
 - **OS:** Ubuntu 22.04 LTS or later
 - **RAM:** 1GB minimum (2GB recommended)
 - **Disk:** 10GB minimum (for logs and daily reports)
-- **Network:** Outbound HTTPS access required (T212 API, Anthropic, MiniMax, yfinance, OpenInsider)
+- **Network:** Outbound HTTPS access required (T212 API, Anthropic, MiniMax, yfinance, OpenInsider, NewsAPI)
 
 **No database needed** — the bot stores nothing except:
 - `recently_traded.json` — 3-day buy blacklist (tiny JSON file)
@@ -132,33 +132,27 @@ ANTHROPIC_API_KEY=sk-ant-...
 MINIMAX_API_KEY=your-minimax-key
 MINIMAX_BASE_URL=https://api.minimax.io/v1
 
-# Broker — Live account (required, real money)
-T212_API_KEY=your-t212-api-key
+# Broker — Demo / Practice account only
+T212_API_KEY=your-t212-demo-api-key
 
-# Broker — Practice / Demo account (optional, enables aggressive strategy)
-T212_PRACTICE_API_KEY=your-t212-demo-key
-PRACTICE_DAILY_BUDGET_EUR=500.0
+# Budget
+BUDGET_PER_RUN_EUR=1000.0
+MAX_PICKS_PER_RUN=5
 
 # Data sources (optional — bot degrades gracefully if missing)
-NEWS_API_KEY=           # NewsAPI free tier (1000 req/day)
-FMP_API_KEY=            # Financial Modeling Prep free tier (250 req/day)
+NEWS_API_KEY=           # NewsAPI (fallback to yfinance news if not set)
+FMP_API_KEY=            # Financial Modeling Prep (fallback to yfinance if not set)
 
-# Trading
-DAILY_BUDGET_EUR=10.0
-MAX_CANDIDATES=15
-RECENTLY_TRADED_DAYS=3
+# Insider pipeline
+INSIDER_LOOKBACK_DAYS=3
+INSIDER_TOP_N=25
+MIN_INSIDER_TICKERS=10
+TRADE_EVERY_N_DAYS=2
 
 # Orchestration
 ORCHESTRATOR_TIMEZONE=Europe/Berlin
-SCHEDULER_COLLECT_TIMES=08:00,12:00,16:30
 SCHEDULER_EXECUTE_TIME=17:10
 SCHEDULER_EOD_TIME=17:35
-
-# Sell automation
-SELL_STOP_LOSS_PCT=10.0
-SELL_TAKE_PROFIT_PCT=15.0
-SELL_MAX_HOLD_DAYS=5
-SELL_CHECK_SCHEDULE=09:30,12:30,16:45
 
 # Telegram (optional — no-op if disabled)
 TELEGRAM_ENABLED=false
@@ -369,8 +363,16 @@ grep -i "T212\|t212\|trading212" logs/scheduler.log | tail -20
 
 Common issues:
 - `not tradable` — ticker not available on T212, fallback executor tries next candidate automatically
-- `insufficient funds` — check account cash balance and `DAILY_BUDGET_EUR` setting
-- `401 Unauthorized` — API key expired or wrong key (live vs demo key mismatch)
+- `insufficient funds` — check demo account cash balance and `BUDGET_PER_RUN_EUR` setting
+- `401 Unauthorized` — API key expired or wrong
+
+### OpenInsider scrape fails
+
+```bash
+grep -i "openinsider\|insider" logs/scheduler.log | tail -20
+```
+
+If `insider_count < min_insider_tickers`, the run is skipped automatically. Check for network issues or OpenInsider site changes (table class `tinytable` may have changed).
 
 ### Missing dependencies
 
@@ -385,7 +387,7 @@ uv sync --reinstall
 grep -i "rate limit\|429\|error" logs/scheduler.log | tail -20
 ```
 
-The anthropic SDK has `max_retries=5` configured — rate limits are handled automatically with backoff.
+The anthropic SDK has `max_retries=5` configured — Claude rate limits are handled automatically with backoff.
 
 ---
 
@@ -394,8 +396,8 @@ The anthropic SDK has `max_retries=5` configured — rate limits are handled aut
 - [ ] `.env` file has 600 permissions (`chmod 600 .env`)
 - [ ] SSH key-based authentication enabled (disable password auth)
 - [ ] Firewall configured (only allow SSH inbound)
-- [ ] API keys use minimum required permissions (read-only where possible)
-- [ ] `T212_API_KEY` is live account key; `T212_PRACTICE_API_KEY` is demo key — don't mix them up
+- [ ] API keys use minimum required permissions
+- [ ] `T212_API_KEY` is the demo/practice key — not a live real-money account key
 - [ ] Server OS auto-updates enabled
 - [ ] Non-root user running the service
 - [ ] systemd service hardening enabled (`NoNewPrivileges`, `ProtectSystem`, etc.)
@@ -432,9 +434,6 @@ sudo systemctl restart trading-bot.service
 # View current portfolio P&L from T212
 uv run python scripts/report.py
 
-# Run manual sell checks
-uv run python scripts/run_sell_checks.py
-
 # View the 3-day blacklist
 cat recently_traded.json
 
@@ -459,16 +458,16 @@ sudo journalctl -u trading-bot.service -n 30
 ### 2. Check the scheduler is configured correctly
 
 ```bash
-grep "Scheduler running" logs/scheduler.log
+grep "Orchestrator scheduler started" logs/scheduler.log
 ```
 
-### 3. Wait for first collection job (08:00 Berlin time)
+### 3. Wait for trade execution job (17:10 Berlin time)
 
 ```bash
 tail -f logs/scheduler.log
 ```
 
-Should see: `Collection round finished`
+Should see: `Decision cycle finished`
 
 ### 4. Check first report after 17:35
 
@@ -480,11 +479,9 @@ cat reports/$(date +%Y-%m-%d).md
 ### 5. Monitor for 2-3 days before trusting fully
 
 Watch for:
-- Reddit collection completing without errors
-- Sell checks running at 09:30, 12:30, 16:45
 - Trade execution at 17:10 producing buys or clear skip reasons
 - Daily reports being written to `reports/`
-- Trades appearing in your T212 app
+- Trades appearing in your T212 demo account
 
 ---
 
@@ -493,13 +490,12 @@ Watch for:
 Before moving:
 - [ ] Push latest code to git
 - [ ] Export `.env` settings
-- [ ] Note current `recently_traded.json` contents (copy it to server)
+- [ ] Copy current `recently_traded.json` to server (preserves blacklist continuity)
 - [ ] Verify all API keys are valid and active
 
 After deployment:
 - [ ] Service is running: `systemctl status trading-bot`
 - [ ] Logs show no errors: `journalctl -u trading-bot -f`
-- [ ] Wait for first scheduled job execution
-- [ ] Verify trades appear in T212 app
+- [ ] Wait for first scheduled job execution at 17:10
+- [ ] Verify trades appear in T212 demo account
 - [ ] Confirm daily reports are written to `reports/`
-- [ ] Monitor for 2-3 days before fully trusting

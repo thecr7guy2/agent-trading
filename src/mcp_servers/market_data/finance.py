@@ -42,6 +42,27 @@ async def get_ticker_info(ticker: str) -> dict:
     return await asyncio.to_thread(_fetch)
 
 
+async def get_price_return_pct(ticker: str, period: str = "1mo") -> float | None:
+    """Return the price return as a decimal (e.g. -0.18 for -18%) over the given period.
+    Returns None if data is unavailable."""
+
+    def _fetch():
+        try:
+            t = yf.Ticker(ticker)
+            df = t.history(period=period)
+            if df.empty or len(df) < 2:
+                return None
+            start = float(df["Close"].iloc[0])
+            end = float(df["Close"].iloc[-1])
+            if start <= 0:
+                return None
+            return round((end - start) / start, 4)
+        except Exception:
+            return None
+
+    return await asyncio.to_thread(_fetch)
+
+
 async def get_ticker_history(ticker: str, period: str = "1mo") -> list[dict]:
     def _fetch():
         t = yf.Ticker(ticker)
@@ -69,6 +90,7 @@ async def get_ticker_fundamentals(ticker: str) -> dict:
         info = t.info
         return {
             "ticker": ticker,
+            "quote_type": info.get("quoteType", ""),
             "name": info.get("shortName") or info.get("longName", ""),
             "sector": info.get("sector", ""),
             "industry": info.get("industry", ""),

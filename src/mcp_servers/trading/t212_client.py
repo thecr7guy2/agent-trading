@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import logging
 from decimal import ROUND_DOWN, Decimal
@@ -50,6 +51,7 @@ class T212Client:
             timeout=30.0,
         )
         self._instruments_cache: list[dict] | None = None
+        self._instruments_lock: asyncio.Lock = asyncio.Lock()
         self._resolved_ticker_cache: dict[str, str | None] = {}
 
     async def close(self):
@@ -72,19 +74,54 @@ class T212Client:
             return {}
         return response.json()
 
+    async def get_instrument_quantity_precision(self, ticker: str) -> int:
+        """Return the quantity precision (decimal places) required by T212 for a given ticker."""
+        instruments = await self.get_instruments()
+        for inst in instruments:
+            if inst.get("ticker", "").upper() == ticker.upper():
+                precision = inst.get("quantityPrecision")
+                if precision is not None:
+                    return int(precision)
+        return self.MARKET_ORDER_QUANTITY_DECIMALS
+
     async def place_market_order(self, ticker: str, quantity: float) -> dict:
-        """Place a market order. Positive quantity = buy, negative = sell."""
-        step = Decimal("1").scaleb(-self.MARKET_ORDER_QUANTITY_DECIMALS)
-        normalized_quantity = float(Decimal(str(quantity)).quantize(step, rounding=ROUND_DOWN))
-        if normalized_quantity == 0.0:
-            raise ValueError(
-                "quantity rounds to 0 at 3 decimal places; increase order size or use a lower price"
-            )
-        return await self._request(
-            "POST",
-            "/equity/orders/market",
-            json={"quantity": normalized_quantity, "ticker": ticker},
+        """Place a market order. Positive quantity = buy, negative = sell.
+
+        Tries from the instruments-list precision down to 0 (whole shares) because
+        T212's quantityPrecision metadata is sometimes higher than what the order
+        validation actually accepts (e.g. metadata says 2 but T212 requires 0).
+        """
+        # Always start at least at T212's standard 3dp — instruments metadata
+        # sometimes returns a lower value (e.g. 2) which T212 order validation rejects.
+        max_precision = max(
+            await self.get_instrument_quantity_precision(ticker),
+            self.MARKET_ORDER_QUANTITY_DECIMALS,
         )
+        last_error: T212Error | None = None
+        for precision in range(max_precision, -1, -1):
+            step = Decimal("1").scaleb(-precision)
+            normalized_quantity = float(
+                Decimal(str(quantity)).quantize(step, rounding=ROUND_DOWN)
+            )
+            if normalized_quantity == 0.0:
+                raise ValueError(
+                    f"quantity rounds to 0 at {precision} decimal places; increase order size or use a lower price"
+                )
+            try:
+                return await self._request(
+                    "POST",
+                    "/equity/orders/market",
+                    json={"quantity": normalized_quantity, "ticker": ticker},
+                )
+            except T212Error as e:
+                if "precision" in e.message.lower() and precision > 0:
+                    logger.debug(
+                        "Precision %d rejected for %s — retrying with %d", precision, ticker, precision - 1
+                    )
+                    last_error = e
+                    continue
+                raise
+        raise last_error or T212Error(400, f"Could not place order for {ticker} at any precision")
 
     async def get_positions(self) -> list:
         return await self._request("GET", "/equity/portfolio")
@@ -106,7 +143,12 @@ class T212Client:
 
     async def get_instruments(self, force_refresh: bool = False) -> list:
         """Get list of all tradable instruments on Trading 212."""
-        if self._instruments_cache is None or force_refresh:
+        if self._instruments_cache is not None and not force_refresh:
+            return self._instruments_cache
+        async with self._instruments_lock:
+            # Re-check after acquiring lock — another coroutine may have populated it
+            if self._instruments_cache is not None and not force_refresh:
+                return self._instruments_cache
             instruments = await self._request("GET", "/equity/metadata/instruments")
             self._instruments_cache = instruments if isinstance(instruments, list) else []
         return self._instruments_cache

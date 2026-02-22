@@ -42,20 +42,28 @@ class TelegramNotifier:
             return {"status": "error", "reason": "send_failed"}
 
     async def notify_daily_summary(self, decision_result: dict) -> dict:
-        main = decision_result.get("main_trader", "unknown")
-        virtual = decision_result.get("virtual_trader", "unknown")
         run_date = decision_result.get("date", "?")
-        real_count = len(decision_result.get("real_execution", []))
-        virtual_count = len(decision_result.get("virtual_execution", []))
+        insider_count = decision_result.get("insider_count", 0)
+        execution = decision_result.get("execution", [])
+        filled = [e for e in execution if e.get("status") == "filled"]
+        failed = [e for e in execution if e.get("status") == "failed"]
+        picks = decision_result.get("picks", [])
+        confidence = decision_result.get("confidence", 0.0)
+        market_summary = decision_result.get("market_summary", "")
 
-        text = (
-            f"*Daily Summary - {run_date}*\n"
-            f"Main trader: {main}\n"
-            f"Virtual trader: {virtual}\n"
-            f"Real trades: {real_count}\n"
-            f"Virtual trades: {virtual_count}"
-        )
-        return await self.send_message(text)
+        lines = [
+            f"*Daily Summary - {run_date}*",
+            f"Insider candidates: {insider_count}",
+            f"Picks: {len(picks)} | Filled: {len(filled)} | Failed: {len(failed)}",
+            f"Confidence: {confidence:.2f}",
+        ]
+        if market_summary:
+            lines.append(f"_{market_summary[:200]}_")
+        if filled:
+            tickers = ", ".join(e.get("ticker", "?") for e in filled)
+            lines.append(f"Bought: {tickers}")
+
+        return await self.send_message("\n".join(lines))
 
     async def notify_sell_signals(self, sell_result: dict) -> dict:
         sells = sell_result.get("executed_sells", [])

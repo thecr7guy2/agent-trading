@@ -36,11 +36,30 @@ def _extract_json(text: str) -> str:
 
 def _repair_json(text: str) -> str:
     text = text.strip()
-    # Count unclosed braces/brackets and close them
+
+    # Detect if we're inside an unclosed string by walking the text
+    in_string = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\\" and in_string:
+            i += 2  # skip escaped character
+            continue
+        if ch == '"':
+            in_string = not in_string
+        i += 1
+
+    if in_string:
+        # Truncated mid-string — close it cleanly
+        text = re.sub(r'[^"\\]*$', '', text)  # trim the incomplete tail
+        text += '"'
+
+    # Remove trailing comma before closing
+    text = re.sub(r",\s*$", "", text.rstrip())
+
+    # Close unclosed brackets and braces
     open_braces = text.count("{") - text.count("}")
     open_brackets = text.count("[") - text.count("]")
-    # Remove trailing comma before closing
-    text = re.sub(r",\s*$", "", text)
     text += "]" * open_brackets + "}" * open_braces
     return text
 
@@ -78,7 +97,10 @@ class MiniMaxProvider:
 
         if not response.choices or not response.choices[0].message.content:
             raise ValueError("MiniMax returned empty response")
-        raw_text = response.choices[0].message.content
+        choice = response.choices[0]
+        if choice.finish_reason == "length":
+            logger.warning("MiniMax response truncated (hit max_tokens=%d) — will attempt repair", max_tokens)
+        raw_text = choice.message.content
         cleaned = _extract_json(raw_text)
 
         try:

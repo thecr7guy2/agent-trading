@@ -1,9 +1,12 @@
 import json
 import logging
+import threading
 from datetime import date, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+_lock = threading.Lock()
 
 
 def _load(path: str) -> dict[str, str]:
@@ -18,17 +21,19 @@ def _save(path: str, data: dict[str, str]) -> None:
 
 
 def add(ticker: str, path: str = "recently_traded.json") -> None:
-    data = _load(path)
-    data[ticker.upper()] = date.today().isoformat()
-    _save(path, data)
+    with _lock:
+        data = _load(path)
+        data[ticker.upper()] = date.today().isoformat()
+        _save(path, data)
 
 
 def add_many(tickers: list[str], path: str = "recently_traded.json") -> None:
-    data = _load(path)
-    today = date.today().isoformat()
-    for ticker in tickers:
-        data[ticker.upper()] = today
-    _save(path, data)
+    with _lock:
+        data = _load(path)
+        today = date.today().isoformat()
+        for ticker in tickers:
+            data[ticker.upper()] = today
+        _save(path, data)
 
 
 def get_blacklist(path: str = "recently_traded.json", days: int = 3) -> set[str]:
@@ -38,10 +43,11 @@ def get_blacklist(path: str = "recently_traded.json", days: int = 3) -> set[str]
 
 
 def cleanup(path: str = "recently_traded.json", days: int = 3) -> None:
-    data = _load(path)
-    cutoff = date.today() - timedelta(days=days)
-    fresh = {t: d for t, d in data.items() if date.fromisoformat(d) >= cutoff}
-    _save(path, fresh)
+    with _lock:
+        data = _load(path)
+        cutoff = date.today() - timedelta(days=days)
+        fresh = {t: d for t, d in data.items() if date.fromisoformat(d) >= cutoff}
+        _save(path, fresh)
     removed = len(data) - len(fresh)
     if removed:
         logger.info("Blacklist cleanup: removed %d expired tickers", removed)
