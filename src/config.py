@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     insider_lookback_days: int = 5
     min_insider_tickers: int = 10
     insider_top_n: int = 25
+    research_top_n: int = 10  # max candidates passed to MiniMax research stage
 
     # Orchestration
     orchestrator_timezone: str = "Europe/Berlin"

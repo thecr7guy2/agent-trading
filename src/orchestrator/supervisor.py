@@ -207,9 +207,16 @@ class Supervisor:
         )
         all_candidates = digest.get("candidates", [])
         blacklisted = [c["ticker"] for c in all_candidates if c["ticker"] in blacklist]
-        digest["candidates"] = [c for c in all_candidates if c["ticker"] not in blacklist]
+        filtered = [c for c in all_candidates if c["ticker"] not in blacklist]
+        digest["candidates"] = filtered[: self._settings.research_top_n]
         if blacklisted:
             logger.info("Filtered %d blacklisted tickers: %s", len(blacklisted), blacklisted)
+        if len(filtered) > self._settings.research_top_n:
+            logger.info(
+                "Capped candidates from %d to %d for research stage",
+                len(filtered),
+                self._settings.research_top_n,
+            )
 
         # Get current portfolio
         t212 = self._get_t212()
