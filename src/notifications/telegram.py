@@ -47,23 +47,36 @@ class TelegramNotifier:
         execution = decision_result.get("execution", [])
         filled = [e for e in execution if e.get("status") == "filled"]
         failed = [e for e in execution if e.get("status") == "failed"]
-        picks = decision_result.get("picks", [])
         confidence = decision_result.get("confidence", 0.0)
         market_summary = decision_result.get("market_summary", "")
+        total_spent = sum(e.get("amount_eur", 0.0) for e in filled)
 
-        lines = [
-            f"*Daily Summary - {run_date}*",
-            f"Insider candidates: {insider_count}",
-            f"Picks: {len(picks)} | Filled: {len(filled)} | Failed: {len(failed)}",
-            f"Confidence: {confidence:.2f}",
-        ]
-        if market_summary:
-            lines.append(f"_{market_summary[:200]}_")
+        lines = [f"*Trading Bot — {run_date}*"]
+        lines.append(f"Insider candidates: {insider_count} | Confidence: {confidence:.2f}")
+
         if filled:
-            tickers = ", ".join(e.get("ticker", "?") for e in filled)
-            lines.append(f"Bought: {tickers}")
+            lines.append(f"\n*Bought ({len(filled)}) — €{total_spent:.2f} total:*")
+            for e in filled:
+                ticker = e.get("ticker", "?")
+                amount = e.get("amount_eur", 0.0)
+                qty = e.get("quantity", 0.0)
+                lines.append(f"  • {ticker} — €{amount:.2f} ({qty:.4g} shares)")
+        else:
+            lines.append("\nNo trades executed.")
+
+        if failed:
+            lines.append(f"\n*Failed ({len(failed)}):*")
+            for e in failed:
+                lines.append(f"  • {e.get('ticker', '?')} — {e.get('error', '?')}")
+
+        if market_summary:
+            lines.append(f"\n_{market_summary[:300]}_")
 
         return await self.send_message("\n".join(lines))
+
+    async def notify_error(self, run_date: str, stage: str, error: str) -> dict:
+        text = f"*Trading Bot ERROR — {run_date}*\nStage: {stage}\nError: {error}"
+        return await self.send_message(text)
 
     async def notify_sell_signals(self, sell_result: dict) -> dict:
         sells = sell_result.get("executed_sells", [])

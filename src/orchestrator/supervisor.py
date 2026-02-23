@@ -240,14 +240,18 @@ class Supervisor:
             )
         except TimeoutError:
             logger.error("Pipeline timed out after %ds", self._settings.pipeline_timeout_seconds)
+            await self._notifier.notify_error(
+                str(run_date), "pipeline", f"timeout after {self._settings.pipeline_timeout_seconds}s"
+            )
             return {
                 "status": "error",
                 "stage": "pipeline",
                 "error": "timeout",
                 "date": str(run_date),
             }
-        except Exception:
+        except Exception as e:
             logger.exception("Pipeline failed")
+            await self._notifier.notify_error(str(run_date), "pipeline", str(e))
             return {"status": "error", "stage": "pipeline", "date": str(run_date)}
 
         # Execute trades on demo account
