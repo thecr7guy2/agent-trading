@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 from datetime import date
+from pathlib import Path
 
 from src.orchestrator.supervisor import Supervisor
 from src.reporting.daily_report import generate_daily_report, write_daily_report
@@ -29,31 +30,41 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 async def _run(args: argparse.Namespace) -> dict:
-    run_date = date.fromisoformat(args.run_date) if args.run_date else None
-    supervisor = Supervisor()
+    run_date = date.fromisoformat(args.run_date) if args.run_date else date.today()
 
-    decision_result = await supervisor.run_decision_cycle(
-        run_date=run_date,
-        force=args.force,
-    )
+    Path("logs").mkdir(exist_ok=True)
+    handler = logging.FileHandler(f"logs/{run_date}.log")
+    handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    logging.getLogger().addHandler(handler)
 
-    if decision_result.get("status") != "ok" or args.skip_eod:
+    try:
+        supervisor = Supervisor()
+
+        decision_result = await supervisor.run_decision_cycle(
+            run_date=run_date if args.run_date else None,
+            force=args.force,
+        )
+
+        if decision_result.get("status") != "ok" or args.skip_eod:
+            return decision_result
+
+        actual_date = date.fromisoformat(decision_result["date"])
+        eod_result = await supervisor.run_end_of_day(actual_date)
+
+        report_content = await generate_daily_report(
+            run_date=actual_date,
+            decision_result=decision_result,
+            eod_result=eod_result,
+        )
+        report_path = write_daily_report(report_content, actual_date)
+        logger.info("Daily report written to %s", report_path)
+
+        decision_result["eod"] = eod_result
+        decision_result["report_path"] = str(report_path)
         return decision_result
-
-    actual_date = date.fromisoformat(decision_result["date"])
-    eod_result = await supervisor.run_end_of_day(actual_date)
-
-    report_content = await generate_daily_report(
-        run_date=actual_date,
-        decision_result=decision_result,
-        eod_result=eod_result,
-    )
-    report_path = write_daily_report(report_content, actual_date)
-    logger.info("Daily report written to %s", report_path)
-
-    decision_result["eod"] = eod_result
-    decision_result["report_path"] = str(report_path)
-    return decision_result
+    finally:
+        logging.getLogger().removeHandler(handler)
+        handler.close()
 
 
 def main() -> None:
