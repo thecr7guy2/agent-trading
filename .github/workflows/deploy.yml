@@ -35,6 +35,6 @@ jobs:
             set -e
             cd /opt/trading-bot
             git pull origin master
-            uv sync
+            /home/sai/.local/bin/uv sync
             sudo systemctl restart trading-bot
             sudo systemctl status trading-bot --no-pager
