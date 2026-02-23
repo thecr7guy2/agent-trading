@@ -1,6 +1,6 @@
 # Trading Bot — Server Deployment Guide
 
-Complete guide for deploying the autonomous trading bot to a Linux server. No database required — the bot is stateless except for a small JSON file and daily report files.
+Complete guide for deploying the autonomous trading bot to a Linux server. No database required — the bot is stateless except for a small JSON blacklist file and daily report files.
 
 ## Table of Contents
 
@@ -9,10 +9,10 @@ Complete guide for deploying the autonomous trading bot to a Linux server. No da
 3. [Application Installation](#application-installation)
 4. [Environment Configuration](#environment-configuration)
 5. [Systemd Service Setup](#systemd-service-setup)
-6. [Monitoring & Logs](#monitoring--logs)
-7. [Backup Strategy](#backup-strategy)
+6. [CI/CD with GitHub Actions](#cicd-with-github-actions)
+7. [Monitoring & Logs](#monitoring--logs)
 8. [Troubleshooting](#troubleshooting)
-9. [Security Checklist](#security-checklist)
+9. [Maintenance Commands](#maintenance-commands)
 
 ---
 
@@ -24,53 +24,21 @@ Complete guide for deploying the autonomous trading bot to a Linux server. No da
 - **Disk:** 10GB minimum (for logs and daily reports)
 - **Network:** Outbound HTTPS access required (T212 API, Anthropic, MiniMax, yfinance, OpenInsider, NewsAPI)
 
-**No database needed** — the bot stores nothing except:
+**No database needed.** The bot stores nothing except:
 - `recently_traded.json` — 3-day buy blacklist (tiny JSON file)
-- `reports/YYYY-MM-DD.md` — one markdown file per trading day
-- `logs/scheduler.log` — application logs
+- `reports/YYYY-MM-DD.md` — one markdown report per trading day
+- `logs/YYYY-MM-DD.log` — one log file per trading day
 
 ---
 
 ## Server Setup
 
-### 1. Update system packages
-
-```bash
-sudo apt update && sudo apt upgrade -y
-```
-
-### 2. Install system dependencies
-
-```bash
-sudo apt install -y git curl build-essential libssl-dev
-```
-
-### 3. Install Python 3.13
-
-```bash
-sudo add-apt-repository ppa:deadsnakes/ppa -y
-sudo apt update
-sudo apt install -y python3.13 python3.13-venv python3.13-dev
-```
-
-### 4. Install uv (Python package manager)
+### 1. Install uv
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-source $HOME/.cargo/env
-```
-
-Verify:
-```bash
+source $HOME/.local/bin/env   # or restart shell
 uv --version
-python3.13 --version
-```
-
-### 5. Create a dedicated user (recommended)
-
-```bash
-sudo useradd -m -s /bin/bash tradingbot
-sudo su - tradingbot
 ```
 
 ---
@@ -80,97 +48,78 @@ sudo su - tradingbot
 ### 1. Clone the repository
 
 ```bash
-cd /home/tradingbot
-git clone <your-repo-url> trading-bot
-cd trading-bot
+sudo mkdir -p /opt/trading-bot
+sudo chown $USER:$USER /opt/trading-bot
+git clone https://github.com/thecr7guy2/agent-trading.git /opt/trading-bot
+cd /opt/trading-bot
 ```
 
-Or sync from your local machine:
-```bash
-# Run from your LOCAL machine:
-rsync -avz \
-    --exclude='.venv' \
-    --exclude='__pycache__' \
-    --exclude='.git' \
-    --exclude='logs/*' \
-    --exclude='reports/*' \
-    /Users/sai/Documents/Projects/trading-bot/ \
-    tradingbot@your-server-ip:/home/tradingbot/trading-bot/
-```
-
-### 2. Install Python dependencies
+### 2. Install dependencies
 
 ```bash
-cd /home/tradingbot/trading-bot
 uv sync
 ```
 
-### 3. Create required directories
+### 3. Smoke test
 
 ```bash
-mkdir -p logs reports
+uv run python scripts/run_scheduler.py
+# Should log schedule and sit idle — Ctrl+C to stop
 ```
-
-No database setup needed — that's it.
 
 ---
 
 ## Environment Configuration
 
-### 1. Create `.env` file
+### 1. Create `.env`
 
 ```bash
 cp .env.example .env
 nano .env
+chmod 600 .env
 ```
 
-### 2. Configure environment variables
+### 2. Required variables
 
 ```bash
 # LLM APIs (required)
 ANTHROPIC_API_KEY=sk-ant-...
 MINIMAX_API_KEY=your-minimax-key
-MINIMAX_BASE_URL=https://api.minimax.io/v1
 
-# Broker — Demo / Practice account only
+# Broker — Demo/Practice account only
 T212_API_KEY=your-t212-demo-api-key
 
 # Budget
 BUDGET_PER_RUN_EUR=1000.0
 MAX_PICKS_PER_RUN=5
 
-# Data sources (optional — bot degrades gracefully if missing)
-NEWS_API_KEY=           # NewsAPI (fallback to yfinance news if not set)
-FMP_API_KEY=            # Financial Modeling Prep (fallback to yfinance if not set)
-
 # Insider pipeline
-INSIDER_LOOKBACK_DAYS=3
+INSIDER_LOOKBACK_DAYS=5
 INSIDER_TOP_N=25
+RESEARCH_TOP_N=10        # max candidates passed to MiniMax (reduce if truncation errors occur)
 MIN_INSIDER_TICKERS=10
-TRADE_EVERY_N_DAYS=2
 
-# Orchestration
+# Schedule (Europe/Berlin)
 ORCHESTRATOR_TIMEZONE=Europe/Berlin
 SCHEDULER_EXECUTE_TIME=17:10
 SCHEDULER_EOD_TIME=17:35
+SCHEDULER_TRADE_DAYS=tue,fri
 
-# Telegram (optional — no-op if disabled)
+# Data sources (optional — bot degrades gracefully if missing)
+NEWS_API_KEY=
+FMP_API_KEY=
+
+# Telegram (optional)
 TELEGRAM_ENABLED=false
 # TELEGRAM_BOT_TOKEN=
 # TELEGRAM_CHAT_ID=
-```
-
-### 3. Secure the `.env` file
-
-```bash
-chmod 600 .env
 ```
 
 ---
 
 ## Systemd Service Setup
 
-### 1. Create systemd service file
+### 1. Create the service file
 
 ```bash
 sudo nano /etc/systemd/system/trading-bot.service
@@ -178,151 +127,118 @@ sudo nano /etc/systemd/system/trading-bot.service
 
 ```ini
 [Unit]
-Description=Trading Bot Autonomous Scheduler
-After=network.target
+Description=Trading Bot Scheduler Daemon
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=tradingbot
-Group=tradingbot
-WorkingDirectory=/home/tradingbot/trading-bot
-Environment="PATH=/home/tradingbot/.cargo/bin:/usr/local/bin:/usr/bin:/bin"
-
-ExecStart=/home/tradingbot/.cargo/bin/uv run python scripts/run_scheduler.py
-
-Restart=always
-RestartSec=10
-
+User=sai
+WorkingDirectory=/opt/trading-bot
+ExecStart=/home/sai/.local/bin/uv run python scripts/run_scheduler.py
+Restart=on-failure
+RestartSec=30
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=trading-bot
-
-# Security hardening
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=read-only
-ReadWritePaths=/home/tradingbot/trading-bot/logs /home/tradingbot/trading-bot/reports /home/tradingbot/trading-bot/recently_traded.json
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-### 2. Enable and start the service
+### 2. Enable and start
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable trading-bot.service
-sudo systemctl start trading-bot.service
+sudo systemctl enable trading-bot
+sudo systemctl start trading-bot
+sudo systemctl status trading-bot
 ```
 
-### 3. Check service status
+### 3. Watch live logs
 
 ```bash
-sudo systemctl status trading-bot.service
+journalctl -u trading-bot -f
 ```
 
-### 4. View live logs
+---
 
+## CI/CD with GitHub Actions
+
+Every push to `master` automatically: runs ruff lint → SSHes into the server → `git pull` + `uv sync` + `systemctl restart`.
+
+The server is on Tailscale (private network), so the GitHub Actions runner joins the tailnet before connecting.
+
+### GitHub Secrets required
+
+| Secret | Value |
+|--------|-------|
+| `SSH_HOST` | Tailscale IP of the server (`100.x.x.x`) |
+| `SSH_USERNAME` | `sai` |
+| `SSH_PRIVATE_KEY` | Contents of `~/.ssh/github_deploy` (private key) |
+| `SSH_PORT` | `22` |
+| `TAILSCALE_AUTHKEY` | Ephemeral reusable auth key from tailscale.com/admin/settings/keys |
+
+### One-time server setup for CI/CD
+
+**Generate a dedicated deploy SSH key:**
 ```bash
-# Systemd journal
-sudo journalctl -u trading-bot.service -f
-
-# Application log file
-tail -f /home/tradingbot/trading-bot/logs/scheduler.log
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_deploy -N ""
+cat ~/.ssh/github_deploy.pub >> ~/.ssh/authorized_keys
 ```
+
+**Allow passwordless systemctl restart (required for non-interactive SSH):**
+```bash
+sudo tee /etc/sudoers.d/trading-bot << 'EOF'
+Defaults:sai !requiretty, !use_pty
+sai ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart trading-bot, /usr/bin/systemctl status trading-bot --no-pager
+EOF
+sudo chmod 440 /etc/sudoers.d/trading-bot
+```
+
+> **Note:** Both `!requiretty` and `!use_pty` are needed. Ubuntu 22.04+ sets `use_pty` by default which blocks sudo in non-interactive SSH sessions even with NOPASSWD.
+
+**Verify it works without a password prompt:**
+```bash
+ssh localhost "sudo systemctl restart trading-bot && echo OK"
+```
+
+### Workflow file
+
+Located at `.github/workflows/deploy.yml`. The pipeline:
+1. **Lint** — `ruff check src/ scripts/` (blocks deploy if it fails)
+2. **Deploy** — joins Tailscale, SSHes in, pulls, syncs, restarts service
 
 ---
 
 ## Monitoring & Logs
 
-### Log rotation
+### Per-day log files
 
-Create `/etc/logrotate.d/trading-bot`:
+Each run writes to its own dated log file:
+```
+logs/YYYY-MM-DD.log    ← full logs from that day's decision + EOD run
+reports/YYYY-MM-DD.md  ← markdown summary report
+```
+
+### Manual forced run (bypasses schedule check)
 
 ```bash
-sudo nano /etc/logrotate.d/trading-bot
+cd /opt/trading-bot
+uv run python scripts/run_daily.py --force
 ```
 
-```
-/home/tradingbot/trading-bot/logs/*.log {
-    daily
-    rotate 30
-    compress
-    delaycompress
-    notifempty
-    missingok
-    create 0644 tradingbot tradingbot
-}
-```
+Useful for testing outside of tue/fri schedule. Produces the same log and report files as an automated run.
 
-### Health check script
+### Check next scheduled fire times
 
 ```bash
-nano ~/check_trading_bot.sh
+uv run python scripts/check_schedule.py
 ```
+
+### View portfolio P&L
 
 ```bash
-#!/bin/bash
-if ! systemctl is-active --quiet trading-bot.service; then
-    echo "Trading bot is DOWN — restarting" | mail -s "Alert: Trading Bot Down" your@email.com
-    sudo systemctl restart trading-bot.service
-fi
-```
-
-```bash
-chmod +x ~/check_trading_bot.sh
-```
-
-Add to cron (every 15 minutes):
-```bash
-crontab -e
-# Add:
-*/15 * * * * /home/tradingbot/check_trading_bot.sh
-```
-
-### Access daily reports
-
-Reports are saved to:
-```
-/home/tradingbot/trading-bot/reports/YYYY-MM-DD.md
-```
-
-Sync to local machine:
-```bash
-# From your LOCAL machine:
-rsync -avz tradingbot@your-server-ip:/home/tradingbot/trading-bot/reports/ \
-    ~/trading-bot-reports/
-```
-
----
-
-## Backup Strategy
-
-No database to back up. Just two things matter:
-
-### 1. recently_traded.json (blacklist)
-
-Small file, but losing it means the bot might re-buy recently bought stocks. Back up daily:
-
-```bash
-# Add to cron:
-0 20 * * * cp /home/tradingbot/trading-bot/recently_traded.json \
-    /home/tradingbot/backups/recently_traded_$(date +\%Y\%m\%d).json
-```
-
-### 2. Reports and .env
-
-```bash
-# Weekly backup of reports and config:
-0 2 * * 0 tar -czf /home/tradingbot/backups/state_$(date +\%Y\%m\%d).tar.gz \
-    /home/tradingbot/trading-bot/.env \
-    /home/tradingbot/trading-bot/reports/ \
-    /home/tradingbot/trading-bot/recently_traded.json
-```
-
-```bash
-mkdir -p /home/tradingbot/backups
+uv run python scripts/report.py
 ```
 
 ---
@@ -332,84 +248,27 @@ mkdir -p /home/tradingbot/backups
 ### Service won't start
 
 ```bash
-# Check logs
-sudo journalctl -u trading-bot.service -n 50 --no-pager
-
-# Verify config loads correctly
-sudo -u tradingbot bash -c "cd /home/tradingbot/trading-bot && uv run python -c 'from src.config import get_settings; s = get_settings(); print(\"Config OK:\", s.orchestrator_timezone)'"
+sudo journalctl -u trading-bot -n 50 --no-pager
 ```
 
-### Scheduler not executing jobs
+### MiniMax JSON truncation errors
 
-```bash
-# Check timezone
-timedatectl
-
-# Verify APScheduler jobs are configured
-sudo -u tradingbot bash -c "cd /home/tradingbot/trading-bot && uv run python -c \"
-from src.orchestrator.scheduler import OrchestratorScheduler
-s = OrchestratorScheduler()
-s.configure_jobs()
-for job in s.scheduler.get_jobs():
-    print(job.id, job.next_run_time)
-\""
-```
+MiniMax hit `max_tokens` and returned malformed JSON. Reduce `RESEARCH_TOP_N` in `.env` (try `8`).
 
 ### T212 API errors
 
-```bash
-grep -i "T212\|t212\|trading212" logs/scheduler.log | tail -20
-```
-
-Common issues:
-- `not tradable` — ticker not available on T212, fallback executor tries next candidate automatically
-- `insufficient funds` — check demo account cash balance and `BUDGET_PER_RUN_EUR` setting
+Common errors:
+- `not tradable` — ticker unavailable on T212, fallback executor tries next candidate automatically
+- `insufficient funds` — check demo account cash balance vs `BUDGET_PER_RUN_EUR`
 - `401 Unauthorized` — API key expired or wrong
 
-### OpenInsider scrape fails
+### Low signal / skipped run
 
-```bash
-grep -i "openinsider\|insider" logs/scheduler.log | tail -20
-```
+If `insider_count < MIN_INSIDER_TICKERS`, the run is skipped automatically. Check OpenInsider is reachable and `INSIDER_LOOKBACK_DAYS` is sufficient.
 
-If `insider_count < min_insider_tickers`, the run is skipped automatically. Check for network issues or OpenInsider site changes (table class `tinytable` may have changed).
+### uv not found in CI/CD SSH session
 
-### Missing dependencies
-
-```bash
-cd /home/tradingbot/trading-bot
-uv sync --reinstall
-```
-
-### API rate limits
-
-```bash
-grep -i "rate limit\|429\|error" logs/scheduler.log | tail -20
-```
-
-The anthropic SDK has `max_retries=5` configured — Claude rate limits are handled automatically with backoff.
-
----
-
-## Security Checklist
-
-- [ ] `.env` file has 600 permissions (`chmod 600 .env`)
-- [ ] SSH key-based authentication enabled (disable password auth)
-- [ ] Firewall configured (only allow SSH inbound)
-- [ ] API keys use minimum required permissions
-- [ ] `T212_API_KEY` is the demo/practice key — not a live real-money account key
-- [ ] Server OS auto-updates enabled
-- [ ] Non-root user running the service
-- [ ] systemd service hardening enabled (`NoNewPrivileges`, `ProtectSystem`, etc.)
-
-### Basic firewall setup (UFW)
-
-```bash
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-sudo ufw allow ssh
-sudo ufw enable
-```
+Non-interactive SSH doesn't load the shell profile. The workflow uses the full path `/home/sai/.local/bin/uv` to avoid this.
 
 ---
 
@@ -417,22 +276,19 @@ sudo ufw enable
 
 ```bash
 # Restart service
-sudo systemctl restart trading-bot.service
+sudo systemctl restart trading-bot
 
 # Stop service
-sudo systemctl stop trading-bot.service
+sudo systemctl stop trading-bot
 
 # View live logs
-sudo journalctl -u trading-bot.service -f
+journalctl -u trading-bot -f
 
-# Update code from git
-cd /home/tradingbot/trading-bot
-git pull
-uv sync
-sudo systemctl restart trading-bot.service
+# View today's log
+cat logs/$(date +%Y-%m-%d).log
 
-# View current portfolio P&L from T212
-uv run python scripts/report.py
+# View today's report
+cat reports/$(date +%Y-%m-%d).md
 
 # View the 3-day blacklist
 cat recently_traded.json
@@ -440,62 +296,9 @@ cat recently_traded.json
 # Clear the blacklist (if needed)
 echo '{}' > recently_traded.json
 
-# Check today's report
-cat reports/$(date +%Y-%m-%d).md
+# View current portfolio P&L
+uv run python scripts/report.py
+
+# Manual forced run (test outside schedule)
+uv run python scripts/run_daily.py --force
 ```
-
----
-
-## Post-Deployment Verification
-
-### 1. Verify the service starts cleanly
-
-```bash
-sudo systemctl status trading-bot.service
-sudo journalctl -u trading-bot.service -n 30
-```
-
-### 2. Check the scheduler is configured correctly
-
-```bash
-grep "Orchestrator scheduler started" logs/scheduler.log
-```
-
-### 3. Wait for trade execution job (17:10 Berlin time)
-
-```bash
-tail -f logs/scheduler.log
-```
-
-Should see: `Decision cycle finished`
-
-### 4. Check first report after 17:35
-
-```bash
-ls -la reports/
-cat reports/$(date +%Y-%m-%d).md
-```
-
-### 5. Monitor for 2-3 days before trusting fully
-
-Watch for:
-- Trade execution at 17:10 producing buys or clear skip reasons
-- Daily reports being written to `reports/`
-- Trades appearing in your T212 demo account
-
----
-
-## Migration Checklist (Local → Server)
-
-Before moving:
-- [ ] Push latest code to git
-- [ ] Export `.env` settings
-- [ ] Copy current `recently_traded.json` to server (preserves blacklist continuity)
-- [ ] Verify all API keys are valid and active
-
-After deployment:
-- [ ] Service is running: `systemctl status trading-bot`
-- [ ] Logs show no errors: `journalctl -u trading-bot -f`
-- [ ] Wait for first scheduled job execution at 17:10
-- [ ] Verify trades appear in T212 demo account
-- [ ] Confirm daily reports are written to `reports/`
