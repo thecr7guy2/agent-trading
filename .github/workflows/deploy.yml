@@ -19,6 +19,11 @@ jobs:
     needs: lint
     runs-on: ubuntu-latest
     steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v3
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+
       - name: SSH deploy
         uses: appleboy/ssh-action@v1
         with:
