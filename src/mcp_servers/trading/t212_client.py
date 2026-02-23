@@ -117,7 +117,6 @@ class T212Client:
                     logger.debug(
                         "Precision %d rejected for %s — retrying with %d", precision, ticker, precision - 1
                     )
-                    last_error = e
                     continue
                 raise
 

@@ -158,10 +158,10 @@ class Supervisor:
         enriched_list = list(enriched)
 
         # Drop non-equity instruments (mutual funds, ETFs, indices) that slip through OpenInsider
-        _NON_EQUITY = {"MUTUALFUND", "ETF", "INDEX", "FUTURE", "CURRENCY"}
+        non_equity = {"MUTUALFUND", "ETF", "INDEX", "FUTURE", "CURRENCY"}
         equity_list = [
             c for c in enriched_list
-            if c.get("fundamentals", {}).get("quote_type", "EQUITY").upper() not in _NON_EQUITY
+            if c.get("fundamentals", {}).get("quote_type", "EQUITY").upper() not in non_equity
         ]
         dropped = len(enriched_list) - len(equity_list)
         if dropped:

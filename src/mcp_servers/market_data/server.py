@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 
@@ -182,7 +183,7 @@ async def get_price_returns(ticker: str) -> dict:
     Returns decimal values (e.g. -0.18 = -18%). Useful for identifying dip-buy
     opportunities where insiders are accumulating during a price decline."""
     try:
-        r1m, r6m, r1y = await __import__("asyncio").gather(
+        r1m, r6m, r1y = await asyncio.gather(
             get_price_return_pct(ticker, "1mo"),
             get_price_return_pct(ticker, "6mo"),
             get_price_return_pct(ticker, "1y"),
