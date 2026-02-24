@@ -58,7 +58,7 @@ Return a `ResearchReport` JSON with a `tickers` array. Each entry:
 ```
 
 **Critical rules:**
-- Leave `fundamental_score`, `technical_score`, `risk_score` as 0 — do not populate them
+- Leave `fundamental_score`, `technical_score`, `risk_score`, `current_price` as 0 — do not populate them
 - Do NOT write "I recommend buying" or "avoid this stock" or any variant
 - Do NOT use language like "looks attractive", "strong buy", "overvalued", "underperform"
 - Facts only: prices, ratios, percentages, dates, events

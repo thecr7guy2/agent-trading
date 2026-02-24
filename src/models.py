@@ -75,7 +75,7 @@ class ResearchFinding(BaseModel):
     ticker: str
     exchange: str = ""
     currency: str = "EUR"
-    current_price: float = 0.0
+    current_price: float | None = None
     fundamental_score: float = 0.0
     technical_score: float = 0.0
     risk_score: float = 0.0
@@ -86,6 +86,7 @@ class ResearchFinding(BaseModel):
     news_summary: str = ""
     sector_peers: list[str] = Field(default_factory=list)
     summary: str = ""
+
 
 
 class ResearchReport(BaseModel):
