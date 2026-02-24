@@ -49,6 +49,8 @@ async def _run(args: argparse.Namespace) -> dict:
             return decision_result
 
         actual_date = date.fromisoformat(decision_result["date"])
+        logger.info("Waiting 30s for T212 orders to settle before EOD snapshot...")
+        await asyncio.sleep(30)
         eod_result = await supervisor.run_end_of_day(actual_date)
 
         report_content = await generate_daily_report(
