@@ -21,6 +21,19 @@ MARKET_CLOSE = time(17, 30)
 # --- yfinance async wrappers ---
 
 
+async def get_eur_usd_rate() -> float:
+    """Return the current EUR/USD exchange rate (e.g. 1.05 means €1 = $1.05).
+    Falls back to 1.0 on failure so callers degrade gracefully."""
+    def _fetch() -> float:
+        t = yf.Ticker("EURUSD=X")
+        rate = t.info.get("regularMarketPrice") or t.info.get("currentPrice")
+        return float(rate) if rate else 1.0
+    try:
+        return await asyncio.to_thread(_fetch)
+    except Exception:
+        return 1.0
+
+
 async def get_ticker_info(ticker: str) -> dict:
     def _fetch():
         t = yf.Ticker(ticker)

@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from src.agents.pipeline import AgentPipeline, PipelineOutput
 from src.config import Settings, get_settings
 from src.mcp_servers.market_data.finance import (
+    get_eur_usd_rate,
     get_price_return_pct,
     get_technical_indicators_for_ticker,
     get_ticker_earnings,
@@ -287,23 +288,27 @@ class Supervisor:
             key=lambda p: p.allocation_pct,
             reverse=True,
         )
-        # Respect max picks per run
         buy_picks = buy_picks[: self._settings.max_picks_per_run]
+
+        eur_usd = await get_eur_usd_rate()
+        logger.info("EUR/USD rate for order sizing: %.4f", eur_usd)
 
         candidates: list[dict] = []
         for pick in buy_picks:
-            price = await self._fetch_price(pick.ticker)
-            if price > 0:
-                candidates.append(
-                    {
-                        "ticker": pick.ticker,
-                        "price": price,
-                        "allocation_pct": pick.allocation_pct,
-                        "reasoning": pick.reasoning,
-                    }
-                )
-            else:
+            price, currency = await self._fetch_price(pick.ticker)
+            if price <= 0:
                 logger.warning("No price for %s — excluded from execution", pick.ticker)
+                continue
+            # Convert to EUR so quantity = amount_eur / price_eur is correct
+            price_eur = price / eur_usd if currency == "USD" else price
+            candidates.append(
+                {
+                    "ticker": pick.ticker,
+                    "price": price_eur,
+                    "allocation_pct": pick.allocation_pct,
+                    "reasoning": pick.reasoning,
+                }
+            )
         return candidates
 
     @staticmethod
@@ -323,7 +328,8 @@ class Supervisor:
             result.append({"status": "failed", "ticker": r.ticker, "error": r.error})
         return result
 
-    async def _fetch_price(self, ticker: str) -> float:
+    async def _fetch_price(self, ticker: str) -> tuple[float, str]:
+        """Returns (price, currency) where price is in the stock's native currency."""
         self._ensure_clients()
         try:
             price_resp = await asyncio.wait_for(
@@ -333,7 +339,9 @@ class Supervisor:
         except TimeoutError:
             logger.warning("Price fetch timed out for %s", ticker)
             price_resp = {}
-        return self._extract_price(price_resp)
+        price = self._extract_price(price_resp)
+        currency = price_resp.get("currency", "USD") if isinstance(price_resp, dict) else "USD"
+        return price, currency
 
     async def run_end_of_day(self, run_date: date | None = None) -> dict:
         run_date = run_date or datetime.now(ZoneInfo(self._settings.orchestrator_timezone)).date()
