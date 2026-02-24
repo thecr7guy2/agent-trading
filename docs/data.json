@@ -1,12 +1,62 @@
 {
-  "last_updated": null,
+  "last_updated": "2026-02-24T19:10:17",
   "portfolio": {
-    "total_invested_eur": 0,
-    "total_value_eur": 0,
-    "unrealized_pnl_eur": 0,
-    "unrealized_pnl_pct": 0,
+    "total_invested_eur": 0.0,
+    "total_value_eur": 0.0,
+    "unrealized_pnl_eur": 0.0,
+    "unrealized_pnl_pct": 0.0,
     "positions": []
   },
-  "runs": [],
-  "portfolio_history": []
+  "runs": [
+    {
+      "date": "2026-02-24",
+      "run_number": 1,
+      "insider_count": 18,
+      "confidence": 62,
+      "market_summary": "Broad insider buying across healthcare and industrials with two strong cluster buys (TLSI, TLPH) and several large dip-buy signals (AVTR, LPX, PODD). Portfolio positions are all freshly opened today with minimal P&L movement — no sell triggers hit. Deploying into 4 new names not already in the portf",
+      "total_spent_eur": 2500.0,
+      "picks": [
+        {
+          "ticker": "TLSI",
+          "allocation_pct": 30.0,
+          "reasoning": "Strongest cluster buy in the cohort: 4 insiders including CEO Szela spent $1.77M combined, with 100% stake increase. Earnings on March 26 is a near-term catalyst with strong revenue growth trajectory.",
+          "executed": true,
+          "amount_eur": 750.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "LPX",
+          "allocation_pct": 30.0,
+          "reasoning": "Director doubled their stake with a $1.71M purchase — largest single dollar commitment in the cohort. Stock down ~15% over 6 months near 52w low, classic dip-buy signal. Low D/E of 21.9 and profitable",
+          "executed": true,
+          "amount_eur": 750.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "ELF",
+          "allocation_pct": 20.0,
+          "reasoning": "Director increased stake by 86% ($465K) after a 17% 6-month decline from highs near $151. Positive MACD (+1.57) and 1-month return of +6.6% suggest trend reversal is underway. Strong brand in growing ",
+          "executed": true,
+          "amount_eur": 500.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "TLPH",
+          "allocation_pct": 20.0,
+          "reasoning": "Cluster buy with 4 insiders including CEO and CMO spending $179K in a $43M market cap company — that's meaningful relative to company size. CEO, CMO, and Chief Engineering Officer all buying suggests ",
+          "executed": true,
+          "amount_eur": 500.0,
+          "quantity": 0.0
+        }
+      ]
+    }
+  ],
+  "portfolio_history": [
+    {
+      "date": "2026-02-24",
+      "total_invested_eur": 0.0,
+      "total_value_eur": 0.0,
+      "unrealized_pnl_eur": 0.0
+    }
+  ]
 }
