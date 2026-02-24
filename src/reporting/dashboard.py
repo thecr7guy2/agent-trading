@@ -180,7 +180,12 @@ def push_dashboard_data() -> None:
     today = date.today().isoformat()
     cmds = [
         ["git", "-C", root, "add", "docs/data.json"],
-        ["git", "-C", root, "commit", "-m", f"chore: update dashboard {today}"],
+        [
+            "git", "-C", root,
+            "-c", "user.email=trading-bot@localhost",
+            "-c", "user.name=Trading Bot",
+            "commit", "-m", f"chore: update dashboard {today}",
+        ],
         ["git", "-C", root, "push", "origin", "master"],
     ]
     for cmd in cmds:

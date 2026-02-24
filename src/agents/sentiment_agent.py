@@ -3,7 +3,6 @@ from pathlib import Path
 
 from src.agents.base_agent import BaseAgent
 from src.agents.providers.claude import ClaudeProvider
-from src.agents.providers.minimax import MiniMaxProvider
 from src.models import AgentStage, LLMProvider, SentimentReport
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "sentiment.md"
@@ -12,7 +11,7 @@ PROMPT_PATH = Path(__file__).parent / "prompts" / "sentiment.md"
 class SentimentAgent(BaseAgent):
     def __init__(
         self,
-        provider: ClaudeProvider | MiniMaxProvider,
+        provider: ClaudeProvider,
         model: str,
         llm: LLMProvider,
     ):

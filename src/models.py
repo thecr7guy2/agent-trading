@@ -17,7 +17,6 @@ from pydantic import BaseModel, Field
 class LLMProvider(StrEnum):
     CLAUDE = "claude"
     CLAUDE_AGGRESSIVE = "claude_aggressive"
-    MINIMAX = "minimax"
 
 
 class AgentStage(StrEnum):

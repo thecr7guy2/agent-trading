@@ -8,7 +8,7 @@ from src.notifications.telegram import TelegramNotifier
 def disabled_settings():
     return Settings(
         anthropic_api_key="test",
-        minimax_api_key="test",
+
         t212_api_key="test",
         t212_api_secret="test",
         telegram_enabled=False,
@@ -21,7 +21,7 @@ def disabled_settings():
 def enabled_settings():
     return Settings(
         anthropic_api_key="test",
-        minimax_api_key="test",
+
         t212_api_key="test",
         t212_api_secret="test",
         telegram_enabled=True,
@@ -38,7 +38,7 @@ class TestTelegramNotifier:
     def test_disabled_when_token_missing(self):
         settings = Settings(
             anthropic_api_key="test",
-            minimax_api_key="test",
+    
             t212_api_key="test",
             t212_api_secret="test",
             telegram_enabled=True,

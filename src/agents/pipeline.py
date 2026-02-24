@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from datetime import date
 
 from src.agents.providers.claude import ClaudeProvider
-from src.agents.providers.minimax import MiniMaxProvider
 from src.agents.research_agent import ResearchAgent
 from src.agents.trader_agent import TraderAgent
 from src.config import get_settings
@@ -24,16 +23,13 @@ class AgentPipeline:
     def __init__(self):
         settings = get_settings()
 
-        # MiniMax: analyst stage (research — pros/cons/catalyst, no verdict, no tools)
-        # The supervisor's parallel enrichment already fetches all the data MiniMax needs.
-        minimax_provider = MiniMaxProvider(
-            api_key=settings.minimax_api_key,
-            base_url=settings.minimax_base_url,
-        )
-        self._research = ResearchAgent(minimax_provider, settings.minimax_model)
+        # Claude provider shared by both stages
+        claude_provider = ClaudeProvider(api_key=settings.anthropic_api_key)
+
+        # Claude Sonnet: analyst stage (research — pros/cons/catalyst, no verdict, no tools)
+        self._research = ResearchAgent(claude_provider, settings.claude_sonnet_model)
 
         # Claude Opus: portfolio manager stage (final buy decisions, no tools)
-        claude_provider = ClaudeProvider(api_key=settings.anthropic_api_key)
         self._trader = TraderAgent(
             claude_provider,
             settings.claude_opus_model,
@@ -42,9 +38,9 @@ class AgentPipeline:
         )
 
     async def run_research(self, enriched_digest: dict) -> ResearchReport | None:
-        """Stage 1: MiniMax analyst — produces pros/cons/catalyst per ticker, no verdict."""
+        """Stage 1: Claude Sonnet analyst — produces pros/cons/catalyst per ticker, no verdict."""
         logger.info(
-            "Research stage: MiniMax analyst (%d tickers)",
+            "Research stage: Claude Sonnet analyst (%d tickers)",
             len(enriched_digest.get("candidates", [])),
         )
         research = await self._research.run(enriched_digest)

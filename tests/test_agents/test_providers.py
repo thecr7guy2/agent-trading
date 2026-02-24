@@ -5,7 +5,6 @@ import pytest
 from pydantic import BaseModel
 
 from src.agents.providers.claude import ClaudeProvider, _extract_json
-from src.agents.providers.minimax import MiniMaxProvider
 
 
 class SimpleModel(BaseModel):
@@ -132,82 +131,3 @@ class TestClaudeProvider:
         # System is now a list of cached content blocks
         assert isinstance(system, list)
         assert "valid JSON only" in system[0]["text"]
-
-
-# --- MiniMaxProvider ---
-
-
-class TestMiniMaxProvider:
-    @pytest.mark.asyncio
-    async def test_generate_parses_json(self):
-        mock_client = AsyncMock()
-        mock_message = MagicMock()
-        mock_message.content = '{"name": "RDSA", "score": 6.0}'
-        mock_choice = MagicMock()
-        mock_choice.message = mock_message
-        mock_response = MagicMock()
-        mock_response.choices = [mock_choice]
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-        provider = MiniMaxProvider(api_key="test-key", base_url="https://api.minimaxi.chat/v1")
-        provider._client = mock_client
-
-        result = await provider.generate(
-            model="MiniMax-Text-01",
-            system_prompt="You are a test agent.",
-            user_message="Test input",
-            output_model=SimpleModel,
-        )
-
-        assert result.name == "RDSA"
-        assert result.score == 6.0
-
-    @pytest.mark.asyncio
-    async def test_generate_handles_code_fences(self):
-        mock_client = AsyncMock()
-        mock_message = MagicMock()
-        mock_message.content = '```json\n{"name": "BMW", "score": 7.5}\n```'
-        mock_choice = MagicMock()
-        mock_choice.message = mock_message
-        mock_response = MagicMock()
-        mock_response.choices = [mock_choice]
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-        provider = MiniMaxProvider(api_key="test-key", base_url="https://example.com/v1")
-        provider._client = mock_client
-
-        result = await provider.generate(
-            model="MiniMax-Text-01",
-            system_prompt="Test",
-            user_message="Test",
-            output_model=SimpleModel,
-        )
-
-        assert result.name == "BMW"
-
-    @pytest.mark.asyncio
-    async def test_uses_system_message(self):
-        mock_client = AsyncMock()
-        mock_message = MagicMock()
-        mock_message.content = '{"name": "X", "score": 1.0}'
-        mock_choice = MagicMock()
-        mock_choice.message = mock_message
-        mock_response = MagicMock()
-        mock_response.choices = [mock_choice]
-        mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-        provider = MiniMaxProvider(api_key="test-key", base_url="https://example.com/v1")
-        provider._client = mock_client
-
-        await provider.generate(
-            model="MiniMax-Text-01",
-            system_prompt="Base prompt.",
-            user_message="Test",
-            output_model=SimpleModel,
-        )
-
-        call_kwargs = mock_client.chat.completions.create.call_args[1]
-        messages = call_kwargs["messages"]
-        assert messages[0]["role"] == "system"
-        assert "valid JSON only" in messages[0]["content"]
-        assert messages[1]["role"] == "user"

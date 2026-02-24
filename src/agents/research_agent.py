@@ -6,7 +6,6 @@ from pathlib import Path
 
 from src.agents.base_agent import BaseAgent
 from src.agents.providers.claude import ClaudeProvider
-from src.agents.providers.minimax import MiniMaxProvider
 from src.models import AgentStage, LLMProvider, ResearchReport
 
 logger = logging.getLogger(__name__)
@@ -17,7 +16,7 @@ PROMPT_PATH = Path(__file__).parent / "prompts" / "research.md"
 class ResearchAgent(BaseAgent):
     def __init__(
         self,
-        provider: ClaudeProvider | MiniMaxProvider,
+        provider: ClaudeProvider,
         model: str,
     ):
         self._provider = provider
@@ -26,7 +25,7 @@ class ResearchAgent(BaseAgent):
 
     @property
     def provider(self) -> LLMProvider:
-        return LLMProvider.MINIMAX
+        return LLMProvider.CLAUDE
 
     @property
     def stage(self) -> AgentStage:
@@ -38,10 +37,9 @@ class ResearchAgent(BaseAgent):
         news, OpenInsider history) and produces per-ticker pros/cons/catalyst.
         No scores, no BUY/SELL verdict — analyst role only.
         """
-        # Cap at 12 — MiniMax truncates JSON output beyond ~12 candidates
-        candidates = enriched_digest.get("candidates", [])[:12]
+        candidates = enriched_digest.get("candidates", [])
 
-        # Render candidates as structured context for MiniMax
+        # Render candidates as structured context
         candidate_lines = []
         for c in candidates:
             ticker = c.get("ticker", "")

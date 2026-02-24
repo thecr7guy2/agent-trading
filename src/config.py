@@ -7,8 +7,6 @@ class Settings(BaseSettings):
 
     # LLM APIs
     anthropic_api_key: str
-    minimax_api_key: str = ""
-    minimax_base_url: str = "https://api.minimax.io/v1"
 
     # Data sources (all optional — bot degrades gracefully if missing)
     news_api_key: str = ""
@@ -30,7 +28,7 @@ class Settings(BaseSettings):
     insider_lookback_days: int = 5
     min_insider_tickers: int = 10
     insider_top_n: int = 25
-    research_top_n: int = 10  # max candidates passed to MiniMax research stage
+    research_top_n: int = 15  # max candidates passed to research stage
 
     # Orchestration
     orchestrator_timezone: str = "Europe/Berlin"
@@ -47,9 +45,6 @@ class Settings(BaseSettings):
     claude_haiku_model: str = "claude-haiku-4-5-20251001"
     claude_sonnet_model: str = "claude-sonnet-4-6"
     claude_opus_model: str = "claude-opus-4-6"
-
-    # MiniMax model ID
-    minimax_model: str = "MiniMax-M2.5"
 
     # Pipeline
     max_tool_rounds: int = 10

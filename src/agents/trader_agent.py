@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 
 from src.agents.base_agent import BaseAgent
 from src.agents.providers.claude import ClaudeProvider
-from src.agents.providers.minimax import MiniMaxProvider
 from src.models import AgentStage, DailyPicks, LLMProvider, ResearchReport
 
 if TYPE_CHECKING:
@@ -22,7 +21,7 @@ _PROMPT_PATH = Path(__file__).parent / "prompts" / "trader_aggressive.md"
 class TraderAgent(BaseAgent):
     def __init__(
         self,
-        provider: ClaudeProvider | MiniMaxProvider,
+        provider: ClaudeProvider,
         model: str,
         tool_executor: ToolExecutor | None = None,
         max_tool_rounds: int = 0,
@@ -43,7 +42,7 @@ class TraderAgent(BaseAgent):
 
     @staticmethod
     def _render_research(research: ResearchReport) -> str:
-        """Render MiniMax research notes as analyst context — pros/cons/catalyst only."""
+        """Render analyst research notes as context — pros/cons/catalyst only."""
         lines = []
         for f in research.tickers:
             lines.append(f"**{f.ticker}**")
@@ -154,8 +153,8 @@ class TraderAgent(BaseAgent):
         research_text = ""
         if research and research.tickers:
             research_text = (
-                "## Independent Analyst Notes (MiniMax)\n"
-                "_These are factual observations from a separate model. "
+                "## Independent Analyst Notes (Sonnet)\n"
+                "_These are factual observations from the research stage. "
                 "Use them as context only — form your own investment thesis._\n\n"
                 + self._render_research(research)
             )
