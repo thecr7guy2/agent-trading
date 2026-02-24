@@ -59,6 +59,13 @@ async def _run(args: argparse.Namespace) -> dict:
         report_path = write_daily_report(report_content, actual_date)
         logger.info("Daily report written to %s", report_path)
 
+        try:
+            from src.reporting.dashboard import push_dashboard_data, update_dashboard_data
+            update_dashboard_data(decision_result=decision_result, eod_result=eod_result)
+            push_dashboard_data()
+        except Exception:
+            logger.exception("Failed to update dashboard")
+
         decision_result["eod"] = eod_result
         decision_result["report_path"] = str(report_path)
         return decision_result
