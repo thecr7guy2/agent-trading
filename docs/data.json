@@ -1,11 +1,23 @@
 {
-  "last_updated": "2026-02-24T19:10:17",
+  "last_updated": "2026-02-24T19:19:21",
   "portfolio": {
-    "total_invested_eur": 0.0,
-    "total_value_eur": 0.0,
-    "unrealized_pnl_eur": 0.0,
-    "unrealized_pnl_pct": 0.0,
-    "positions": []
+    "total_invested_eur": 625.27,
+    "total_value_eur": 625.27,
+    "unrealized_pnl_eur": -0.0,
+    "unrealized_pnl_pct": -0.0,
+    "positions": [
+      {
+        "ticker": "AVTR_US_EQ",
+        "quantity": 68.56,
+        "avg_buy_price": 9.12,
+        "current_price": 9.12,
+        "invested_eur": 625.27,
+        "current_value_eur": 625.27,
+        "pnl_eur": 0.0,
+        "pnl_pct": 0.0,
+        "days_held": 0
+      }
+    ]
   },
   "runs": [
     {
@@ -49,14 +61,64 @@
           "quantity": 0.0
         }
       ]
+    },
+    {
+      "date": "2026-02-24",
+      "run_number": 2,
+      "insider_count": 18,
+      "confidence": 74,
+      "market_summary": "Strong insider buying week across healthcare and industrials with two high-conviction cluster buys (TLSI and CNDT) featuring C-suite participation. TLSI stands out with 4 insiders including CEO buying $1.77M ahead of March earnings. AVTR offers the deepest value play with a 572% stake increase into ",
+      "total_spent_eur": 2500.0,
+      "picks": [
+        {
+          "ticker": "TLSI",
+          "allocation_pct": 30.0,
+          "reasoning": "Highest conviction signal: 4 insiders including CEO buying $1.77M in a cluster buy, with one insider doubling their stake (100% ΔOwn). Earnings on March 26 is a near-term catalyst — insiders buying ~1",
+          "executed": true,
+          "amount_eur": 750.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "AVTR",
+          "allocation_pct": 25.0,
+          "reasoning": "Director increased stake by 572% ($458K) — an extraordinary proportional increase into a stock down 48% over 1 year and 23% in the last month alone. RSI at 31.9 is near oversold. This is a classic dee",
+          "executed": true,
+          "amount_eur": 625.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "WY",
+          "allocation_pct": 20.0,
+          "reasoning": "Cluster buy from 2 directors totalling $615K, with one increasing stake by 492%. Stock down 14% on 1Y with RSI at 36.5 — buying into weakness. Ex-dividend date March 10 provides near-term income catal",
+          "executed": true,
+          "amount_eur": 500.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "CNDT",
+          "allocation_pct": 15.0,
+          "reasoning": "CEO plus 2 other insiders buying $656K in a cluster buy after a 58% 1Y decline and 44% 6M decline — this is deep distress-level buying from the people running the company. CEO increasing stake by 57% ",
+          "executed": true,
+          "amount_eur": 375.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "PODD",
+          "allocation_pct": 10.0,
+          "reasoning": "CEO purchased $1.03M in shares, increasing ownership by 45%, after stock fell 25% over 6 months. This is the highest absolute dollar C-suite buy among candidates. MACD histogram turning positive sugge",
+          "executed": true,
+          "amount_eur": 250.0,
+          "quantity": 0.0
+        }
+      ]
     }
   ],
   "portfolio_history": [
     {
       "date": "2026-02-24",
-      "total_invested_eur": 0.0,
-      "total_value_eur": 0.0,
-      "unrealized_pnl_eur": 0.0
+      "total_invested_eur": 625.27,
+      "total_value_eur": 625.27,
+      "unrealized_pnl_eur": -0.0
     }
   ]
 }
