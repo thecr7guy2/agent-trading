@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trading Bot Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              850: '#172032',
+              950: '#0b1120',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #0b1120; }
+    .tab-active { border-bottom: 2px solid #38bdf8; color: #38bdf8; }
+    .tab-inactive { border-bottom: 2px solid transparent; color: #94a3b8; }
+    .pnl-pos { color: #4ade80; }
+    .pnl-neg { color: #f87171; }
+    .badge-high { background: rgba(22,101,52,0.6); color: #4ade80; border: 1px solid rgba(74,222,128,0.2); }
+    .badge-mid  { background: rgba(113,63,18,0.6); color: #fde047; border: 1px solid rgba(253,224,71,0.2); }
+    .badge-low  { background: rgba(127,29,29,0.6); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+    .card-pnl-pos { border-top: 2px solid #4ade80; }
+    .card-pnl-neg { border-top: 2px solid #f87171; }
+    .card-pnl-zero { border-top: 2px solid #334155; }
+    table thead th { border-bottom: 1px solid #1e293b; }
+    table tbody tr:hover { background: #172032; }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .live-dot { animation: pulse-dot 2s ease-in-out infinite; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0f172a; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+  </style>
+</head>
+<body class="text-slate-200 min-h-screen font-sans">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center flex-shrink-0">
+        <svg class="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-base font-bold text-white tracking-tight leading-tight">Trading Bot Dashboard</h1>
+        <p class="text-xs text-slate-500">Insider-signal driven · Fully autonomous · T212 demo account</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 text-right">
+      <span class="live-dot w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"></span>
+      <div id="last-updated" class="text-xs text-slate-500"></div>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <nav class="border-b border-slate-800 px-6 flex gap-6">
+    <button id="tab-portfolio" onclick="switchTab('portfolio')" class="tab-active py-3 text-sm font-medium transition-colors">
+      Portfolio
+    </button>
+    <button id="tab-picks" onclick="switchTab('picks')" class="tab-inactive py-3 text-sm font-medium transition-colors">
+      Analysis Picks
+    </button>
+  </nav>
+
+  <main class="px-6 py-6 max-w-7xl mx-auto">
+
+    <!-- ══════════════════════════════════════
+         TAB 1: PORTFOLIO
+    ══════════════════════════════════════ -->
+    <div id="pane-portfolio">
+
+      <!-- Hero stat cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div class="bg-slate-900 rounded-xl p-5 border border-slate-800">
+          <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Invested</p>
+          <p id="stat-invested" class="text-2xl font-bold text-white">—</p>
+        </div>
+        <div class="bg-slate-900 rounded-xl p-5 border border-slate-800">
+          <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Current Value</p>
+          <p id="stat-value" class="text-2xl font-bold text-white">—</p>
+        </div>
+        <div id="card-pnl" class="bg-slate-900 rounded-xl p-5 border border-slate-800 card-pnl-zero">
+          <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Net P&amp;L</p>
+          <p id="stat-pnl" class="text-2xl font-bold">—</p>
+          <p id="stat-pnl-pct" class="text-xs mt-0.5 text-slate-400"></p>
+        </div>
+      </div>
+
+      <!-- Portfolio value history chart -->
+      <div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-6">
+        <h2 class="text-sm font-semibold text-slate-300 mb-4">Portfolio Value History</h2>
+        <div class="relative h-56">
+          <canvas id="history-chart"></canvas>
+          <p id="chart-empty" class="hidden absolute inset-0 flex items-center justify-center text-slate-500 text-sm">No history data yet.</p>
+        </div>
+      </div>
+
+      <!-- Positions table -->
+      <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-x-auto">
+        <div class="px-5 py-4 border-b border-slate-800">
+          <h2 class="text-sm font-semibold text-slate-300">Open Positions</h2>
+        </div>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-xs text-slate-400 uppercase tracking-wider">
+              <th class="px-5 py-3 text-left">Ticker</th>
+              <th class="px-5 py-3 text-right">Avg Buy</th>
+              <th class="px-5 py-3 text-right">Current</th>
+              <th class="px-5 py-3 text-right">Value</th>
+              <th class="px-5 py-3 text-right">P&amp;L %</th>
+              <th class="px-5 py-3 text-right">Days Held</th>
+            </tr>
+          </thead>
+          <tbody id="positions-body" class="divide-y divide-slate-800/60">
+            <tr><td colspan="6" class="px-5 py-8 text-center text-slate-500 text-sm">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         TAB 2: ANALYSIS PICKS
+    ══════════════════════════════════════ -->
+    <div id="pane-picks" class="hidden">
+      <div id="runs-container" class="space-y-4">
+        <p class="text-slate-500 text-sm">Loading…</p>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+  // ─── Tab switching ───────────────────────────────────────────────
+  function switchTab(name) {
+    const tabs = ['portfolio', 'picks'];
+    tabs.forEach(t => {
+      document.getElementById('tab-' + t).className = (t === name ? 'tab-active' : 'tab-inactive') + ' py-3 text-sm font-medium transition-colors';
+      document.getElementById('pane-' + t).classList.toggle('hidden', t !== name);
+    });
+  }
+
+  // ─── Formatters ──────────────────────────────────────────────────
+  function fmtEur(v) {
+    if (v == null || v === '') return '—';
+    return '€' + Number(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function fmtPct(v) {
+    if (v == null) return '—';
+    const n = Number(v);
+    return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+  }
+  function pnlClass(v) {
+    return Number(v) >= 0 ? 'pnl-pos' : 'pnl-neg';
+  }
+  function confidenceBadge(pct) {
+    const cls = pct >= 70 ? 'badge-high' : pct >= 45 ? 'badge-mid' : 'badge-low';
+    return `<span class="text-xs font-semibold px-2.5 py-0.5 rounded-full ${cls}">${pct}% confidence</span>`;
+  }
+
+  // ─── Chart ───────────────────────────────────────────────────────
+  let historyChart = null;
+  function renderChart(history) {
+    const canvas = document.getElementById('history-chart');
+    const empty  = document.getElementById('chart-empty');
+    if (!history || history.length === 0) {
+      canvas.classList.add('hidden');
+      empty.classList.remove('hidden');
+      return;
+    }
+    const labels   = history.map(h => h.date);
+    const invested = history.map(h => h.total_invested_eur);
+    const values   = history.map(h => h.total_value_eur);
+    if (historyChart) historyChart.destroy();
+    historyChart = new Chart(canvas.getContext('2d'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Portfolio Value',
+            data: values,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56,189,248,0.08)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 3,
+            pointBackgroundColor: '#38bdf8',
+          },
+          {
+            label: 'Total Invested',
+            data: invested,
+            borderColor: '#475569',
+            borderDash: [4, 4],
+            fill: false,
+            tension: 0.3,
+            pointRadius: 0,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+          tooltip: {
+            backgroundColor: '#1e293b',
+            titleColor: '#e2e8f0',
+            bodyColor: '#94a3b8',
+            callbacks: {
+              label: ctx => ' ' + ctx.dataset.label + ': ' + fmtEur(ctx.raw),
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 30 },
+            grid: { color: '#1e293b' },
+          },
+          y: {
+            ticks: {
+              color: '#64748b',
+              font: { size: 10 },
+              callback: v => '€' + Number(v).toLocaleString('en-GB'),
+            },
+            grid: { color: '#1e293b' },
+          },
+        },
+      },
+    });
+  }
+
+  // ─── Portfolio tab ───────────────────────────────────────────────
+  function renderPortfolio(data) {
+    const p = data.portfolio || {};
+    document.getElementById('stat-invested').textContent = fmtEur(p.total_invested_eur);
+    document.getElementById('stat-value').textContent    = fmtEur(p.total_value_eur);
+
+    const pnlEl    = document.getElementById('stat-pnl');
+    const pnlPctEl = document.getElementById('stat-pnl-pct');
+    pnlEl.textContent    = fmtEur(p.unrealized_pnl_eur);
+    pnlEl.className      = 'text-2xl font-bold ' + pnlClass(p.unrealized_pnl_eur);
+    pnlPctEl.textContent = fmtPct(p.unrealized_pnl_pct);
+    pnlPctEl.className   = 'text-xs mt-0.5 ' + pnlClass(p.unrealized_pnl_pct);
+    const pnlCard = document.getElementById('card-pnl');
+    const pnlVal  = Number(p.unrealized_pnl_eur || 0);
+    pnlCard.className = pnlCard.className.replace(/card-pnl-\w+/, pnlVal > 0 ? 'card-pnl-pos' : pnlVal < 0 ? 'card-pnl-neg' : 'card-pnl-zero');
+
+    const tbody = document.getElementById('positions-body');
+    const positions = (p.positions || []).sort((a, b) => b.current_value_eur - a.current_value_eur);
+    if (positions.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="px-5 py-8 text-center text-slate-500 text-sm">No open positions.</td></tr>';
+    } else {
+      tbody.innerHTML = positions.map(pos => `
+        <tr class="transition-colors">
+          <td class="px-5 py-3 font-mono font-semibold text-white">${pos.ticker}</td>
+          <td class="px-5 py-3 text-right text-slate-300">${fmtEur(pos.avg_buy_price)}</td>
+          <td class="px-5 py-3 text-right text-slate-300">${fmtEur(pos.current_price)}</td>
+          <td class="px-5 py-3 text-right text-slate-200 font-medium">${fmtEur(pos.current_value_eur)}</td>
+          <td class="px-5 py-3 text-right font-semibold ${pnlClass(pos.pnl_pct)}">${fmtPct(pos.pnl_pct)}</td>
+          <td class="px-5 py-3 text-right text-slate-400">${pos.days_held ?? '—'}</td>
+        </tr>
+      `).join('');
+    }
+
+    renderChart(data.portfolio_history || []);
+  }
+
+  // ─── Picks tab ───────────────────────────────────────────────────
+  function renderRuns(runs) {
+    const container = document.getElementById('runs-container');
+    if (!runs || runs.length === 0) {
+      container.innerHTML = '<p class="text-slate-500 text-sm">No runs recorded yet.</p>';
+      return;
+    }
+    // Most recent first
+    const sorted = [...runs].sort((a, b) => b.run_number - a.run_number);
+    container.innerHTML = sorted.map(run => {
+      const bought = (run.picks || []).filter(p => p.executed);
+      const picksHtml = (run.picks || []).map(p => `
+        <div class="flex items-start gap-3 py-2">
+          <span class="font-mono text-xs font-bold px-2 py-0.5 rounded mt-0.5 flex-shrink-0 ${p.executed ? 'bg-sky-900/60 text-sky-300' : 'bg-slate-800 text-slate-400'}">
+            ${p.ticker}
+          </span>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              ${p.executed ? `<span class="text-xs text-emerald-400 font-medium">${fmtEur(p.amount_eur)} · ${p.quantity} shares</span>` : '<span class="text-xs text-slate-500">not executed</span>'}
+              <span class="text-xs text-slate-500">${p.allocation_pct}% allocation</span>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">${escHtml(p.reasoning || '—')}</p>
+          </div>
+        </div>
+      `).join('<div class="border-t border-slate-800/60"></div>');
+
+      return `
+        <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+          <div class="px-5 py-4 flex items-start justify-between gap-4 border-b border-slate-800">
+            <div>
+              <div class="flex items-center gap-3 flex-wrap">
+                <span class="text-white font-semibold">${run.date}</span>
+                <span class="text-xs text-slate-500">Run #${run.run_number}</span>
+                ${confidenceBadge(run.confidence || 0)}
+              </div>
+              <div class="flex gap-4 mt-2 text-xs text-slate-400">
+                <span><span class="text-slate-300 font-medium">${run.insider_count}</span> insider candidates</span>
+                <span><span class="text-slate-300 font-medium">${bought.length}</span> bought</span>
+                <span><span class="text-slate-300 font-medium">${fmtEur(run.total_spent_eur)}</span> spent</span>
+              </div>
+              ${run.market_summary ? `<p class="text-xs text-slate-500 mt-2 italic">${escHtml(run.market_summary)}</p>` : ''}
+            </div>
+          </div>
+          <div class="px-5 py-2 divide-y divide-slate-800/60">
+            ${picksHtml || '<p class="py-3 text-sm text-slate-500">No picks this run.</p>'}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ─── Main load ───────────────────────────────────────────────────
+  async function loadData() {
+    let data;
+    try {
+      const res = await fetch('data.json?_=' + Date.now());
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      data = await res.json();
+    } catch (err) {
+      document.getElementById('last-updated').textContent = 'Failed to load data';
+      document.getElementById('positions-body').innerHTML =
+        '<tr><td colspan="6" class="px-5 py-8 text-center text-red-400 text-sm">Could not load data.json — ' + err.message + '</td></tr>';
+      return;
+    }
+
+    // Last updated
+    if (data.last_updated) {
+      document.getElementById('last-updated').innerHTML =
+        'Last updated<br><span class="text-slate-300">' + data.last_updated.replace('T', ' ') + ' UTC</span>';
+    } else {
+      document.getElementById('last-updated').textContent = 'No data yet';
+    }
+
+    renderPortfolio(data);
+    renderRuns(data.runs || []);
+  }
+
+  loadData();
+  </script>
+</body>
+</html>

@@ -75,6 +75,14 @@ class OrchestratorScheduler:
                 except Exception:
                     logger.exception("Failed to generate daily report")
 
+                try:
+                    from src.reporting.dashboard import push_dashboard_data, update_dashboard_data
+
+                    update_dashboard_data(decision_result=decision_result, eod_result=result)
+                    push_dashboard_data()
+                except Exception:
+                    logger.exception("Failed to update dashboard data")
+
             self._last_decision_result = None
         finally:
             logging.getLogger().removeHandler(handler)

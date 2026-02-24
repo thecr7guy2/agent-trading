@@ -1,0 +1,12 @@
+{
+  "last_updated": null,
+  "portfolio": {
+    "total_invested_eur": 0,
+    "total_value_eur": 0,
+    "unrealized_pnl_eur": 0,
+    "unrealized_pnl_pct": 0,
+    "positions": []
+  },
+  "runs": [],
+  "portfolio_history": []
+}
