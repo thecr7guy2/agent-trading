@@ -22,13 +22,8 @@
   </script>
   <style>
     body { background-color: #0b1120; }
-    .tab-active { border-bottom: 2px solid #38bdf8; color: #38bdf8; }
-    .tab-inactive { border-bottom: 2px solid transparent; color: #94a3b8; }
     .pnl-pos { color: #4ade80; }
     .pnl-neg { color: #f87171; }
-    .badge-high { background: rgba(22,101,52,0.6); color: #4ade80; border: 1px solid rgba(74,222,128,0.2); }
-    .badge-mid  { background: rgba(113,63,18,0.6); color: #fde047; border: 1px solid rgba(253,224,71,0.2); }
-    .badge-low  { background: rgba(127,29,29,0.6); color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
     .card-pnl-pos { border-top: 2px solid #4ade80; }
     .card-pnl-neg { border-top: 2px solid #f87171; }
     .card-pnl-zero { border-top: 2px solid #334155; }
@@ -62,22 +57,9 @@
     </div>
   </header>
 
-  <!-- Tabs -->
-  <nav class="border-b border-slate-800 px-6 flex gap-6">
-    <button id="tab-portfolio" onclick="switchTab('portfolio')" class="tab-active py-3 text-sm font-medium transition-colors">
-      Portfolio
-    </button>
-    <button id="tab-picks" onclick="switchTab('picks')" class="tab-inactive py-3 text-sm font-medium transition-colors">
-      Analysis Picks
-    </button>
-  </nav>
-
   <main class="px-6 py-6 max-w-7xl mx-auto">
 
-    <!-- ══════════════════════════════════════
-         TAB 1: PORTFOLIO
-    ══════════════════════════════════════ -->
-    <div id="pane-portfolio">
+    <div>
 
       <!-- Hero stat cards -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -128,27 +110,9 @@
       </div>
     </div>
 
-    <!-- ══════════════════════════════════════
-         TAB 2: ANALYSIS PICKS
-    ══════════════════════════════════════ -->
-    <div id="pane-picks" class="hidden">
-      <div id="runs-container" class="space-y-4">
-        <p class="text-slate-500 text-sm">Loading…</p>
-      </div>
-    </div>
-
   </main>
 
   <script>
-  // ─── Tab switching ───────────────────────────────────────────────
-  function switchTab(name) {
-    const tabs = ['portfolio', 'picks'];
-    tabs.forEach(t => {
-      document.getElementById('tab-' + t).className = (t === name ? 'tab-active' : 'tab-inactive') + ' py-3 text-sm font-medium transition-colors';
-      document.getElementById('pane-' + t).classList.toggle('hidden', t !== name);
-    });
-  }
-
   // ─── Formatters ──────────────────────────────────────────────────
   function fmtEur(v) {
     if (v == null || v === '') return '—';
@@ -162,11 +126,6 @@
   function pnlClass(v) {
     return Number(v) >= 0 ? 'pnl-pos' : 'pnl-neg';
   }
-  function confidenceBadge(pct) {
-    const cls = pct >= 70 ? 'badge-high' : pct >= 45 ? 'badge-mid' : 'badge-low';
-    return `<span class="text-xs font-semibold px-2.5 py-0.5 rounded-full ${cls}">${pct}% confidence</span>`;
-  }
-
   // ─── Chart ───────────────────────────────────────────────────────
   let historyChart = null;
   function renderChart(history) {
@@ -276,65 +235,6 @@
     renderChart(data.portfolio_history || []);
   }
 
-  // ─── Picks tab ───────────────────────────────────────────────────
-  function renderRuns(runs) {
-    const container = document.getElementById('runs-container');
-    if (!runs || runs.length === 0) {
-      container.innerHTML = '<p class="text-slate-500 text-sm">No runs recorded yet.</p>';
-      return;
-    }
-    // Most recent first
-    const sorted = [...runs].sort((a, b) => b.run_number - a.run_number);
-    container.innerHTML = sorted.map(run => {
-      const bought = (run.picks || []).filter(p => p.executed);
-      const picksHtml = (run.picks || []).map(p => `
-        <div class="flex items-start gap-3 py-2">
-          <span class="font-mono text-xs font-bold px-2 py-0.5 rounded mt-0.5 flex-shrink-0 ${p.executed ? 'bg-sky-900/60 text-sky-300' : 'bg-slate-800 text-slate-400'}">
-            ${p.ticker}
-          </span>
-          <div class="min-w-0">
-            <div class="flex items-center gap-2 flex-wrap">
-              ${p.executed ? `<span class="text-xs text-emerald-400 font-medium">${fmtEur(p.amount_eur)} · ${p.quantity} shares</span>` : '<span class="text-xs text-slate-500">not executed</span>'}
-              <span class="text-xs text-slate-500">${p.allocation_pct}% allocation</span>
-            </div>
-            <p class="text-xs text-slate-400 mt-0.5 leading-relaxed">${escHtml(p.reasoning || '—')}</p>
-          </div>
-        </div>
-      `).join('<div class="border-t border-slate-800/60"></div>');
-
-      return `
-        <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-          <div class="px-5 py-4 flex items-start justify-between gap-4 border-b border-slate-800">
-            <div>
-              <div class="flex items-center gap-3 flex-wrap">
-                <span class="text-white font-semibold">${run.date}</span>
-                <span class="text-xs text-slate-500">Run #${run.run_number}</span>
-                ${confidenceBadge(run.confidence || 0)}
-              </div>
-              <div class="flex gap-4 mt-2 text-xs text-slate-400">
-                <span><span class="text-slate-300 font-medium">${run.insider_count}</span> insider candidates</span>
-                <span><span class="text-slate-300 font-medium">${bought.length}</span> bought</span>
-                <span><span class="text-slate-300 font-medium">${fmtEur(run.total_spent_eur)}</span> spent</span>
-              </div>
-              ${run.market_summary ? `<p class="text-xs text-slate-500 mt-2 italic">${escHtml(run.market_summary)}</p>` : ''}
-            </div>
-          </div>
-          <div class="px-5 py-2 divide-y divide-slate-800/60">
-            ${picksHtml || '<p class="py-3 text-sm text-slate-500">No picks this run.</p>'}
-          </div>
-        </div>
-      `;
-    }).join('');
-  }
-
-  function escHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
   // ─── Main load ───────────────────────────────────────────────────
   async function loadData() {
     let data;
@@ -358,7 +258,6 @@
     }
 
     renderPortfolio(data);
-    renderRuns(data.runs || []);
   }
 
   loadData();
