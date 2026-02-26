@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     capitol_trades_lookback_days: int = 3
     capitol_trades_top_n: int = 10
     capitol_trades_reserved_slots: int = 3
+    capitol_trades_max_market_cap: float = 50_000_000_000  # $50B — filter out mega-caps
 
     # Pipeline
     max_tool_rounds: int = 10

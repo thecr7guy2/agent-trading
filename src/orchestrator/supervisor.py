@@ -220,6 +220,32 @@ class Supervisor:
         if dropped:
             logger.info("Dropped %d non-equity candidates (mutual funds/ETFs/indices)", dropped)
 
+        # Drop mega-cap Capitol Trades candidates — politician buys in AAPL/GOOGL/META
+        # are routine portfolio allocation, not information-driven signals
+        cap_ceiling = settings.capitol_trades_max_market_cap
+        pre_filter = len(equity_list)
+        filtered_list = []
+        for c in equity_list:
+            if c.get("source") == "capitol_trades":
+                mcap = c.get("fundamentals", {}).get("market_cap") or 0
+                if mcap > cap_ceiling:
+                    logger.debug(
+                        "Dropped Capitol Trades candidate %s (market cap $%.0fB > $%.0fB ceiling)",
+                        c["ticker"],
+                        mcap / 1e9,
+                        cap_ceiling / 1e9,
+                    )
+                    continue
+            filtered_list.append(c)
+        equity_list = filtered_list
+        ct_dropped = pre_filter - len(equity_list)
+        if ct_dropped:
+            logger.info(
+                "Dropped %d Capitol Trades mega-cap candidates (market cap > $%.0fB)",
+                ct_dropped,
+                cap_ceiling / 1e9,
+            )
+
         source_counts = {
             "openinsider": sum(1 for c in equity_list if "openinsider" in c.get("source", "")),
             "capitol_trades": sum(

@@ -71,21 +71,31 @@ async def _run(args: argparse.Namespace) -> None:
     # --- Capitol Trades candidate table ---
     ct_candidates = [c for c in digest.get("candidates", []) if c.get("source") == "capitol_trades"]
     if ct_candidates:
-        console.print("\n[bold magenta]Capitol Trades candidates:[/bold magenta]")
+        cap_ceiling = settings.capitol_trades_max_market_cap
+        console.print(
+            f"\n[bold magenta]Capitol Trades candidates[/bold magenta] "
+            f"(market cap ≤ ${cap_ceiling / 1e9:.0f}B):"
+        )
         ct_table = Table(box=box.SIMPLE_HEAVY, show_lines=False, highlight=True)
         ct_table.add_column("Ticker", style="bold cyan", width=8)
         ct_table.add_column("Company", width=30)
         ct_table.add_column("Politicians", width=40)
+        ct_table.add_column("Mkt Cap", justify="right", width=10)
         ct_table.add_column("~Value USD", justify="right", width=12)
         ct_table.add_column("Score", justify="right", width=8)
         for c in ct_candidates:
             politicians = ", ".join(c.get("insiders", []))
             if len(politicians) > 38:
                 politicians = politicians[:35] + "…"
+            mcap = c.get("fundamentals", {}).get("market_cap") or 0
+            mcap_str = (
+                f"${mcap / 1e9:.1f}B" if mcap >= 1e9 else f"${mcap / 1e6:.0f}M" if mcap else "—"
+            )
             ct_table.add_row(
                 c["ticker"],
                 c.get("company", "")[:28],
                 politicians,
+                mcap_str,
                 f"${c.get('total_value_usd', 0):,.0f}",
                 f"{c.get('conviction_score', 0):,.0f}",
             )
