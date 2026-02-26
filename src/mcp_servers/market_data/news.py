@@ -1,10 +1,14 @@
 import logging
+from datetime import datetime, timedelta
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
 NEWSAPI_URL = "https://newsapi.org/v2/everything"
+
+# Circuit breaker: after a 429, skip all NewsAPI calls until this clears
+_blocked_until: datetime | None = None
 
 
 async def get_company_news(
@@ -15,12 +19,17 @@ async def get_company_news(
 ) -> list[dict]:
     """
     Fetch recent news headlines from NewsAPI for a given company.
-    Returns empty list silently if api_key is not set.
+    Returns empty list silently if api_key is not set or quota is exhausted.
     """
+    global _blocked_until
+
     if not api_key:
         return []
 
-    # Use company name as primary search term — more accurate than raw ticker
+    # Circuit breaker: quota exhausted — skip silently until reset
+    if _blocked_until and datetime.now() < _blocked_until:
+        return []
+
     query = f'"{company_name}"' if " " in company_name else company_name
 
     try:
@@ -52,7 +61,11 @@ async def get_company_news(
         ]
 
     except httpx.HTTPStatusError as e:
-        logger.warning("NewsAPI error for %s: %s", ticker, e.response.status_code)
+        if e.response.status_code == 429:
+            _blocked_until = datetime.now() + timedelta(hours=1)
+            logger.warning("NewsAPI quota exhausted — falling back to yfinance news for this run")
+        else:
+            logger.warning("NewsAPI error for %s: %s", ticker, e.response.status_code)
         return []
     except Exception:
         logger.exception("NewsAPI failed for %s", ticker)
