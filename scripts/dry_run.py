@@ -12,9 +12,9 @@ import argparse
 import asyncio
 import logging
 
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich import box
 
 from src.agents.pipeline import AgentPipeline
 from src.config import get_settings
