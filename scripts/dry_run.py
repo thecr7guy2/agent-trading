@@ -68,6 +68,29 @@ async def _run(args: argparse.Namespace) -> None:
         console.print("[red]No candidates found — nothing to pick from. Exiting.[/red]")
         return
 
+    # --- Capitol Trades candidate table ---
+    ct_candidates = [c for c in digest.get("candidates", []) if c.get("source") == "capitol_trades"]
+    if ct_candidates:
+        console.print("\n[bold magenta]Capitol Trades candidates:[/bold magenta]")
+        ct_table = Table(box=box.SIMPLE_HEAVY, show_lines=False, highlight=True)
+        ct_table.add_column("Ticker", style="bold cyan", width=8)
+        ct_table.add_column("Company", width=30)
+        ct_table.add_column("Politicians", width=40)
+        ct_table.add_column("~Value USD", justify="right", width=12)
+        ct_table.add_column("Score", justify="right", width=8)
+        for c in ct_candidates:
+            politicians = ", ".join(c.get("insiders", []))
+            if len(politicians) > 38:
+                politicians = politicians[:35] + "…"
+            ct_table.add_row(
+                c["ticker"],
+                c.get("company", "")[:28],
+                politicians,
+                f"${c.get('total_value_usd', 0):,.0f}",
+                f"{c.get('conviction_score', 0):,.0f}",
+            )
+        console.print(ct_table)
+
     # --- Step 2: Filter blacklist + cap for research stage ---
     blacklist = get_blacklist(
         path=settings.recently_traded_path,
