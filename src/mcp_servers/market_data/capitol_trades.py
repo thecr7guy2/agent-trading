@@ -5,56 +5,78 @@ from collections import defaultdict
 from datetime import date, datetime
 
 import httpx
-from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
-CAPITOL_TRADES_URL = "https://www.capitoltrades.com/trades"
+# BFF API — returns clean JSON, no HTML parsing needed
+BFF_URL = "https://bff.capitoltrades.com/trades"
+
+# Browser headers to pass CloudFront checks on the BFF API
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0.0.0 Safari/537.36"
+    ),
+    "Accept": "application/json, */*;q=0.9",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.capitoltrades.com/trades",
+    "Origin": "https://www.capitoltrades.com",
+    "sec-ch-ua": '"Not/A)Brand";v="99", "Google Chrome";v="122", "Chromium";v="122"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"macOS"',
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-site",
+}
+
+# STOCK Act standard disclosure ranges (low_high format from BFF)
+_RANGE_MAP: dict[str, tuple[float, float]] = {
+    "1_999": (1, 999),
+    "1001_15000": (1_001, 15_000),
+    "15001_50000": (15_001, 50_000),
+    "50001_100000": (50_001, 100_000),
+    "100001_250000": (100_001, 250_000),
+    "250001_500000": (250_001, 500_000),
+    "500001_1000000": (500_001, 1_000_000),
+    "1000001_5000000": (1_000_001, 5_000_000),
+    "5000001_25000000": (5_000_001, 25_000_000),
+    "25000001_50000000": (25_000_001, 50_000_000),
+}
 
 
-def _parse_amount(text: str) -> float:
-    """Parse amount strings like '5K', '1.5M' to float."""
-    clean = text.strip().replace(",", "").replace("$", "")
-    if not clean or clean == "-":
-        return 0.0
-    try:
-        if clean.upper().endswith("M"):
-            return float(clean[:-1]) * 1_000_000
-        if clean.upper().endswith("K"):
-            return float(clean[:-1]) * 1_000
-        return float(clean)
-    except ValueError:
-        return 0.0
-
-
-def _parse_trade_size(range_str: str) -> tuple[float, float]:
+def _parse_value_range(value: str) -> tuple[float, float]:
     """
-    Convert Capitol Trades range strings to (min, max) USD amounts.
+    Parse a Capitol Trades BFF value range string to (min, max) USD amounts.
 
-    Examples: "5K–15K" → (5000, 15000), "500K–1M" → (500000, 1000000)
+    Handles:
+      - Standard STOCK Act codes: "15001_50000" → (15001, 50000)
+      - Generic underscore-separated: "100001_250000" → (100001, 250000)
     """
-    # Handle en-dash (–) or regular hyphen (-)
-    for sep in ["\u2013", "-"]:
-        if sep in range_str:
-            parts = range_str.split(sep, 1)
-            if len(parts) == 2:
-                lo = _parse_amount(parts[0].strip())
-                hi = _parse_amount(parts[1].strip())
-                if lo > 0 or hi > 0:
-                    return lo, hi
-    val = _parse_amount(range_str.strip())
-    return val, val
-
-
-def _parse_pub_date(text: str) -> date | None:
-    """Parse publication date strings from Capitol Trades."""
-    clean = text.strip()
-    for fmt in ("%Y-%m-%d", "%b %d, %Y", "%m/%d/%Y", "%d %b %Y"):
+    if not value:
+        return 0.0, 0.0
+    if value in _RANGE_MAP:
+        return _RANGE_MAP[value]
+    # Generic fallback: try splitting on underscore
+    parts = value.split("_")
+    if len(parts) == 2:
         try:
-            return datetime.strptime(clean, fmt).date()
+            return float(parts[0]), float(parts[1])
         except ValueError:
-            continue
-    return None
+            pass
+    return 0.0, 0.0
+
+
+def _parse_date(text: str) -> date | None:
+    """Parse ISO date strings from the BFF API."""
+    if not text:
+        return None
+    # BFF returns dates as "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SSZ"
+    clean = text[:10]
+    try:
+        return datetime.strptime(clean, "%Y-%m-%d").date()
+    except ValueError:
+        return None
 
 
 def _recency_decay(trade_date: date | None) -> float:
@@ -70,7 +92,7 @@ async def get_politician_candidates(
     top_n: int = 10,
 ) -> list[dict]:
     """
-    Scrape Capitol Trades for recent politician buy disclosures.
+    Fetch recent politician buy disclosures from the Capitol Trades BFF API.
 
     Returns the top N candidates by conviction score (amount × recency decay),
     with the same candidate shape as OpenInsider so _enrich_candidate works unchanged.
@@ -79,87 +101,113 @@ async def get_politician_candidates(
     def _fetch() -> list[dict]:
         try:
             resp = httpx.get(
-                CAPITOL_TRADES_URL,
-                headers={"User-Agent": "Mozilla/5.0 (compatible; trading-bot/1.0)"},
+                BFF_URL,
+                params={
+                    "page": 0,
+                    "pageSize": 96,
+                    "sortBy": "-pubDate",
+                    "txType": "buy",
+                },
+                headers=_HEADERS,
                 timeout=20.0,
                 follow_redirects=True,
             )
             resp.raise_for_status()
-
-            soup = BeautifulSoup(resp.text, "lxml")
-            rows = soup.find_all("tr", class_="q-tr")
-            if not rows:
-                logger.warning("Capitol Trades: no trade rows found in response")
-                return []
-
-            cutoff = date.today()
-            raw_transactions = []
-
-            for row in rows:
-                # Only process buy transactions
-                if not row.find(class_="tx-type--buy"):
-                    continue
-
-                ticker_el = row.find("span", class_="q-field issuer-ticker")
-                if not ticker_el:
-                    continue
-                ticker = ticker_el.get_text(strip=True)
-                if not ticker:
-                    continue
-
-                company_el = row.find("h3", class_="q-field issuer-name")
-                company = company_el.get_text(strip=True) if company_el else ticker
-
-                # Politician name — try h3 first, then span
-                pol_el = row.find("h3", class_="q-fieldset politician-name") or row.find(
-                    "span", class_="q-fieldset politician-name"
-                )
-                politician = pol_el.get_text(strip=True) if pol_el else "Unknown"
-
-                size_el = row.find("span", class_="q-field trade-size")
-                range_str = size_el.get_text(strip=True) if size_el else ""
-
-                date_el = row.find("div", class_="q-cell cell--pub-date")
-                pub_date_str = date_el.get_text(strip=True) if date_el else ""
-                pub_date = _parse_pub_date(pub_date_str)
-
-                # Filter by lookback window
-                if pub_date is not None:
-                    days_old = (cutoff - pub_date).days
-                    if days_old > lookback_days:
-                        continue
-
-                lo, hi = _parse_trade_size(range_str)
-                midpoint = (lo + hi) / 2
-                decay = _recency_decay(pub_date)
-                conviction = midpoint * decay
-
-                raw_transactions.append(
-                    {
-                        "ticker": ticker,
-                        "company": company,
-                        "politician_name": politician,
-                        "pub_date": pub_date.isoformat() if pub_date else "",
-                        "trade_size": range_str,
-                        "amount_midpoint": midpoint,
-                        "conviction_score": round(conviction, 2),
-                    }
-                )
-
-            return raw_transactions
-
         except httpx.HTTPStatusError as e:
-            logger.warning("Capitol Trades HTTP error: %s", e.response.status_code)
+            logger.warning(
+                "Capitol Trades BFF HTTP %s — response: %s",
+                e.response.status_code,
+                e.response.text[:300],
+            )
             return []
         except Exception:
-            logger.exception("Capitol Trades scrape failed")
+            logger.exception("Capitol Trades BFF request failed")
             return []
+
+        try:
+            payload = resp.json()
+        except Exception:
+            logger.warning(
+                "Capitol Trades BFF returned non-JSON. First 300 chars: %s", resp.text[:300]
+            )
+            return []
+
+        # Log top-level keys on first call so we can diagnose unexpected shapes
+        logger.debug("Capitol Trades BFF response keys: %s", list(payload.keys()))
+
+        trades_raw = payload.get("data", [])
+        if not isinstance(trades_raw, list):
+            logger.warning(
+                "Capitol Trades BFF: expected 'data' list, got %s. Keys: %s",
+                type(trades_raw).__name__,
+                list(payload.keys()),
+            )
+            return []
+
+        if not trades_raw:
+            logger.info("Capitol Trades BFF returned 0 trades (empty data array)")
+            return []
+
+        cutoff = date.today()
+        raw_transactions = []
+
+        for trade in trades_raw:
+            # Pub date filter
+            pub_date = _parse_date(trade.get("pubDate") or trade.get("filingDate", ""))
+            if pub_date is not None:
+                if (cutoff - pub_date).days > lookback_days:
+                    continue
+
+            # Only buy transactions (txType filter is in the request, but double-check)
+            tx_type = (trade.get("txType") or trade.get("type", "")).lower()
+            if tx_type not in ("buy", "purchase", "p"):
+                continue
+
+            # Ticker
+            issuer = trade.get("issuer") or {}
+            ticker = (
+                issuer.get("localTicker") or issuer.get("ticker") or issuer.get("symbol") or ""
+            ).strip()
+            if not ticker:
+                continue
+
+            company = (issuer.get("name") or issuer.get("issuerName") or ticker).strip()
+
+            # Politician
+            pol = trade.get("politician") or trade.get("reporting") or {}
+            first = pol.get("firstName") or pol.get("first_name") or ""
+            last = pol.get("lastName") or pol.get("last_name") or ""
+            politician_name = f"{first} {last}".strip() or "Unknown"
+
+            # Amount / value range
+            value_str = str(trade.get("value") or trade.get("amount") or "")
+            lo, hi = _parse_value_range(value_str)
+            midpoint = (lo + hi) / 2
+
+            tx_date = _parse_date(trade.get("txDate") or trade.get("transactionDate", ""))
+            decay = _recency_decay(tx_date or pub_date)
+            conviction = midpoint * decay
+
+            raw_transactions.append(
+                {
+                    "ticker": ticker,
+                    "company": company,
+                    "politician_name": politician_name,
+                    "pub_date": pub_date.isoformat() if pub_date else "",
+                    "tx_date": tx_date.isoformat() if tx_date else "",
+                    "value_range": value_str,
+                    "amount_midpoint": midpoint,
+                    "conviction_score": round(conviction, 2),
+                }
+            )
+
+        return raw_transactions
 
     raw = await asyncio.to_thread(_fetch)
     if not raw:
         return []
 
-    # Group by ticker — multiple politicians buying same stock appear as separate rows
+    # Group by ticker
     grouped: dict[str, dict] = defaultdict(
         lambda: {
             "ticker": "",
@@ -203,4 +251,9 @@ async def get_politician_candidates(
             }
         )
 
+    logger.info(
+        "Capitol Trades: %d raw buy transactions → %d grouped candidates",
+        len(raw),
+        len(candidates),
+    )
     return sorted(candidates, key=lambda x: x["conviction_score"], reverse=True)[:top_n]

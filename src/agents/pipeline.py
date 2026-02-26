@@ -89,8 +89,5 @@ class AgentPipeline:
         budget_eur: float = 1000.0,
         run_date: date | None = None,
     ) -> PipelineOutput:
-        """Full pipeline: research → decision."""
-        research = await self.run_research(enriched_digest)
-        return await self.run_decision(
-            research, enriched_digest, portfolio or [], budget_eur, run_date
-        )
+        """Full pipeline: decision only (research stage removed — candidates go straight to Opus)."""
+        return await self.run_decision(None, enriched_digest, portfolio or [], budget_eur, run_date)

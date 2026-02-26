@@ -51,7 +51,7 @@ async def _run(args: argparse.Namespace) -> None:
     console.rule("[bold cyan]Dry Run — no trades will be placed[/bold cyan]")
 
     # --- Step 1: Build digest (OpenInsider + Capitol Trades) ---
-    console.print("\n[bold]Step 1/3[/bold] — Fetching insider + politician candidates…")
+    console.print("\n[bold]Step 1/2[/bold] — Fetching insider + politician candidates…")
     from src.orchestrator.supervisor import Supervisor
 
     supervisor = Supervisor(settings=settings)
@@ -93,15 +93,10 @@ async def _run(args: argparse.Namespace) -> None:
     digest["candidates"] = capped
     console.print(f"  Passing [bold]{len(capped)}[/bold] candidates to research stage")
 
-    # --- Step 3: Run pipeline (research → decision) ---
-    console.print("\n[bold]Step 2/3[/bold] — Research stage (Claude Sonnet)…")
+    # --- Step 3: Decision (Claude Opus, no research pre-pass) ---
+    console.print(f"\n[bold]Step 2/2[/bold] — Decision stage (Claude Opus, budget €{budget:,.0f})…")
     pipeline = AgentPipeline()
-    research = await pipeline.run_research(digest)
-    console.print(f"  Research complete — {len(research.tickers)} tickers analysed")
-
-    console.print(f"\n[bold]Step 3/3[/bold] — Decision stage (Claude Opus, budget €{budget:,.0f})…")
-    output = await pipeline.run_decision(
-        research=research,
+    output = await pipeline.run(
         enriched_digest=digest,
         portfolio=[],  # no existing positions for dry run
         budget_eur=budget,

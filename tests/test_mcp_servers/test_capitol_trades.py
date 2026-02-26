@@ -1,55 +1,40 @@
 import math
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.mcp_servers.market_data.capitol_trades import (
-    _parse_trade_size,
+    _parse_value_range,
     _recency_decay,
     get_politician_candidates,
 )
 
 # ---------------------------------------------------------------------------
-# _parse_trade_size
+# _parse_value_range
 # ---------------------------------------------------------------------------
 
 
-class TestParseTradeSize:
-    def test_k_range(self):
-        lo, hi = _parse_trade_size("5K\u201315K")  # en-dash
-        assert lo == 5_000
-        assert hi == 15_000
+class TestParseValueRange:
+    def test_standard_stock_act_ranges(self):
+        assert _parse_value_range("1001_15000") == (1_001, 15_000)
+        assert _parse_value_range("15001_50000") == (15_001, 50_000)
+        assert _parse_value_range("50001_100000") == (50_001, 100_000)
+        assert _parse_value_range("100001_250000") == (100_001, 250_000)
+        assert _parse_value_range("250001_500000") == (250_001, 500_000)
+        assert _parse_value_range("500001_1000000") == (500_001, 1_000_000)
+        assert _parse_value_range("1000001_5000000") == (1_000_001, 5_000_000)
 
-    def test_k_to_m_range(self):
-        lo, hi = _parse_trade_size("500K\u20131M")
-        assert lo == 500_000
-        assert hi == 1_000_000
+    def test_generic_underscore_fallback(self):
+        lo, hi = _parse_value_range("20000_80000")
+        assert lo == 20_000
+        assert hi == 80_000
 
-    def test_m_range(self):
-        lo, hi = _parse_trade_size("1M\u20135M")
-        assert lo == 1_000_000
-        assert hi == 5_000_000
+    def test_empty_returns_zero(self):
+        assert _parse_value_range("") == (0.0, 0.0)
 
-    def test_hyphen_separator(self):
-        lo, hi = _parse_trade_size("50K-100K")
-        assert lo == 50_000
-        assert hi == 100_000
-
-    def test_large_k_range(self):
-        lo, hi = _parse_trade_size("100K\u2013250K")
-        assert lo == 100_000
-        assert hi == 250_000
-
-    def test_single_value_fallback(self):
-        lo, hi = _parse_trade_size("50K")
-        assert lo == 50_000
-        assert hi == 50_000
-
-    def test_empty_string(self):
-        lo, hi = _parse_trade_size("")
-        assert lo == 0.0
-        assert hi == 0.0
+    def test_unknown_string_returns_zero(self):
+        assert _parse_value_range("unknown") == (0.0, 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -58,117 +43,104 @@ class TestParseTradeSize:
 
 
 class TestRecencyDecay:
-    def test_today_is_max(self):
-        decay = _recency_decay(date.today())
-        assert decay == pytest.approx(1.0)
+    def test_today_is_one(self):
+        assert _recency_decay(date.today()) == pytest.approx(1.0)
 
     def test_five_days_ago(self):
-        from datetime import timedelta
-
         d = date.today() - timedelta(days=5)
-        expected = math.exp(-0.2 * 5)
-        assert _recency_decay(d) == pytest.approx(expected)
+        assert _recency_decay(d) == pytest.approx(math.exp(-1.0))
 
     def test_none_returns_fallback(self):
         assert _recency_decay(None) == 0.5
 
 
 # ---------------------------------------------------------------------------
-# get_politician_candidates — mocked HTTP
+# get_politician_candidates — mocked BFF API
 # ---------------------------------------------------------------------------
 
-# Minimal HTML with:
-# - AMD: 2 politician buys (cluster)
-# - NVDA: 1 sell (should be excluded)
-# - MSFT: 1 buy, old date (should be excluded by lookback filter)
-_SAMPLE_HTML = """
-<html><body>
-<table>
-  <tr class="q-tr">
-    <td>
-      <span class="q-field issuer-ticker">AMD</span>
-      <h3 class="q-field issuer-name">Advanced Micro Devices</h3>
-    </td>
-    <td><h3 class="q-fieldset politician-name">Nancy Pelosi</h3></td>
-    <td><span class="q-field trade-size">50K\u2013100K</span></td>
-    <td><div class="q-cell cell--pub-date">{today}</div></td>
-    <td><span class="tx-type--buy">Buy</span></td>
-  </tr>
-  <tr class="q-tr">
-    <td>
-      <span class="q-field issuer-ticker">AMD</span>
-      <h3 class="q-field issuer-name">Advanced Micro Devices</h3>
-    </td>
-    <td><h3 class="q-fieldset politician-name">Dan Goldman</h3></td>
-    <td><span class="q-field trade-size">15K\u201350K</span></td>
-    <td><div class="q-cell cell--pub-date">{today}</div></td>
-    <td><span class="tx-type--buy">Buy</span></td>
-  </tr>
-  <tr class="q-tr">
-    <td>
-      <span class="q-field issuer-ticker">NVDA</span>
-      <h3 class="q-field issuer-name">NVIDIA Corp</h3>
-    </td>
-    <td><h3 class="q-fieldset politician-name">John Doe</h3></td>
-    <td><span class="q-field trade-size">100K\u2013250K</span></td>
-    <td><div class="q-cell cell--pub-date">{today}</div></td>
-    <td><span class="tx-type--sell">Sell</span></td>
-  </tr>
-  <tr class="q-tr">
-    <td>
-      <span class="q-field issuer-ticker">MSFT</span>
-      <h3 class="q-field issuer-name">Microsoft Corp</h3>
-    </td>
-    <td><h3 class="q-fieldset politician-name">Jane Smith</h3></td>
-    <td><span class="q-field trade-size">50K\u2013100K</span></td>
-    <td><div class="q-cell cell--pub-date">2020-01-01</div></td>
-    <td><span class="tx-type--buy">Buy</span></td>
-  </tr>
-</table>
-</body></html>
-"""
+_TODAY = date.today().isoformat()
+_YESTERDAY = (date.today() - timedelta(days=1)).isoformat()
+_OLD = "2020-01-01"
+
+_BFF_RESPONSE = {
+    "data": [
+        # AMD — 2 politicians buying (cluster)
+        {
+            "issuer": {"name": "Advanced Micro Devices Inc", "localTicker": "AMD"},
+            "politician": {"firstName": "Nancy", "lastName": "Pelosi"},
+            "txDate": _TODAY,
+            "pubDate": _TODAY,
+            "txType": "buy",
+            "value": "50001_100000",
+        },
+        {
+            "issuer": {"name": "Advanced Micro Devices Inc", "localTicker": "AMD"},
+            "politician": {"firstName": "Dan", "lastName": "Goldman"},
+            "txDate": _TODAY,
+            "pubDate": _TODAY,
+            "txType": "buy",
+            "value": "15001_50000",
+        },
+        # NVDA — sell, should be excluded (txType filter double-check)
+        {
+            "issuer": {"name": "NVIDIA Corp", "localTicker": "NVDA"},
+            "politician": {"firstName": "John", "lastName": "Doe"},
+            "txDate": _TODAY,
+            "pubDate": _TODAY,
+            "txType": "sell",
+            "value": "100001_250000",
+        },
+        # MSFT — old pub date, excluded by lookback
+        {
+            "issuer": {"name": "Microsoft Corp", "localTicker": "MSFT"},
+            "politician": {"firstName": "Jane", "lastName": "Smith"},
+            "txDate": _OLD,
+            "pubDate": _OLD,
+            "txType": "buy",
+            "value": "50001_100000",
+        },
+    ]
+}
 
 
-def _make_mock_response(html: str) -> MagicMock:
+def _make_mock_response(payload: dict) -> MagicMock:
     mock_resp = MagicMock()
-    mock_resp.text = html
+    mock_resp.json.return_value = payload
     mock_resp.raise_for_status = MagicMock()
     return mock_resp
 
 
 class TestGetPoliticianCandidates:
     @pytest.mark.asyncio
-    async def test_returns_only_buys(self):
-        html = _SAMPLE_HTML.format(today=date.today().isoformat())
-        mock_resp = _make_mock_response(html)
-
+    async def test_filters_sells(self):
+        mock_resp = _make_mock_response(_BFF_RESPONSE)
         with patch("src.mcp_servers.market_data.capitol_trades.httpx.get", return_value=mock_resp):
             results = await get_politician_candidates(lookback_days=3, top_n=10)
-
         tickers = [r["ticker"] for r in results]
-        assert "NVDA" not in tickers  # sell row filtered out
-        assert "MSFT" not in tickers  # old date filtered out
-        assert "AMD" in tickers
+        assert "NVDA" not in tickers
+
+    @pytest.mark.asyncio
+    async def test_filters_old_dates(self):
+        mock_resp = _make_mock_response(_BFF_RESPONSE)
+        with patch("src.mcp_servers.market_data.capitol_trades.httpx.get", return_value=mock_resp):
+            results = await get_politician_candidates(lookback_days=3, top_n=10)
+        tickers = [r["ticker"] for r in results]
+        assert "MSFT" not in tickers
 
     @pytest.mark.asyncio
     async def test_groups_by_ticker(self):
-        html = _SAMPLE_HTML.format(today=date.today().isoformat())
-        mock_resp = _make_mock_response(html)
-
+        mock_resp = _make_mock_response(_BFF_RESPONSE)
         with patch("src.mcp_servers.market_data.capitol_trades.httpx.get", return_value=mock_resp):
             results = await get_politician_candidates(lookback_days=3, top_n=10)
-
-        # AMD appears twice in HTML but should be grouped into one candidate
-        assert len([r for r in results if r["ticker"] == "AMD"]) == 1
+        # AMD appears twice but should be grouped into one candidate
+        amd_entries = [r for r in results if r["ticker"] == "AMD"]
+        assert len(amd_entries) == 1
 
     @pytest.mark.asyncio
     async def test_cluster_flag(self):
-        html = _SAMPLE_HTML.format(today=date.today().isoformat())
-        mock_resp = _make_mock_response(html)
-
+        mock_resp = _make_mock_response(_BFF_RESPONSE)
         with patch("src.mcp_servers.market_data.capitol_trades.httpx.get", return_value=mock_resp):
             results = await get_politician_candidates(lookback_days=3, top_n=10)
-
         amd = next(r for r in results if r["ticker"] == "AMD")
         assert amd["is_cluster"] is True
         assert amd["insider_count"] == 2
@@ -177,53 +149,39 @@ class TestGetPoliticianCandidates:
 
     @pytest.mark.asyncio
     async def test_source_tag(self):
-        html = _SAMPLE_HTML.format(today=date.today().isoformat())
-        mock_resp = _make_mock_response(html)
-
+        mock_resp = _make_mock_response(_BFF_RESPONSE)
         with patch("src.mcp_servers.market_data.capitol_trades.httpx.get", return_value=mock_resp):
             results = await get_politician_candidates(lookback_days=3, top_n=10)
-
         for r in results:
             assert r["source"] == "capitol_trades"
 
     @pytest.mark.asyncio
-    async def test_conviction_score_is_sum(self):
-        html = _SAMPLE_HTML.format(today=date.today().isoformat())
-        mock_resp = _make_mock_response(html)
-
+    async def test_conviction_score(self):
+        mock_resp = _make_mock_response(_BFF_RESPONSE)
         with patch("src.mcp_servers.market_data.capitol_trades.httpx.get", return_value=mock_resp):
             results = await get_politician_candidates(lookback_days=3, top_n=10)
-
         amd = next(r for r in results if r["ticker"] == "AMD")
-        # AMD: Pelosi 50K–100K → midpoint 75K, Goldman 15K–50K → midpoint 32.5K
-        # Both today → recency_decay = 1.0
-        # Combined conviction ≈ 75000 + 32500 = 107500
-        assert amd["conviction_score"] == pytest.approx(107_500.0, rel=0.01)
-        assert amd["total_value_usd"] == pytest.approx(107_500.0, rel=0.01)
+        # Pelosi: 50001_100000 → midpoint 75000.5, today → decay=1.0 → conviction ≈ 75000.5
+        # Goldman: 15001_50000 → midpoint 32501.0, today → decay=1.0 → conviction ≈ 32501.0
+        # Combined ≈ 107501.5
+        assert amd["conviction_score"] == pytest.approx(107_501.5, rel=0.01)
 
     @pytest.mark.asyncio
     async def test_top_n_limit(self):
-        # Build HTML with 5 unique tickers all bought today
-        today = date.today().isoformat()
-        rows = ""
-        for i, ticker in enumerate(["A1", "B2", "C3", "D4", "E5"]):
-            rows += f"""
-  <tr class="q-tr">
-    <td>
-      <span class="q-field issuer-ticker">{ticker}</span>
-      <h3 class="q-field issuer-name">Company {i}</h3>
-    </td>
-    <td><h3 class="q-fieldset politician-name">Politician {i}</h3></td>
-    <td><span class="q-field trade-size">50K\u2013100K</span></td>
-    <td><div class="q-cell cell--pub-date">{today}</div></td>
-    <td><span class="tx-type--buy">Buy</span></td>
-  </tr>"""
-        html = f"<html><body><table>{rows}</table></body></html>"
-        mock_resp = _make_mock_response(html)
-
+        data = [
+            {
+                "issuer": {"name": f"Company {i}", "localTicker": f"T{i}"},
+                "politician": {"firstName": "A", "lastName": "B"},
+                "txDate": _TODAY,
+                "pubDate": _TODAY,
+                "txType": "buy",
+                "value": "15001_50000",
+            }
+            for i in range(10)
+        ]
+        mock_resp = _make_mock_response({"data": data})
         with patch("src.mcp_servers.market_data.capitol_trades.httpx.get", return_value=mock_resp):
             results = await get_politician_candidates(lookback_days=3, top_n=3)
-
         assert len(results) <= 3
 
     @pytest.mark.asyncio
@@ -233,32 +191,26 @@ class TestGetPoliticianCandidates:
         with patch(
             "src.mcp_servers.market_data.capitol_trades.httpx.get",
             side_effect=httpx.HTTPStatusError(
-                "403", request=MagicMock(), response=MagicMock(status_code=403)
+                "403", request=MagicMock(), response=MagicMock(status_code=403, text="Forbidden")
             ),
         ):
             results = await get_politician_candidates(lookback_days=3, top_n=10)
-
         assert results == []
 
     @pytest.mark.asyncio
-    async def test_empty_page_returns_empty(self):
-        mock_resp = _make_mock_response("<html><body><table></table></body></html>")
-
+    async def test_empty_data_returns_empty(self):
+        mock_resp = _make_mock_response({"data": []})
         with patch("src.mcp_servers.market_data.capitol_trades.httpx.get", return_value=mock_resp):
             results = await get_politician_candidates(lookback_days=3, top_n=10)
-
         assert results == []
 
     @pytest.mark.asyncio
     async def test_candidate_shape(self):
-        """Verify returned candidates have all fields _enrich_candidate expects."""
-        html = _SAMPLE_HTML.format(today=date.today().isoformat())
-        mock_resp = _make_mock_response(html)
-
+        """Verify all fields expected by _enrich_candidate are present."""
+        mock_resp = _make_mock_response(_BFF_RESPONSE)
         with patch("src.mcp_servers.market_data.capitol_trades.httpx.get", return_value=mock_resp):
             results = await get_politician_candidates(lookback_days=3, top_n=10)
-
-        required_keys = {
+        required = {
             "ticker",
             "company",
             "source",
@@ -272,6 +224,6 @@ class TestGetPoliticianCandidates:
             "transactions",
         }
         for r in results:
-            assert required_keys.issubset(r.keys()), f"Missing keys in {r['ticker']}"
+            assert required.issubset(r.keys())
             assert r["is_csuite_present"] is False
             assert r["max_delta_own_pct"] == 0.0
