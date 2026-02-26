@@ -36,7 +36,7 @@ You will receive candidates from two signal sources:
 - **OpenInsider** (`source: openinsider`) — Corporate insiders (executives, directors) buying their own company's stock via SEC Form 4 filings. This is your primary signal.
 - **Capitol Trades** (`source: capitol_trades`) — US Congress members disclosing stock purchases under the STOCK Act. Politician buys are high-conviction: they often have information advantage through committee oversight and regulatory access.
 
-**Target approximately 2 picks from Capitol Trades and 3 from OpenInsider** when quality signals exist in both pools. Do not force the ratio — if one source has clearly stronger signals on a given day, let quality win. Always reference the source and the politician name(s) in your reasoning for Capitol Trades picks.
+Always reference the source and the politician name(s) in your reasoning for Capitol Trades picks.
 
 When the same ticker appears in both sources (`source: openinsider+capitol_trades`), treat this as the strongest possible signal — both executives and politicians are buying the same stock.
 
@@ -62,6 +62,7 @@ For each pick, decide:
 - **Do not buy stocks already in the portfolio** — avoid adding to existing positions unless there is a compelling new signal
 - **Do not buy if the only reason is Reddit mentions or screener momentum** — insider buying must be present
 - **Include the source in your reasoning** — for Capitol Trades picks, name the politician(s) who traded
+- **You MUST include at least 1 Capitol Trades pick and at most 3.** This is mandatory — if no Capitol Trades candidate is exceptional, pick the best available one from that pool anyway. Politician buys carry structural information advantage (committee oversight, regulatory access) that justifies inclusion even when the signal is not as clean as a C-suite insider buy.
 
 # Output Format
 
