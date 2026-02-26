@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 
 from src.agents.pipeline import AgentPipeline, PipelineOutput
 from src.config import Settings, get_settings
+from src.mcp_servers.market_data.capitol_trades import get_politician_candidates
 from src.mcp_servers.market_data.finance import (
     get_eur_usd_rate,
     get_price_return_pct,
@@ -134,8 +135,9 @@ class Supervisor:
     async def build_insider_digest(self) -> dict:
         """
         Build the enriched insider digest:
-        1. Fetch top N candidates from OpenInsider (conviction scored)
-        2. Parallel-enrich all candidates with yfinance + news + insider history
+        1. Fetch top N candidates from OpenInsider + Capitol Trades (in parallel if enabled)
+        2. Merge by ticker, tag sources, deduplicate
+        3. Parallel-enrich all candidates with yfinance + news + insider history
         """
         settings = self._settings
         logger.info(
@@ -144,12 +146,61 @@ class Supervisor:
             settings.insider_top_n,
         )
 
-        candidates = await get_insider_candidates(
-            days=settings.insider_lookback_days,
-            top_n=settings.insider_top_n,
-        )
+        if settings.capitol_trades_enabled:
+            insider_task = get_insider_candidates(
+                days=settings.insider_lookback_days,
+                top_n=settings.insider_top_n,
+            )
+            politician_task = get_politician_candidates(
+                lookback_days=settings.capitol_trades_lookback_days,
+                top_n=settings.capitol_trades_top_n,
+            )
+            insider_candidates, politician_candidates = await asyncio.gather(
+                insider_task, politician_task
+            )
+            logger.info(
+                "Got %d OpenInsider + %d Capitol Trades candidates before enrichment",
+                len(insider_candidates),
+                len(politician_candidates),
+            )
+        else:
+            insider_candidates = await get_insider_candidates(
+                days=settings.insider_lookback_days,
+                top_n=settings.insider_top_n,
+            )
+            politician_candidates = []
+            logger.info("Got %d insider candidates before enrichment", len(insider_candidates))
 
-        logger.info("Got %d insider candidates before enrichment", len(candidates))
+        # Tag OpenInsider candidates with source
+        for c in insider_candidates:
+            c.setdefault("source", "openinsider")
+
+        # Merge by ticker — same ticker in both sources becomes a combined entry
+        ticker_to_candidate: dict[str, dict] = {}
+        for c in insider_candidates:
+            ticker_to_candidate[c["ticker"]] = c
+
+        for p in politician_candidates:
+            ticker = p["ticker"]
+            if ticker in ticker_to_candidate:
+                existing = ticker_to_candidate[ticker]
+                combined_insiders = list(existing.get("insiders", []))
+                for name in p["insiders"]:
+                    if name not in combined_insiders:
+                        combined_insiders.append(name)
+                ticker_to_candidate[ticker] = {
+                    **existing,
+                    "source": "openinsider+capitol_trades",
+                    "insiders": combined_insiders,
+                    "conviction_score": existing["conviction_score"] + p["conviction_score"],
+                    "total_value_usd": existing["total_value_usd"] + p["total_value_usd"],
+                    "has_politician_buy": True,
+                    "politician_names": p["insiders"],
+                }
+            else:
+                ticker_to_candidate[ticker] = p
+
+        candidates = list(ticker_to_candidate.values())
 
         if not candidates:
             return {"candidates": [], "insider_count": 0}
@@ -158,21 +209,34 @@ class Supervisor:
         enriched = await asyncio.gather(*[self._enrich_candidate(c) for c in candidates])
         enriched_list = list(enriched)
 
-        # Drop non-equity instruments (mutual funds, ETFs, indices) that slip through OpenInsider
+        # Drop non-equity instruments (mutual funds, ETFs, indices) that slip through
         non_equity = {"MUTUALFUND", "ETF", "INDEX", "FUTURE", "CURRENCY"}
         equity_list = [
-            c for c in enriched_list
+            c
+            for c in enriched_list
             if c.get("fundamentals", {}).get("quote_type", "EQUITY").upper() not in non_equity
         ]
         dropped = len(enriched_list) - len(equity_list)
         if dropped:
             logger.info("Dropped %d non-equity candidates (mutual funds/ETFs/indices)", dropped)
 
-        logger.info("Enrichment complete for %d candidates", len(equity_list))
+        source_counts = {
+            "openinsider": sum(1 for c in equity_list if "openinsider" in c.get("source", "")),
+            "capitol_trades": sum(
+                1 for c in equity_list if "capitol_trades" in c.get("source", "")
+            ),
+        }
+        logger.info(
+            "Enrichment complete: %d candidates (openinsider=%d, capitol_trades=%d)",
+            len(equity_list),
+            source_counts["openinsider"],
+            source_counts["capitol_trades"],
+        )
         return {
             "candidates": equity_list,
             "insider_count": len(equity_list),
             "lookback_days": settings.insider_lookback_days,
+            "source_counts": source_counts,
         }
 
     async def run_decision_cycle(
@@ -209,9 +273,21 @@ class Supervisor:
         all_candidates = digest.get("candidates", [])
         blacklisted = [c["ticker"] for c in all_candidates if c["ticker"] in blacklist]
         filtered = [c for c in all_candidates if c["ticker"] not in blacklist]
-        digest["candidates"] = filtered[: self._settings.research_top_n]
         if blacklisted:
             logger.info("Filtered %d blacklisted tickers: %s", len(blacklisted), blacklisted)
+
+        # Pool-aware cap: guarantee Capitol Trades slots reach the research stage
+        if self._settings.capitol_trades_enabled:
+            insider_pool = [c for c in filtered if c.get("source") != "capitol_trades"]
+            politician_pool = [c for c in filtered if c.get("source") == "capitol_trades"]
+            reserved = self._settings.capitol_trades_reserved_slots
+            politician_slots = min(len(politician_pool), reserved)
+            insider_slots = self._settings.research_top_n - politician_slots
+            capped = politician_pool[:politician_slots] + insider_pool[:insider_slots]
+        else:
+            capped = filtered[: self._settings.research_top_n]
+
+        digest["candidates"] = capped
         if len(filtered) > self._settings.research_top_n:
             logger.info(
                 "Capped candidates from %d to %d for research stage",
@@ -242,7 +318,9 @@ class Supervisor:
         except TimeoutError:
             logger.error("Pipeline timed out after %ds", self._settings.pipeline_timeout_seconds)
             await self._notifier.notify_error(
-                str(run_date), "pipeline", f"timeout after {self._settings.pipeline_timeout_seconds}s"
+                str(run_date),
+                "pipeline",
+                f"timeout after {self._settings.pipeline_timeout_seconds}s",
             )
             return {
                 "status": "error",

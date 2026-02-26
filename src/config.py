@@ -46,10 +46,15 @@ class Settings(BaseSettings):
     claude_sonnet_model: str = "claude-sonnet-4-6"
     claude_opus_model: str = "claude-opus-4-6"
 
+    # Capitol Trades (politician buys)
+    capitol_trades_enabled: bool = True
+    capitol_trades_lookback_days: int = 3
+    capitol_trades_top_n: int = 10
+    capitol_trades_reserved_slots: int = 3
+
     # Pipeline
     max_tool_rounds: int = 10
     pipeline_timeout_seconds: int = 900
-
 
     @model_validator(mode="after")
     def validate_credentials(self) -> "Settings":

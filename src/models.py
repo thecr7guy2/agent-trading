@@ -88,7 +88,6 @@ class ResearchFinding(BaseModel):
     summary: str = ""
 
 
-
 class ResearchReport(BaseModel):
     tickers: list[ResearchFinding] = Field(default_factory=list)
     market_context: str = ""
@@ -106,6 +105,7 @@ class StockPick(BaseModel):
     allocation_pct: float = 0.0
     reasoning: str = ""
     confidence: float = 0.0
+    source: str = "openinsider"
 
 
 class DailyPicks(BaseModel):
@@ -147,5 +147,3 @@ class Position(BaseModel):
     is_real: bool = True
     llm_name: LLMProvider = LLMProvider.CLAUDE
     opened_at: date | None = None
-
-
