@@ -18,6 +18,7 @@ from rich.table import Table
 
 from src.agents.pipeline import AgentPipeline
 from src.config import get_settings
+from src.orchestrator.supervisor import Supervisor
 from src.utils.recently_traded import get_blacklist
 
 console = Console()
@@ -52,7 +53,6 @@ async def _run(args: argparse.Namespace) -> None:
 
     # --- Step 1: Build digest (OpenInsider + Capitol Trades) ---
     console.print("\n[bold]Step 1/2[/bold] — Fetching insider + politician candidates…")
-    from src.orchestrator.supervisor import Supervisor
 
     supervisor = Supervisor(settings=settings)
     digest = await supervisor.build_insider_digest()
@@ -134,6 +134,9 @@ async def _run(args: argparse.Namespace) -> None:
         portfolio=[],  # no existing positions for dry run
         budget_eur=budget,
     )
+
+    if settings.capitol_trades_enabled:
+        output = Supervisor.enforce_ct_pick(output, capped)
 
     picks = [p for p in output.picks.picks if p.action == "buy"]
     picks = sorted(picks, key=lambda p: p.allocation_pct, reverse=True)

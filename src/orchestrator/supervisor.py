@@ -20,7 +20,7 @@ from src.mcp_servers.market_data.insider import get_insider_candidates, get_tick
 from src.mcp_servers.market_data.news import get_company_news
 from src.mcp_servers.trading.portfolio import get_demo_positions
 from src.mcp_servers.trading.t212_client import T212Client
-from src.models import PickReview
+from src.models import PickReview, StockPick
 from src.notifications.telegram import TelegramNotifier
 from src.orchestrator.mcp_client import (
     MCPToolClient,
@@ -267,6 +267,52 @@ class Supervisor:
             "source_counts": source_counts,
         }
 
+    @staticmethod
+    def enforce_ct_pick(output: PipelineOutput, candidates: list[dict]) -> PipelineOutput:
+        """
+        Post-processing: if Capitol Trades candidates exist but the model picked none,
+        inject the top CT candidate by replacing the weakest OpenInsider pick.
+        If no CT candidates exist today, the output is returned unchanged.
+        """
+        ct_candidates = [c for c in candidates if c.get("source") == "capitol_trades"]
+        if not ct_candidates:
+            return output  # no CT candidates today — OpenInsider-only run is fine
+
+        buy_picks = [p for p in output.picks.picks if p.action == "buy"]
+        ct_tickers = {c["ticker"] for c in ct_candidates}
+        if any(p.ticker in ct_tickers for p in buy_picks):
+            return output  # model already included a CT pick
+
+        if not buy_picks:
+            return output  # no picks at all — nothing to swap
+
+        # Replace the weakest (lowest allocation) pick with the top CT candidate
+        top_ct = ct_candidates[0]
+        weakest = min(buy_picks, key=lambda p: p.allocation_pct)
+        insiders = ", ".join(top_ct.get("insiders", []))
+        ct_pick = StockPick(
+            ticker=top_ct["ticker"],
+            action="buy",
+            allocation_pct=weakest.allocation_pct,
+            reasoning=(
+                f"Capitol Trades signal: {insiders} disclosed a buy of "
+                f"~${top_ct.get('total_value_usd', 0):,.0f} in "
+                f"{top_ct.get('company', top_ct['ticker'])}. "
+                f"Injected per Capitol Trades minimum pick rule."
+            ),
+            confidence=0.5,
+            source="capitol_trades",
+        )
+        new_picks = [p for p in output.picks.picks if p is not weakest] + [ct_pick]
+        logger.info(
+            "CT enforcement: injected %s (replaced %s, %.0f%% allocation)",
+            ct_pick.ticker,
+            weakest.ticker,
+            weakest.allocation_pct,
+        )
+        output.picks.picks = new_picks
+        return output
+
     async def run_decision_cycle(
         self,
         run_date: date | None = None,
@@ -360,6 +406,10 @@ class Supervisor:
             logger.exception("Pipeline failed")
             await self._notifier.notify_error(str(run_date), "pipeline", str(e))
             return {"status": "error", "stage": "pipeline", "date": str(run_date)}
+
+        # Enforce minimum 1 Capitol Trades pick if CT candidates were available
+        if self._settings.capitol_trades_enabled:
+            output = self.enforce_ct_pick(output, capped)
 
         # Execute trades on demo account
         candidates = await self._picks_to_candidates(output.picks)
