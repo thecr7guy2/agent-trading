@@ -54,6 +54,7 @@ class Supervisor:
         self._market_data_client = market_data_client
         self._notifier = TelegramNotifier(self._settings)
         self._t212: T212Client | None = None
+        self._news_sem = asyncio.Semaphore(5)  # max 5 concurrent NewsAPI calls
 
     def _ensure_clients(self) -> None:
         if self._trading_client is None:
@@ -104,15 +105,16 @@ class Supervisor:
             _safe(get_ticker_insider_history(ticker, days=90), {}),
         )
 
-        # News — try NewsAPI first, fall back to yfinance
+        # News — try NewsAPI first (rate-limited), fall back to yfinance
         news = []
         try:
             settings = self._settings
             if settings.news_api_key:
-                news = await asyncio.wait_for(
-                    get_company_news(company, ticker, settings.news_api_key, max_items=5),
-                    timeout=10.0,
-                )
+                async with self._news_sem:
+                    news = await asyncio.wait_for(
+                        get_company_news(company, ticker, settings.news_api_key, max_items=5),
+                        timeout=10.0,
+                    )
             if not news:
                 news = await asyncio.wait_for(get_ticker_news(ticker, max_items=5), timeout=10.0)
         except Exception:
