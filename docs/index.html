@@ -183,8 +183,21 @@
     }
     .panel-body { padding: 16px; }
 
-    /* ── Chart ── */
-    .chart-wrap { position: relative; height: 260px; }
+    /* ── Charts ── */
+    .chart-wrap { position: relative; }
+    .chart-sub-label {
+      font-size: 9px;
+      color: var(--amber);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      opacity: 0.7;
+    }
+    .chart-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 12px 0;
+    }
 
     /* ── Run Panel ── */
     .run-meta-row {
@@ -327,14 +340,24 @@
       <!-- Chart -->
       <div class="panel">
         <div class="panel-header">
-          <span class="panel-title">PORTFOLIO PERFORMANCE</span>
+          <span class="panel-title">RETURNS &amp; POSITIONS</span>
           <span id="chart-date-range" style="font-size:10px;color:var(--muted)">—</span>
         </div>
         <div class="panel-body">
           <div class="chart-wrap">
-            <canvas id="history-chart"></canvas>
-            <div id="chart-empty" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:var(--muted);font-size:12px;">
+            <div id="chart-empty" style="display:none;padding:40px 0;text-align:center;color:var(--muted);font-size:12px;">
               No history data yet.
+            </div>
+            <div id="charts-content">
+              <div class="chart-sub-label">P&amp;L % OVER TIME</div>
+              <div style="position:relative;height:160px">
+                <canvas id="chart-pnl-pct"></canvas>
+              </div>
+              <div class="chart-divider"></div>
+              <div class="chart-sub-label">CURRENT POSITION RETURNS</div>
+              <div style="position:relative" id="chart-positions-wrap">
+                <canvas id="chart-positions"></canvas>
+              </div>
             </div>
           </div>
         </div>
@@ -448,116 +471,200 @@
       'stat-card ' + (pPct > 0 ? 'border-green' : pPct < 0 ? 'border-red' : '');
   }
 
-  // ── Chart ────────────────────────────────────────────────────────────────────
-  let _chart = null;
-  function renderChart(history) {
-    const canvas  = document.getElementById('history-chart');
-    const emptyEl = document.getElementById('chart-empty');
+  // ── Charts ───────────────────────────────────────────────────────────────────
+  let _chartPnl = null;
+  let _chartPos = null;
+
+  const _chartDefaults = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: '#1a1a1a',
+        borderColor: '#333',
+        borderWidth: 1,
+        titleColor: '#f0a500',
+        bodyColor: '#aaa',
+      },
+    },
+  };
+
+  function _splitFillPlugin() {
+    // Draws green fill above zero and red fill below zero on a line chart
+    return {
+      id: 'splitFill',
+      beforeDatasetsDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        if (!chartArea) return;
+        const y0 = scales.y.getPixelForValue(0);
+        const top = chartArea.top;
+        const bot = chartArea.bottom;
+
+        // Green zone (above zero)
+        const greenGrad = ctx.createLinearGradient(0, top, 0, y0);
+        greenGrad.addColorStop(0, 'rgba(0,230,118,0.25)');
+        greenGrad.addColorStop(1, 'rgba(0,230,118,0.04)');
+
+        // Red zone (below zero)
+        const redGrad = ctx.createLinearGradient(0, y0, 0, bot);
+        redGrad.addColorStop(0, 'rgba(255,68,68,0.04)');
+        redGrad.addColorStop(1, 'rgba(255,68,68,0.22)');
+
+        ctx.save();
+        ctx.fillStyle = greenGrad;
+        ctx.fillRect(chartArea.left, top, chartArea.width, Math.max(0, y0 - top));
+        ctx.fillStyle = redGrad;
+        ctx.fillRect(chartArea.left, y0, chartArea.width, Math.max(0, bot - y0));
+        ctx.restore();
+      },
+    };
+  }
+
+  function renderCharts(history, positions) {
+    const emptyEl      = document.getElementById('chart-empty');
+    const chartsEl     = document.getElementById('charts-content');
 
     if (!history || !history.length) {
-      canvas.style.display = 'none';
-      emptyEl.style.display = 'flex';
+      emptyEl.style.display = 'block';
+      chartsEl.style.display = 'none';
       return;
     }
-    canvas.style.display = 'block';
     emptyEl.style.display = 'none';
+    chartsEl.style.display = 'block';
 
-    const labels   = history.map(h => h.date);
-    const invested = history.map(h => h.total_invested_eur);
-    const values   = history.map(h => h.total_value_eur);
-    const pnls     = history.map(h => h.unrealized_pnl_eur);
-
+    // Date range label
+    const labels = history.map(h => h.date);
     if (labels.length > 1) {
       document.getElementById('chart-date-range').textContent =
         labels[0] + ' → ' + labels[labels.length - 1];
     }
 
-    if (_chart) _chart.destroy();
-    _chart = new Chart(canvas.getContext('2d'), {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          {
-            type: 'line',
-            label: 'Portfolio Value',
-            data: values,
-            borderColor: '#f0a500',
-            backgroundColor: 'rgba(240,165,0,0.07)',
-            fill: true,
-            tension: 0.3,
-            pointRadius: 3,
-            pointBackgroundColor: '#f0a500',
-            yAxisID: 'y',
-            order: 1,
-          },
-          {
-            type: 'line',
-            label: 'Total Invested',
-            data: invested,
-            borderColor: '#444',
-            borderDash: [5, 4],
+    // ── Top chart: P&L % over time ──────────────────────────────────────────
+    const pnlPcts = history.map(h =>
+      h.total_invested_eur > 0
+        ? parseFloat(((h.unrealized_pnl_eur / h.total_invested_eur) * 100).toFixed(2))
+        : 0
+    );
+
+    if (_chartPnl) _chartPnl.destroy();
+    _chartPnl = new Chart(
+      document.getElementById('chart-pnl-pct').getContext('2d'),
+      {
+        type: 'line',
+        plugins: [_splitFillPlugin()],
+        data: {
+          labels,
+          datasets: [{
+            data: pnlPcts,
+            borderColor: ctx => {
+              // Amber when positive overall, red when negative
+              const last = pnlPcts[pnlPcts.length - 1] || 0;
+              return last >= 0 ? '#f0a500' : '#ff4444';
+            },
+            borderWidth: 2,
             fill: false,
-            tension: 0.1,
-            pointRadius: 0,
-            yAxisID: 'y',
-            order: 2,
+            tension: 0.3,
+            pointRadius: pnlPcts.length <= 14 ? 3 : 0,
+            pointBackgroundColor: '#f0a500',
+            segment: {
+              borderColor: ctx =>
+                ctx.p1.parsed.y >= 0 ? '#f0a500' : '#ff4444',
+            },
+          }],
+        },
+        options: {
+          ..._chartDefaults,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            ..._chartDefaults.plugins,
+            tooltip: {
+              ..._chartDefaults.plugins.tooltip,
+              callbacks: {
+                label: ctx => ' Return: ' + (ctx.raw >= 0 ? '+' : '') + ctx.raw.toFixed(2) + '%',
+              },
+            },
           },
-          {
-            type: 'bar',
-            label: 'P&L',
-            data: pnls,
-            backgroundColor: pnls.map(v => v >= 0 ? 'rgba(0,230,118,0.35)' : 'rgba(255,68,68,0.35)'),
-            borderColor:     pnls.map(v => v >= 0 ? '#00e676' : '#ff4444'),
-            borderWidth: 1,
-            yAxisID: 'y2',
-            order: 3,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        plugins: {
-          legend: { labels: { color: '#666', font: { size: 10, family: 'Courier New' } } },
-          tooltip: {
-            backgroundColor: '#1a1a1a',
-            borderColor: '#333',
-            borderWidth: 1,
-            titleColor: '#f0a500',
-            bodyColor: '#aaa',
-            callbacks: {
-              label: ctx => ' ' + ctx.dataset.label + ': ' + fmtEur(ctx.raw),
+          scales: {
+            x: {
+              ticks: { color: '#555', font: { size: 9, family: 'Courier New' }, maxRotation: 30 },
+              grid:  { color: 'rgba(240,165,0,0.05)' },
+            },
+            y: {
+              ticks: {
+                color: '#555',
+                font: { size: 9, family: 'Courier New' },
+                callback: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%',
+              },
+              grid: { color: 'rgba(240,165,0,0.07)' },
             },
           },
         },
-        scales: {
-          x: {
-            ticks: { color: '#555', font: { size: 9, family: 'Courier New' }, maxRotation: 30 },
-            grid:  { color: 'rgba(240,165,0,0.05)' },
-          },
-          y: {
-            position: 'left',
-            ticks: {
-              color: '#555',
-              font: { size: 9, family: 'Courier New' },
-              callback: v => '€' + Number(v).toLocaleString('en-GB'),
+      }
+    );
+
+    // ── Bottom chart: current position P&L % ────────────────────────────────
+    if (!positions || !positions.length) return;
+
+    const sorted   = [...positions].sort((a, b) => b.pnl_pct - a.pnl_pct);
+    const posLabels = sorted.map(p => cleanTicker(p.ticker));
+    const posVals   = sorted.map(p => Number(p.pnl_pct || 0));
+    const posColors = posVals.map(v =>
+      v >= 0 ? 'rgba(0,230,118,0.7)' : 'rgba(255,68,68,0.7)'
+    );
+    const posBorder = posVals.map(v =>
+      v >= 0 ? '#00e676' : '#ff4444'
+    );
+
+    // Dynamically size the canvas wrapper based on bar count
+    document.getElementById('chart-positions-wrap').style.height =
+      Math.max(80, sorted.length * 30) + 'px';
+
+    if (_chartPos) _chartPos.destroy();
+    _chartPos = new Chart(
+      document.getElementById('chart-positions').getContext('2d'),
+      {
+        type: 'bar',
+        data: {
+          labels: posLabels,
+          datasets: [{
+            data: posVals,
+            backgroundColor: posColors,
+            borderColor: posBorder,
+            borderWidth: 1,
+            borderRadius: 2,
+          }],
+        },
+        options: {
+          ..._chartDefaults,
+          indexAxis: 'y',
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            ..._chartDefaults.plugins,
+            tooltip: {
+              ..._chartDefaults.plugins.tooltip,
+              callbacks: {
+                label: ctx => ' ' + (ctx.raw >= 0 ? '+' : '') + ctx.raw.toFixed(2) + '%',
+              },
             },
-            grid: { color: 'rgba(240,165,0,0.07)' },
           },
-          y2: {
-            position: 'right',
-            ticks: {
-              color: '#555',
-              font: { size: 9, family: 'Courier New' },
-              callback: v => '€' + Number(v).toFixed(0),
+          scales: {
+            x: {
+              ticks: {
+                color: '#555',
+                font: { size: 9, family: 'Courier New' },
+                callback: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%',
+              },
+              grid: { color: 'rgba(240,165,0,0.05)' },
             },
-            grid: { drawOnChartArea: false },
+            y: {
+              ticks: { color: '#d4d4d4', font: { size: 10, family: 'Courier New', weight: 'bold' } },
+              grid: { display: false },
+            },
           },
         },
-      },
-    });
+      }
+    );
   }
 
   // ── Latest Run Panel ─────────────────────────────────────────────────────────
@@ -677,7 +784,7 @@
     const p = data.portfolio || {};
     renderTickerTape(p.positions || []);
     renderStats(p);
-    renderChart(data.portfolio_history || []);
+    renderCharts(data.portfolio_history || [], p.positions || []);
     renderRunPanel(data.runs || []);
     renderPositions(p.positions || [], p.total_value_eur || 0);
   }
