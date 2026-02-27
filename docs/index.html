@@ -193,11 +193,6 @@
       margin-bottom: 6px;
       opacity: 0.7;
     }
-    .chart-divider {
-      height: 1px;
-      background: var(--border);
-      margin: 12px 0;
-    }
 
     /* ── Run Panel ── */
     .run-meta-row {
@@ -353,11 +348,6 @@
               <div style="position:relative;height:160px">
                 <canvas id="chart-pnl-pct"></canvas>
               </div>
-              <div class="chart-divider"></div>
-              <div class="chart-sub-label">CURRENT POSITION RETURNS</div>
-              <div style="position:relative" id="chart-positions-wrap">
-                <canvas id="chart-positions"></canvas>
-              </div>
             </div>
           </div>
         </div>
@@ -473,7 +463,6 @@
 
   // ── Charts ───────────────────────────────────────────────────────────────────
   let _chartPnl = null;
-  let _chartPos = null;
 
   const _chartDefaults = {
     responsive: true,
@@ -521,7 +510,7 @@
     };
   }
 
-  function renderCharts(history, positions) {
+  function renderCharts(history) {
     const emptyEl      = document.getElementById('chart-empty');
     const chartsEl     = document.getElementById('charts-content');
 
@@ -603,68 +592,6 @@
       }
     );
 
-    // ── Bottom chart: current position P&L % ────────────────────────────────
-    if (!positions || !positions.length) return;
-
-    const sorted   = [...positions].sort((a, b) => b.pnl_pct - a.pnl_pct);
-    const posLabels = sorted.map(p => cleanTicker(p.ticker));
-    const posVals   = sorted.map(p => Number(p.pnl_pct || 0));
-    const posColors = posVals.map(v =>
-      v >= 0 ? 'rgba(0,230,118,0.7)' : 'rgba(255,68,68,0.7)'
-    );
-    const posBorder = posVals.map(v =>
-      v >= 0 ? '#00e676' : '#ff4444'
-    );
-
-    // Dynamically size the canvas wrapper based on bar count
-    document.getElementById('chart-positions-wrap').style.height =
-      Math.max(80, sorted.length * 30) + 'px';
-
-    if (_chartPos) _chartPos.destroy();
-    _chartPos = new Chart(
-      document.getElementById('chart-positions').getContext('2d'),
-      {
-        type: 'bar',
-        data: {
-          labels: posLabels,
-          datasets: [{
-            data: posVals,
-            backgroundColor: posColors,
-            borderColor: posBorder,
-            borderWidth: 1,
-            borderRadius: 2,
-          }],
-        },
-        options: {
-          ..._chartDefaults,
-          indexAxis: 'y',
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            ..._chartDefaults.plugins,
-            tooltip: {
-              ..._chartDefaults.plugins.tooltip,
-              callbacks: {
-                label: ctx => ' ' + (ctx.raw >= 0 ? '+' : '') + ctx.raw.toFixed(2) + '%',
-              },
-            },
-          },
-          scales: {
-            x: {
-              ticks: {
-                color: '#555',
-                font: { size: 9, family: 'Courier New' },
-                callback: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%',
-              },
-              grid: { color: 'rgba(240,165,0,0.05)' },
-            },
-            y: {
-              ticks: { color: '#d4d4d4', font: { size: 10, family: 'Courier New', weight: 'bold' } },
-              grid: { display: false },
-            },
-          },
-        },
-      }
-    );
   }
 
   // ── Latest Run Panel ─────────────────────────────────────────────────────────
@@ -784,7 +711,7 @@
     const p = data.portfolio || {};
     renderTickerTape(p.positions || []);
     renderStats(p);
-    renderCharts(data.portfolio_history || [], p.positions || []);
+    renderCharts(data.portfolio_history || []);
     renderRunPanel(data.runs || []);
     renderPositions(p.positions || [], p.total_value_eur || 0);
   }
