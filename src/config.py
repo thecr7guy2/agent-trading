@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     scheduler_execute_time: str = "17:10"
     scheduler_eod_time: str = "17:35"
     scheduler_trade_days: str = "tue,fri"  # APScheduler day_of_week format
+    scheduler_snapshot_times: str = "10:00,15:30"  # lightweight price-refresh jobs (Mon–Fri)
 
     # Telegram (optional)
     telegram_bot_token: str | None = None

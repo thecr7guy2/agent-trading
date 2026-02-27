@@ -175,6 +175,43 @@ def update_dashboard_data(decision_result: dict, eod_result: dict) -> None:
     logger.info("Dashboard data updated → %s", _DATA_FILE)
 
 
+def refresh_portfolio_snapshot(demo_positions: list[dict]) -> None:
+    """Update data.json with a fresh portfolio snapshot without touching the runs section."""
+    data = _read_data()
+
+    positions = _build_positions(demo_positions)
+    total_invested = round(sum(p["invested_eur"] for p in positions), 2)
+    total_value = round(sum(p["current_value_eur"] for p in positions), 2)
+    pnl_eur = round(total_value - total_invested, 2)
+    pnl_pct = round((pnl_eur / total_invested * 100) if total_invested > 0 else 0.0, 2)
+
+    data["portfolio"] = {
+        "total_invested_eur": total_invested,
+        "total_value_eur": total_value,
+        "unrealized_pnl_eur": pnl_eur,
+        "unrealized_pnl_pct": pnl_pct,
+        "positions": positions,
+    }
+
+    today = str(date.today())
+    history: list[dict] = data.get("portfolio_history", [])
+    history = [h for h in history if h.get("date") != today]
+    history.append(
+        {
+            "date": today,
+            "total_invested_eur": total_invested,
+            "total_value_eur": total_value,
+            "unrealized_pnl_eur": pnl_eur,
+        }
+    )
+    data["portfolio_history"] = history[-70:]
+    data["last_updated"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
+
+    _DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _DATA_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    logger.info("Dashboard snapshot refreshed → %s", _DATA_FILE)
+
+
 def push_dashboard_data() -> None:
     root = str(_PROJECT_ROOT)
     today = date.today().isoformat()

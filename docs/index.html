@@ -3,108 +3,379 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trading Bot Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            slate: {
-              850: '#172032',
-              950: '#0b1120',
-            }
-          }
-        }
-      }
-    }
-  </script>
+  <title>TRADING BOT · TERMINAL</title>
   <style>
-    body { background-color: #0b1120; }
-    .pnl-pos { color: #4ade80; }
-    .pnl-neg { color: #f87171; }
-    .card-pnl-pos { border-top: 2px solid #4ade80; }
-    .card-pnl-neg { border-top: 2px solid #f87171; }
-    .card-pnl-zero { border-top: 2px solid #334155; }
-    table thead th { border-bottom: 1px solid #1e293b; }
-    table tbody tr:hover { background: #172032; }
-    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
-    .live-dot { animation: pulse-dot 2s ease-in-out infinite; }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #0f172a; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    :root {
+      --bg:      #0d0d0d;
+      --panel:   #141414;
+      --border:  #2a2a2a;
+      --amber:   #f0a500;
+      --green:   #00e676;
+      --red:     #ff4444;
+      --muted:   #888888;
+      --text:    #d4d4d4;
+      --white:   #f0f0f0;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      min-height: 100vh;
+      font-size: 13px;
+    }
+
+    /* ── Ticker Tape ── */
+    .ticker-tape {
+      background: #0a0a0a;
+      border-bottom: 1px solid var(--amber);
+      overflow: hidden;
+      height: 28px;
+      display: flex;
+      align-items: center;
+    }
+    .ticker-tape-inner {
+      display: flex;
+      white-space: nowrap;
+      animation: ticker-scroll 30s linear infinite;
+    }
+    .ticker-tape-inner span {
+      display: inline-block;
+      padding: 0 28px;
+      color: var(--amber);
+      font-size: 11px;
+      letter-spacing: 0.05em;
+    }
+    .tape-up   { color: var(--green)  !important; }
+    .tape-down { color: var(--red)    !important; }
+    @keyframes ticker-scroll {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* ── Header Bar ── */
+    .header-bar {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .header-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--amber);
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 0.09em;
+      white-space: nowrap;
+    }
+    .header-badges {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .badge {
+      background: rgba(240,165,0,0.1);
+      border: 1px solid rgba(240,165,0,0.3);
+      color: var(--amber);
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 2px;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+    }
+    .badge-live {
+      background: rgba(0,230,118,0.1);
+      border: 1px solid rgba(0,230,118,0.3);
+      color: var(--green);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .live-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:.25} }
+    .header-meta {
+      font-size: 10px;
+      color: var(--muted);
+      text-align: right;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .header-meta strong { color: var(--text); }
+
+    /* ── Main layout ── */
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 20px 24px;
+    }
+
+    /* ── Stat Cards ── */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--border);
+      padding: 14px 16px;
+    }
+    .stat-label {
+      font-size: 9px;
+      color: var(--amber);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 22px;
+      font-weight: bold;
+      color: var(--white);
+    }
+    .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .border-green { border-top-color: var(--green); }
+    .border-red   { border-top-color: var(--red); }
+    .col-green { color: var(--green) !important; }
+    .col-red   { color: var(--red)   !important; }
+    .col-muted { color: var(--muted) !important; }
+    .col-amber { color: var(--amber) !important; }
+
+    /* ── Two-column ── */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 65fr 35fr;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    /* ── Panel ── */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+    }
+    .panel-header {
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .panel-title {
+      font-size: 10px;
+      color: var(--amber);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .panel-body { padding: 16px; }
+
+    /* ── Chart ── */
+    .chart-wrap { position: relative; height: 260px; }
+
+    /* ── Run Panel ── */
+    .run-meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 7px;
+      font-size: 11px;
+    }
+    .run-meta-label { color: var(--muted); }
+    .run-meta-value { color: var(--text); font-weight: bold; }
+    .conf-badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 2px;
+      font-size: 10px;
+      font-weight: bold;
+    }
+    .conf-high { background: rgba(0,230,118,0.15); color: var(--green); }
+    .conf-med  { background: rgba(240,165,0,0.15);  color: var(--amber); }
+    .conf-low  { background: rgba(255,68,68,0.15);  color: var(--red); }
+    .summary-text {
+      font-size: 10px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin: 12px 0;
+      border-left: 2px solid var(--border);
+      padding-left: 8px;
+    }
+    .picks-list { display: flex; flex-direction: column; gap: 4px; }
+    .pick-row {
+      display: grid;
+      grid-template-columns: 56px 38px 1fr 58px;
+      gap: 6px;
+      align-items: center;
+      padding: 5px 8px;
+      border: 1px solid transparent;
+      font-size: 11px;
+    }
+    .pick-row.executed { border-color: rgba(0,230,118,0.18); background: rgba(0,230,118,0.03); }
+    .pick-row.skipped  { opacity: 0.45; }
+    .pick-ticker { font-weight: bold; color: var(--white); }
+    .pick-alloc  { color: var(--muted); }
+    .pick-status {
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 1px;
+      text-align: center;
+      letter-spacing: 0.04em;
+    }
+    .pick-status.exec { background: rgba(0,230,118,0.15); color: var(--green); }
+    .pick-status.skip { background: rgba(136,136,136,0.12); color: var(--muted); }
+    .pick-amount { text-align: right; color: var(--text); }
+
+    /* ── Positions Table ── */
+    .positions-panel { background: var(--panel); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      font-size: 9px;
+      color: var(--amber);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      padding: 10px 14px;
+      text-align: right;
+      border-bottom: 1px solid var(--border);
+      font-weight: normal;
+    }
+    thead th:first-child { text-align: left; }
+    tbody tr { border-bottom: 1px solid rgba(42,42,42,0.7); transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: rgba(240,165,0,0.04); border-left: 2px solid var(--amber); }
+    tbody td { padding: 10px 14px; font-size: 12px; text-align: right; color: var(--text); }
+    tbody td:first-child { text-align: left; }
+    .alloc-bar-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+    .alloc-bar { height: 3px; background: var(--amber); opacity: 0.45; border-radius: 1px; min-width: 2px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 960px) {
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .main-grid  { grid-template-columns: 1fr; }
+    }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
   </style>
 </head>
-<body class="text-slate-200 min-h-screen font-sans">
+<body>
 
-  <!-- Header -->
-  <header class="border-b border-slate-800 px-6 py-4 flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center flex-shrink-0">
-        <svg class="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-        </svg>
+  <!-- Ticker Tape -->
+  <div class="ticker-tape">
+    <div class="ticker-tape-inner" id="ticker-tape-inner">
+      <span>LOADING…</span>
+    </div>
+  </div>
+
+  <!-- Header Bar -->
+  <div class="header-bar">
+    <div class="header-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f0a500" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+      </svg>
+      INSIDER TRADING BOT
+    </div>
+    <div class="header-badges" id="header-badges">
+      <span class="badge badge-live"><span class="live-dot"></span>LIVE</span>
+    </div>
+    <div class="header-meta">
+      LAST SYNC<br>
+      <strong id="last-updated">—</strong>
+    </div>
+  </div>
+
+  <main>
+
+    <!-- Stat Cards -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Total Invested</div>
+        <div class="stat-value" id="stat-invested">—</div>
       </div>
-      <div>
-        <h1 class="text-base font-bold text-white tracking-tight leading-tight">Trading Bot Dashboard</h1>
-        <p class="text-xs text-slate-500">Insider-signal driven · Fully autonomous · T212 demo account</p>
+      <div class="stat-card">
+        <div class="stat-label">Current Value</div>
+        <div class="stat-value" id="stat-value">—</div>
+      </div>
+      <div class="stat-card" id="card-pnl-eur">
+        <div class="stat-label">Net P&amp;L (€)</div>
+        <div class="stat-value" id="stat-pnl-eur">—</div>
+      </div>
+      <div class="stat-card" id="card-pnl-pct">
+        <div class="stat-label">Net P&amp;L (%)</div>
+        <div class="stat-value" id="stat-pnl-pct">—</div>
+        <div class="stat-sub" id="stat-pnl-sub"></div>
       </div>
     </div>
-    <div class="flex items-center gap-2 text-right">
-      <span class="live-dot w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"></span>
-      <div id="last-updated" class="text-xs text-slate-500"></div>
+
+    <!-- Chart + Run Panel -->
+    <div class="main-grid">
+
+      <!-- Chart -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">PORTFOLIO PERFORMANCE</span>
+          <span id="chart-date-range" style="font-size:10px;color:var(--muted)">—</span>
+        </div>
+        <div class="panel-body">
+          <div class="chart-wrap">
+            <canvas id="history-chart"></canvas>
+            <div id="chart-empty" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:var(--muted);font-size:12px;">
+              No history data yet.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Latest Run -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title" id="run-title">LATEST RUN</span>
+          <span id="run-date" style="font-size:10px;color:var(--muted)">—</span>
+        </div>
+        <div class="panel-body" id="run-panel-body">
+          <p style="color:var(--muted);font-size:11px">No runs yet.</p>
+        </div>
+      </div>
+
     </div>
-  </header>
 
-  <main class="px-6 py-6 max-w-7xl mx-auto">
-
-    <div>
-
-      <!-- Hero stat cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        <div class="bg-slate-900 rounded-xl p-5 border border-slate-800">
-          <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Invested</p>
-          <p id="stat-invested" class="text-2xl font-bold text-white">—</p>
-        </div>
-        <div class="bg-slate-900 rounded-xl p-5 border border-slate-800">
-          <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Current Value</p>
-          <p id="stat-value" class="text-2xl font-bold text-white">—</p>
-        </div>
-        <div id="card-pnl" class="bg-slate-900 rounded-xl p-5 border border-slate-800 card-pnl-zero">
-          <p class="text-xs text-slate-400 uppercase tracking-wider mb-1">Net P&amp;L</p>
-          <p id="stat-pnl" class="text-2xl font-bold">—</p>
-          <p id="stat-pnl-pct" class="text-xs mt-0.5 text-slate-400"></p>
-        </div>
+    <!-- Positions Table -->
+    <div class="positions-panel">
+      <div class="panel-header">
+        <span class="panel-title">OPEN POSITIONS</span>
+        <span id="positions-count" style="font-size:10px;color:var(--muted)">— HOLDINGS</span>
       </div>
-
-      <!-- Portfolio value history chart -->
-      <div class="bg-slate-900 rounded-xl p-5 border border-slate-800 mb-6">
-        <h2 class="text-sm font-semibold text-slate-300 mb-4">Portfolio Value History</h2>
-        <div class="relative h-56">
-          <canvas id="history-chart"></canvas>
-          <p id="chart-empty" class="hidden absolute inset-0 flex items-center justify-center text-slate-500 text-sm">No history data yet.</p>
-        </div>
-      </div>
-
-      <!-- Positions table -->
-      <div class="bg-slate-900 rounded-xl border border-slate-800 overflow-x-auto">
-        <div class="px-5 py-4 border-b border-slate-800">
-          <h2 class="text-sm font-semibold text-slate-300">Open Positions</h2>
-        </div>
-        <table class="w-full text-sm">
+      <div style="overflow-x:auto">
+        <table>
           <thead>
-            <tr class="text-xs text-slate-400 uppercase tracking-wider">
-              <th class="px-5 py-3 text-left">Ticker</th>
-              <th class="px-5 py-3 text-right">Avg Buy</th>
-              <th class="px-5 py-3 text-right">Current</th>
-              <th class="px-5 py-3 text-right">Value</th>
-              <th class="px-5 py-3 text-right">P&amp;L %</th>
-              <th class="px-5 py-3 text-right">Days Held</th>
+            <tr>
+              <th style="text-align:left">TICKER</th>
+              <th>QTY</th>
+              <th>AVG BUY</th>
+              <th>CURRENT</th>
+              <th>INVESTED</th>
+              <th>VALUE</th>
+              <th>P&amp;L €</th>
+              <th>P&amp;L %</th>
+              <th>DAYS</th>
             </tr>
           </thead>
-          <tbody id="positions-body" class="divide-y divide-slate-800/60">
-            <tr><td colspan="6" class="px-5 py-8 text-center text-slate-500 text-sm">Loading…</td></tr>
+          <tbody id="positions-body">
+            <tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted)">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -112,8 +383,14 @@
 
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
-  // ─── Formatters ──────────────────────────────────────────────────
+  // ── Ticker Cleanup ──────────────────────────────────────────────────────────
+  function cleanTicker(t) {
+    return (t || '').replace(/_US_EQ$|_EQ$/, '');
+  }
+
+  // ── Formatters ──────────────────────────────────────────────────────────────
   function fmtEur(v) {
     if (v == null || v === '') return '—';
     return '€' + Number(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -123,46 +400,118 @@
     const n = Number(v);
     return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
   }
-  function pnlClass(v) {
-    return Number(v) >= 0 ? 'pnl-pos' : 'pnl-neg';
-  }
-  // ─── Chart ───────────────────────────────────────────────────────
-  let historyChart = null;
-  function renderChart(history) {
-    const canvas = document.getElementById('history-chart');
-    const empty  = document.getElementById('chart-empty');
-    if (!history || history.length === 0) {
-      canvas.classList.add('hidden');
-      empty.classList.remove('hidden');
+  function pnlCls(v)   { return Number(v) > 0 ? 'col-green' : Number(v) < 0 ? 'col-red' : 'col-muted'; }
+  function pnlArrow(v) { return Number(v) > 0 ? '▲' : Number(v) < 0 ? '▼' : ''; }
+  function confCls(v)  { return v >= 70 ? 'conf-high' : v >= 45 ? 'conf-med' : 'conf-low'; }
+
+  // ── Ticker Tape ─────────────────────────────────────────────────────────────
+  function renderTickerTape(positions) {
+    const inner = document.getElementById('ticker-tape-inner');
+    if (!positions || !positions.length) {
+      inner.innerHTML = '<span>NO OPEN POSITIONS</span>';
       return;
     }
+    const items = positions.map(p => {
+      const t   = cleanTicker(p.ticker);
+      const pct = Number(p.pnl_pct || 0);
+      const cls = pct > 0 ? 'tape-up' : pct < 0 ? 'tape-down' : '';
+      const arr = pct > 0 ? '▲' : pct < 0 ? '▼' : '–';
+      return `<span class="${cls}">${t}  ${fmtEur(p.current_value_eur)}  ${fmtPct(pct)} ${arr}</span>`;
+    });
+    // Duplicate for seamless loop
+    inner.innerHTML = [...items, ...items].join('');
+    inner.style.animationDuration = Math.max(20, positions.length * 6) + 's';
+  }
+
+  // ── Stats ───────────────────────────────────────────────────────────────────
+  function renderStats(p) {
+    const inv   = Number(p.total_invested_eur   || 0);
+    const val   = Number(p.total_value_eur       || 0);
+    const pEur  = Number(p.unrealized_pnl_eur   || 0);
+    const pPct  = Number(p.unrealized_pnl_pct   || 0);
+
+    document.getElementById('stat-invested').textContent = fmtEur(inv);
+    document.getElementById('stat-value').textContent    = fmtEur(val);
+
+    const pEurEl = document.getElementById('stat-pnl-eur');
+    pEurEl.textContent = fmtEur(pEur);
+    pEurEl.className   = 'stat-value ' + pnlCls(pEur);
+
+    const pPctEl = document.getElementById('stat-pnl-pct');
+    pPctEl.textContent = fmtPct(pPct);
+    pPctEl.className   = 'stat-value ' + pnlCls(pPct);
+    document.getElementById('stat-pnl-sub').textContent = pnlArrow(pEur);
+
+    document.getElementById('card-pnl-eur').className =
+      'stat-card ' + (pEur > 0 ? 'border-green' : pEur < 0 ? 'border-red' : '');
+    document.getElementById('card-pnl-pct').className =
+      'stat-card ' + (pPct > 0 ? 'border-green' : pPct < 0 ? 'border-red' : '');
+  }
+
+  // ── Chart ────────────────────────────────────────────────────────────────────
+  let _chart = null;
+  function renderChart(history) {
+    const canvas  = document.getElementById('history-chart');
+    const emptyEl = document.getElementById('chart-empty');
+
+    if (!history || !history.length) {
+      canvas.style.display = 'none';
+      emptyEl.style.display = 'flex';
+      return;
+    }
+    canvas.style.display = 'block';
+    emptyEl.style.display = 'none';
+
     const labels   = history.map(h => h.date);
     const invested = history.map(h => h.total_invested_eur);
     const values   = history.map(h => h.total_value_eur);
-    if (historyChart) historyChart.destroy();
-    historyChart = new Chart(canvas.getContext('2d'), {
-      type: 'line',
+    const pnls     = history.map(h => h.unrealized_pnl_eur);
+
+    if (labels.length > 1) {
+      document.getElementById('chart-date-range').textContent =
+        labels[0] + ' → ' + labels[labels.length - 1];
+    }
+
+    if (_chart) _chart.destroy();
+    _chart = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
       data: {
         labels,
         datasets: [
           {
+            type: 'line',
             label: 'Portfolio Value',
             data: values,
-            borderColor: '#38bdf8',
-            backgroundColor: 'rgba(56,189,248,0.08)',
+            borderColor: '#f0a500',
+            backgroundColor: 'rgba(240,165,0,0.07)',
             fill: true,
             tension: 0.3,
             pointRadius: 3,
-            pointBackgroundColor: '#38bdf8',
+            pointBackgroundColor: '#f0a500',
+            yAxisID: 'y',
+            order: 1,
           },
           {
+            type: 'line',
             label: 'Total Invested',
             data: invested,
-            borderColor: '#475569',
-            borderDash: [4, 4],
+            borderColor: '#444',
+            borderDash: [5, 4],
             fill: false,
-            tension: 0.3,
+            tension: 0.1,
             pointRadius: 0,
+            yAxisID: 'y',
+            order: 2,
+          },
+          {
+            type: 'bar',
+            label: 'P&L',
+            data: pnls,
+            backgroundColor: pnls.map(v => v >= 0 ? 'rgba(0,230,118,0.35)' : 'rgba(255,68,68,0.35)'),
+            borderColor:     pnls.map(v => v >= 0 ? '#00e676' : '#ff4444'),
+            borderWidth: 1,
+            yAxisID: 'y2',
+            order: 3,
           },
         ],
       },
@@ -171,11 +520,13 @@
         maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+          legend: { labels: { color: '#666', font: { size: 10, family: 'Courier New' } } },
           tooltip: {
-            backgroundColor: '#1e293b',
-            titleColor: '#e2e8f0',
-            bodyColor: '#94a3b8',
+            backgroundColor: '#1a1a1a',
+            borderColor: '#333',
+            borderWidth: 1,
+            titleColor: '#f0a500',
+            bodyColor: '#aaa',
             callbacks: {
               label: ctx => ' ' + ctx.dataset.label + ': ' + fmtEur(ctx.raw),
             },
@@ -183,59 +534,126 @@
         },
         scales: {
           x: {
-            ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 30 },
-            grid: { color: '#1e293b' },
+            ticks: { color: '#555', font: { size: 9, family: 'Courier New' }, maxRotation: 30 },
+            grid:  { color: 'rgba(240,165,0,0.05)' },
           },
           y: {
+            position: 'left',
             ticks: {
-              color: '#64748b',
-              font: { size: 10 },
+              color: '#555',
+              font: { size: 9, family: 'Courier New' },
               callback: v => '€' + Number(v).toLocaleString('en-GB'),
             },
-            grid: { color: '#1e293b' },
+            grid: { color: 'rgba(240,165,0,0.07)' },
+          },
+          y2: {
+            position: 'right',
+            ticks: {
+              color: '#555',
+              font: { size: 9, family: 'Courier New' },
+              callback: v => '€' + Number(v).toFixed(0),
+            },
+            grid: { drawOnChartArea: false },
           },
         },
       },
     });
   }
 
-  // ─── Portfolio tab ───────────────────────────────────────────────
-  function renderPortfolio(data) {
-    const p = data.portfolio || {};
-    document.getElementById('stat-invested').textContent = fmtEur(p.total_invested_eur);
-    document.getElementById('stat-value').textContent    = fmtEur(p.total_value_eur);
+  // ── Latest Run Panel ─────────────────────────────────────────────────────────
+  function renderRunPanel(runs) {
+    if (!runs || !runs.length) return;
+    const run = runs[runs.length - 1];
 
-    const pnlEl    = document.getElementById('stat-pnl');
-    const pnlPctEl = document.getElementById('stat-pnl-pct');
-    pnlEl.textContent    = fmtEur(p.unrealized_pnl_eur);
-    pnlEl.className      = 'text-2xl font-bold ' + pnlClass(p.unrealized_pnl_eur);
-    pnlPctEl.textContent = fmtPct(p.unrealized_pnl_pct);
-    pnlPctEl.className   = 'text-xs mt-0.5 ' + pnlClass(p.unrealized_pnl_pct);
-    const pnlCard = document.getElementById('card-pnl');
-    const pnlVal  = Number(p.unrealized_pnl_eur || 0);
-    pnlCard.className = pnlCard.className.replace(/card-pnl-\w+/, pnlVal > 0 ? 'card-pnl-pos' : pnlVal < 0 ? 'card-pnl-neg' : 'card-pnl-zero');
+    document.getElementById('run-title').textContent = 'RUN #' + (run.run_number || runs.length);
+    document.getElementById('run-date').textContent  = run.date || '';
 
-    const tbody = document.getElementById('positions-body');
-    const positions = (p.positions || []).sort((a, b) => b.current_value_eur - a.current_value_eur);
-    if (positions.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="px-5 py-8 text-center text-slate-500 text-sm">No open positions.</td></tr>';
-    } else {
-      tbody.innerHTML = positions.map(pos => `
-        <tr class="transition-colors">
-          <td class="px-5 py-3 font-mono font-semibold text-white">${pos.ticker}</td>
-          <td class="px-5 py-3 text-right text-slate-300">${fmtEur(pos.avg_buy_price)}</td>
-          <td class="px-5 py-3 text-right text-slate-300">${fmtEur(pos.current_price)}</td>
-          <td class="px-5 py-3 text-right text-slate-200 font-medium">${fmtEur(pos.current_value_eur)}</td>
-          <td class="px-5 py-3 text-right font-semibold ${pnlClass(pos.pnl_pct)}">${fmtPct(pos.pnl_pct)}</td>
-          <td class="px-5 py-3 text-right text-slate-400">${pos.days_held ?? '—'}</td>
-        </tr>
-      `).join('');
-    }
+    const conf     = run.confidence || 0;
+    const picks    = run.picks || [];
+    const summary  = (run.market_summary || '').substring(0, 210);
+    const hasMore  = (run.market_summary || '').length > 210;
 
-    renderChart(data.portfolio_history || []);
+    const picksHtml = picks.map(p => {
+      const cls    = p.executed ? 'executed' : 'skipped';
+      const stCls  = p.executed ? 'exec' : 'skip';
+      const stLbl  = p.executed ? '✓ EXEC' : 'SKIP';
+      return `<div class="pick-row ${cls}">
+        <span class="pick-ticker">${cleanTicker(p.ticker)}</span>
+        <span class="pick-alloc">${p.allocation_pct}%</span>
+        <span class="pick-status ${stCls}">${stLbl}</span>
+        <span class="pick-amount">${p.executed ? fmtEur(p.amount_eur) : '—'}</span>
+      </div>`;
+    }).join('');
+
+    document.getElementById('run-panel-body').innerHTML = `
+      <div>
+        <div class="run-meta-row">
+          <span class="run-meta-label">INSIDER SIGNALS</span>
+          <span class="run-meta-value">${run.insider_count || 0}</span>
+        </div>
+        <div class="run-meta-row">
+          <span class="run-meta-label">CONFIDENCE</span>
+          <span class="conf-badge ${confCls(conf)}">${conf}%</span>
+        </div>
+        <div class="run-meta-row">
+          <span class="run-meta-label">DEPLOYED</span>
+          <span class="run-meta-value">${fmtEur(run.total_spent_eur)}</span>
+        </div>
+      </div>
+      ${summary ? `<div class="summary-text">${summary}${hasMore ? '…' : ''}</div>` : ''}
+      <div class="picks-list">
+        ${picksHtml || '<p style="color:var(--muted);font-size:11px">No picks.</p>'}
+      </div>
+    `;
+
+    // Update header badges
+    document.getElementById('header-badges').innerHTML = `
+      <span class="badge badge-live"><span class="live-dot"></span>LIVE</span>
+      <span class="badge">SIGNALS: ${run.insider_count || 0}</span>
+      <span class="badge conf-badge ${confCls(conf)}">CONFIDENCE: ${conf}%</span>
+    `;
   }
 
-  // ─── Main load ───────────────────────────────────────────────────
+  // ── Positions Table ──────────────────────────────────────────────────────────
+  function renderPositions(positions, totalValue) {
+    const tbody   = document.getElementById('positions-body');
+    const countEl = document.getElementById('positions-count');
+
+    const sorted = (positions || []).slice().sort((a, b) => b.current_value_eur - a.current_value_eur);
+    countEl.textContent = sorted.length + (sorted.length !== 1 ? ' HOLDINGS' : ' HOLDING');
+
+    if (!sorted.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted)">No open positions.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = sorted.map(pos => {
+      const t        = cleanTicker(pos.ticker);
+      const pCls     = pnlCls(pos.pnl_pct);
+      const arr      = pnlArrow(pos.pnl_pct);
+      const allocPct = totalValue > 0 ? (pos.current_value_eur / totalValue * 100) : 0;
+      const barW     = Math.max(2, Math.min(72, allocPct * 0.85));
+
+      return `<tr>
+        <td style="font-weight:bold;color:var(--white)">${t}</td>
+        <td>${Number(pos.quantity || 0).toFixed(3)}</td>
+        <td>${fmtEur(pos.avg_buy_price)}</td>
+        <td>${fmtEur(pos.current_price)}</td>
+        <td style="color:var(--muted)">${fmtEur(pos.invested_eur)}</td>
+        <td>
+          <div class="alloc-bar-wrap">
+            <div class="alloc-bar" style="width:${barW}px"></div>
+            ${fmtEur(pos.current_value_eur)}
+          </div>
+        </td>
+        <td class="${pCls}">${fmtEur(pos.pnl_eur)}</td>
+        <td class="${pCls}">${arr ? arr + ' ' : ''}${fmtPct(pos.pnl_pct)}</td>
+        <td style="color:var(--muted)">${pos.days_held ?? '—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ── Main Load ────────────────────────────────────────────────────────────────
   async function loadData() {
     let data;
     try {
@@ -243,21 +661,25 @@
       if (!res.ok) throw new Error('HTTP ' + res.status);
       data = await res.json();
     } catch (err) {
-      document.getElementById('last-updated').textContent = 'Failed to load data';
+      document.getElementById('last-updated').textContent = 'Error loading data';
       document.getElementById('positions-body').innerHTML =
-        '<tr><td colspan="6" class="px-5 py-8 text-center text-red-400 text-sm">Could not load data.json — ' + err.message + '</td></tr>';
+        `<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--red)">
+          Could not load data.json — ${err.message}
+        </td></tr>`;
       return;
     }
 
-    // Last updated
     if (data.last_updated) {
-      document.getElementById('last-updated').innerHTML =
-        'Last updated<br><span class="text-slate-300">' + data.last_updated.replace('T', ' ') + ' UTC</span>';
-    } else {
-      document.getElementById('last-updated').textContent = 'No data yet';
+      document.getElementById('last-updated').textContent =
+        data.last_updated.replace('T', ' ') + ' UTC';
     }
 
-    renderPortfolio(data);
+    const p = data.portfolio || {};
+    renderTickerTape(p.positions || []);
+    renderStats(p);
+    renderChart(data.portfolio_history || []);
+    renderRunPanel(data.runs || []);
+    renderPositions(p.positions || [], p.total_value_eur || 0);
   }
 
   loadData();

@@ -88,6 +88,29 @@ class OrchestratorScheduler:
             logging.getLogger().removeHandler(handler)
             handler.close()
 
+    async def _run_snapshot_job(self) -> None:
+        logger.info("Running portfolio snapshot job")
+        try:
+            from src.mcp_servers.trading.portfolio import get_demo_positions
+            from src.mcp_servers.trading.t212_client import T212Client
+            from src.reporting.dashboard import push_dashboard_data, refresh_portfolio_snapshot
+
+            t212 = T212Client(
+                api_key=self._settings.t212_api_key,
+                api_secret=self._settings.t212_api_secret,
+                use_demo=True,
+            )
+            try:
+                positions = await get_demo_positions(t212)
+            finally:
+                await t212.close()
+
+            refresh_portfolio_snapshot(positions)
+            push_dashboard_data()
+            logger.info("Portfolio snapshot pushed to dashboard")
+        except Exception:
+            logger.exception("Portfolio snapshot job failed")
+
     def configure_jobs(self) -> None:
         if self._scheduler.get_jobs():
             return
@@ -115,6 +138,24 @@ class OrchestratorScheduler:
             minute=eod_minute,
             replace_existing=True,
         )
+
+        # Lightweight portfolio price-refresh snapshots (Mon–Fri)
+        snapshot_times = [
+            t.strip()
+            for t in self._settings.scheduler_snapshot_times.split(",")
+            if t.strip()
+        ]
+        for i, t in enumerate(snapshot_times):
+            h, m = _parse_hhmm(t)
+            self._scheduler.add_job(
+                self._run_snapshot_job,
+                trigger="cron",
+                id=f"portfolio_snapshot_{i}",
+                day_of_week="mon-fri",
+                hour=h,
+                minute=m,
+                replace_existing=True,
+            )
 
     def start(self) -> None:
         self.configure_jobs()
