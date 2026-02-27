@@ -8,40 +8,8 @@ from src.models import (
     Position,
     ResearchFinding,
     ResearchReport,
-    SentimentReport,
     StockPick,
-    TickerSentiment,
 )
-
-
-class TestTickerSentiment:
-    def test_valid(self):
-        ts = TickerSentiment(ticker="ASML.AS", mentions=42, sentiment_score=0.8)
-        assert ts.ticker == "ASML.AS"
-        assert ts.mentions == 42
-        assert ts.sentiment_score == 0.8
-
-    def test_defaults(self):
-        ts = TickerSentiment(ticker="SAP.DE")
-        assert ts.mentions == 0
-        assert ts.top_quotes == []
-        assert ts.subreddits == {}
-
-
-class TestSentimentReport:
-    def test_valid(self):
-        report = SentimentReport(
-            report_date="2026-02-18",
-            tickers=[TickerSentiment(ticker="ASML.AS", sentiment_score=0.5)],
-            total_mentions=100,
-        )
-        assert len(report.tickers) == 1
-        assert report.total_mentions == 100
-
-    def test_defaults(self):
-        report = SentimentReport()
-        assert report.tickers == []
-        assert report.report_date == ""
 
 
 class TestStockPick:
@@ -121,11 +89,7 @@ class TestResearchReport:
 class TestEnums:
     def test_llm_provider_values(self):
         assert LLMProvider.CLAUDE == "claude"
-        assert LLMProvider.CLAUDE_AGGRESSIVE == "claude_aggressive"
 
     def test_agent_stage_values(self):
-        assert AgentStage.SENTIMENT == "sentiment"
-        assert AgentStage.MARKET == "market"
         assert AgentStage.TRADER == "trader"
         assert AgentStage.RESEARCH == "research"
-        assert AgentStage.RISK == "risk"

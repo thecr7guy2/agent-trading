@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from datetime import date
 
 from src.agents.providers.claude import ClaudeProvider
-from src.agents.research_agent import ResearchAgent
 from src.agents.trader_agent import TraderAgent
 from src.config import get_settings
 from src.models import PickReview, ResearchReport
@@ -23,29 +22,14 @@ class AgentPipeline:
     def __init__(self):
         settings = get_settings()
 
-        # Claude provider shared by both stages
         claude_provider = ClaudeProvider(api_key=settings.anthropic_api_key)
 
-        # Claude Sonnet: analyst stage (research — pros/cons/catalyst, no verdict, no tools)
-        self._research = ResearchAgent(claude_provider, settings.claude_sonnet_model)
-
-        # Claude Opus: portfolio manager stage (final buy decisions, no tools)
         self._trader = TraderAgent(
             claude_provider,
             settings.claude_opus_model,
             tool_executor=None,
             max_tool_rounds=0,
         )
-
-    async def run_research(self, enriched_digest: dict) -> ResearchReport | None:
-        """Stage 1: Claude Sonnet analyst — produces pros/cons/catalyst per ticker, no verdict."""
-        logger.info(
-            "Research stage: Claude Sonnet analyst (%d tickers)",
-            len(enriched_digest.get("candidates", [])),
-        )
-        research = await self._research.run(enriched_digest)
-        logger.info("Research done — %d tickers analysed", len(research.tickers))
-        return research
 
     async def run_decision(
         self,

@@ -46,23 +46,6 @@ def create_trading_client() -> InProcessMCPClient:
     )
 
 
-def create_reddit_client() -> InProcessMCPClient:
-    from src.mcp_servers.reddit.server import (
-        collect_posts,
-        get_collection_stats,
-        get_daily_digest,
-        reset_collection,
-    )
-
-    return InProcessMCPClient(
-        {
-            "collect_posts": collect_posts,
-            "get_daily_digest": get_daily_digest,
-            "get_collection_stats": get_collection_stats,
-            "reset_collection": reset_collection,
-        }
-    )
-
 
 def create_market_data_client() -> InProcessMCPClient:
     from src.mcp_servers.market_data.server import (
@@ -98,11 +81,3 @@ def create_market_data_client() -> InProcessMCPClient:
     )
 
 
-class StdioMCPClient:
-    """Skeleton for future use — connects to an MCP server over stdio transport."""
-
-    async def call_tool(self, name: str, arguments: dict[str, Any]) -> dict:
-        raise NotImplementedError("StdioMCPClient is not yet wired up")
-
-    async def close(self) -> None:
-        pass

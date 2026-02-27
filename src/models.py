@@ -16,58 +16,15 @@ from pydantic import BaseModel, Field
 
 class LLMProvider(StrEnum):
     CLAUDE = "claude"
-    CLAUDE_AGGRESSIVE = "claude_aggressive"
 
 
 class AgentStage(StrEnum):
-    SENTIMENT = "sentiment"
-    MARKET = "market"
     RESEARCH = "research"
     TRADER = "trader"
-    RISK = "risk"
 
 
 # ---------------------------------------------------------------------------
-# Stage 1: Sentiment
-# ---------------------------------------------------------------------------
-
-
-class TickerSentiment(BaseModel):
-    ticker: str
-    mentions: int = 0
-    sentiment_score: float = 0.0
-    top_quotes: list[str] = Field(default_factory=list)
-    subreddits: dict[str, int] = Field(default_factory=dict)
-
-
-class SentimentReport(BaseModel):
-    tickers: list[TickerSentiment] = Field(default_factory=list)
-    report_date: date | str = ""
-    total_mentions: int = 0
-    market_mood: str = ""
-
-
-# ---------------------------------------------------------------------------
-# Stage 2a: Legacy Market Analysis (no tools)
-# ---------------------------------------------------------------------------
-
-
-class TickerAnalysis(BaseModel):
-    ticker: str
-    fundamental_score: float = 0.0
-    technical_score: float = 0.0
-    risk_score: float = 0.0
-    summary: str = ""
-    catalyst: str = ""
-
-
-class MarketAnalysis(BaseModel):
-    tickers: list[TickerAnalysis] = Field(default_factory=list)
-    market_context: str = ""
-
-
-# ---------------------------------------------------------------------------
-# Stage 2b: Research (with tools)
+# Stage 1: Research (analyst — pros/cons/catalyst, no verdict)
 # ---------------------------------------------------------------------------
 
 
@@ -95,7 +52,7 @@ class ResearchReport(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Stage 3: Trading Picks
+# Stage 2: Trading Picks
 # ---------------------------------------------------------------------------
 
 
@@ -117,11 +74,6 @@ class DailyPicks(BaseModel):
     market_summary: str = ""
 
 
-# ---------------------------------------------------------------------------
-# Stage 4: Risk Review
-# ---------------------------------------------------------------------------
-
-
 class PickReview(BaseModel):
     llm: LLMProvider = LLMProvider.CLAUDE
     pick_date: date | None = None
@@ -129,13 +81,10 @@ class PickReview(BaseModel):
     sell_recommendations: list[StockPick] = Field(default_factory=list)
     confidence: float = 0.0
     market_summary: str = ""
-    risk_notes: str = ""
-    adjustments: list[str] = Field(default_factory=list)
-    vetoed_tickers: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
-# Positions & Sell Signals (sourced from T212, not DB)
+# Positions (sourced from T212, not DB)
 # ---------------------------------------------------------------------------
 
 

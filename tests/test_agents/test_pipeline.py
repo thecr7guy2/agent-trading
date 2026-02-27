@@ -43,11 +43,10 @@ def _mock_settings():
 
 class TestAgentPipeline:
     @pytest.mark.asyncio
-    async def test_full_pipeline_runs_research_then_decision(self):
+    async def test_run_calls_trader_with_no_research(self):
         with patch("src.agents.pipeline.get_settings") as mock_settings:
             mock_settings.return_value = _mock_settings()
             pipeline = AgentPipeline()
-            pipeline._research.run = AsyncMock(return_value=SAMPLE_RESEARCH)
             pipeline._trader.run = AsyncMock(return_value=SAMPLE_PICKS)
 
             result = await pipeline.run(
@@ -58,23 +57,22 @@ class TestAgentPipeline:
 
             assert isinstance(result, PipelineOutput)
             assert result.picks.picks[0].ticker == "ASML.AS"
-            assert result.research == SAMPLE_RESEARCH
-            pipeline._research.run.assert_called_once()
+            assert result.research is None
             pipeline._trader.run.assert_called_once()
+            trader_input = pipeline._trader.run.call_args[0][0]
+            assert trader_input["research"] is None
 
     @pytest.mark.asyncio
-    async def test_research_output_passed_to_trader(self):
+    async def test_portfolio_and_budget_passed_to_trader(self):
         with patch("src.agents.pipeline.get_settings") as mock_settings:
             mock_settings.return_value = _mock_settings()
             pipeline = AgentPipeline()
-            pipeline._research.run = AsyncMock(return_value=SAMPLE_RESEARCH)
             pipeline._trader.run = AsyncMock(return_value=SAMPLE_PICKS)
 
             digest = {"candidates": [{"ticker": "ASML.AS"}]}
             await pipeline.run(enriched_digest=digest, portfolio=[{"ticker": "OLD"}], budget_eur=500.0)
 
             trader_input = pipeline._trader.run.call_args[0][0]
-            assert trader_input["research"] == SAMPLE_RESEARCH
             assert trader_input["portfolio"] == [{"ticker": "OLD"}]
             assert trader_input["budget_eur"] == 500.0
 
@@ -83,7 +81,6 @@ class TestAgentPipeline:
         with patch("src.agents.pipeline.get_settings") as mock_settings:
             mock_settings.return_value = _mock_settings()
             pipeline = AgentPipeline()
-            pipeline._research.run = AsyncMock(return_value=SAMPLE_RESEARCH)
             pipeline._trader.run = AsyncMock(return_value=SAMPLE_PICKS)
 
             run_date = date(2026, 3, 1)
