@@ -1,108 +1,163 @@
 {
-  "last_updated": "2026-03-03T14:30:00",
+  "last_updated": "2026-03-03T16:35:00",
   "portfolio": {
-    "total_invested_eur": 5377.31,
-    "total_value_eur": 5245.76,
-    "unrealized_pnl_eur": -131.55,
-    "unrealized_pnl_pct": -2.45,
+    "total_invested_eur": 8277.06,
+    "total_value_eur": 8241.94,
+    "unrealized_pnl_eur": -35.12,
+    "unrealized_pnl_pct": -0.42,
     "positions": [
+      {
+        "ticker": "REXR_US_EQ",
+        "quantity": 27.481,
+        "avg_buy_price": 36.9099,
+        "current_price": 36.81,
+        "invested_eur": 1014.32,
+        "current_value_eur": 1011.58,
+        "pnl_eur": -2.74,
+        "pnl_pct": -0.27,
+        "days_held": 0
+      },
       {
         "ticker": "AVTR_US_EQ",
         "quantity": 81.21,
         "avg_buy_price": 9.0699,
-        "current_price": 8.58,
+        "current_price": 8.56,
         "invested_eur": 736.57,
-        "current_value_eur": 696.78,
-        "pnl_eur": -39.79,
-        "pnl_pct": -5.4,
+        "current_value_eur": 695.16,
+        "pnl_eur": -41.41,
+        "pnl_pct": -5.62,
         "days_held": 7
       },
       {
         "ticker": "TLS_US_EQ",
         "quantity": 166.46,
         "avg_buy_price": 3.91,
-        "current_price": 3.9,
+        "current_price": 4.27,
         "invested_eur": 650.86,
-        "current_value_eur": 649.19,
-        "pnl_eur": -1.67,
-        "pnl_pct": -0.26,
+        "current_value_eur": 710.78,
+        "pnl_eur": 59.92,
+        "pnl_pct": 9.21,
         "days_held": 7
       },
       {
         "ticker": "VNO_US_EQ",
         "quantity": 15.556,
         "avg_buy_price": 28.5099,
-        "current_price": 25.69,
+        "current_price": 26.39,
         "invested_eur": 443.5,
-        "current_value_eur": 399.63,
-        "pnl_eur": -43.87,
-        "pnl_pct": -9.89,
+        "current_value_eur": 410.52,
+        "pnl_eur": -32.98,
+        "pnl_pct": -7.44,
         "days_held": 4
+      },
+      {
+        "ticker": "HRI_US_EQ",
+        "quantity": 5.347,
+        "avg_buy_price": 135.6592,
+        "current_price": 137.66,
+        "invested_eur": 725.37,
+        "current_value_eur": 736.07,
+        "pnl_eur": 10.7,
+        "pnl_pct": 1.48,
+        "days_held": 0
+      },
+      {
+        "ticker": "POOL_US_EQ",
+        "quantity": 1.326,
+        "avg_buy_price": 218.6425,
+        "current_price": 218.21,
+        "invested_eur": 289.92,
+        "current_value_eur": 289.35,
+        "pnl_eur": -0.57,
+        "pnl_pct": -0.2,
+        "days_held": 0
       },
       {
         "ticker": "PODD_US_EQ",
         "quantity": 1.791,
         "avg_buy_price": 246.9626,
-        "current_price": 238.31,
+        "current_price": 241.17,
         "invested_eur": 442.31,
-        "current_value_eur": 426.81,
-        "pnl_eur": -15.5,
-        "pnl_pct": -3.5,
+        "current_value_eur": 431.94,
+        "pnl_eur": -10.37,
+        "pnl_pct": -2.34,
         "days_held": 7
       },
       {
         "ticker": "VERX_US_EQ",
         "quantity": 51.584,
         "avg_buy_price": 14.37,
-        "current_price": 14.1,
+        "current_price": 14.34,
         "invested_eur": 741.26,
-        "current_value_eur": 727.33,
-        "pnl_eur": -13.93,
-        "pnl_pct": -1.88,
+        "current_value_eur": 739.71,
+        "pnl_eur": -1.55,
+        "pnl_pct": -0.21,
         "days_held": 4
       },
       {
         "ticker": "WY_US_EQ",
         "quantity": 23.547,
         "avg_buy_price": 25.0299,
-        "current_price": 24.32,
+        "current_price": 24.57,
         "invested_eur": 589.38,
-        "current_value_eur": 572.66,
-        "pnl_eur": -16.72,
-        "pnl_pct": -2.84,
+        "current_value_eur": 578.55,
+        "pnl_eur": -10.83,
+        "pnl_pct": -1.84,
         "days_held": 7
+      },
+      {
+        "ticker": "LRN_US_EQ",
+        "quantity": 5.151,
+        "avg_buy_price": 84.4205,
+        "current_price": 84.69,
+        "invested_eur": 434.85,
+        "current_value_eur": 436.24,
+        "pnl_eur": 1.39,
+        "pnl_pct": 0.32,
+        "days_held": 0
+      },
+      {
+        "ticker": "SKWD_US_EQ",
+        "quantity": 9.118,
+        "avg_buy_price": 47.7396,
+        "current_price": 47.8,
+        "invested_eur": 435.29,
+        "current_value_eur": 435.84,
+        "pnl_eur": 0.55,
+        "pnl_pct": 0.13,
+        "days_held": 0
       },
       {
         "ticker": "CNDT_US_EQ",
         "quantity": 193.2,
         "avg_buy_price": 1.53,
-        "current_price": 1.47,
+        "current_price": 1.43,
         "invested_eur": 295.6,
-        "current_value_eur": 284.0,
-        "pnl_eur": -11.6,
-        "pnl_pct": -3.92,
+        "current_value_eur": 276.28,
+        "pnl_eur": -19.32,
+        "pnl_pct": -6.54,
         "days_held": 7
       },
       {
         "ticker": "UBER_US_EQ",
         "quantity": 13.721,
         "avg_buy_price": 75.3998,
-        "current_price": 74.21,
+        "current_price": 75.21,
         "invested_eur": 1034.56,
-        "current_value_eur": 1018.24,
-        "pnl_eur": -16.32,
-        "pnl_pct": -1.58,
+        "current_value_eur": 1031.96,
+        "pnl_eur": -2.6,
+        "pnl_pct": -0.25,
         "days_held": 4
       },
       {
         "ticker": "SXC_US_EQ",
         "quantity": 77.36,
         "avg_buy_price": 5.73,
-        "current_price": 6.09,
+        "current_price": 5.92,
         "invested_eur": 443.27,
-        "current_value_eur": 471.12,
-        "pnl_eur": 27.85,
-        "pnl_pct": 6.28,
+        "current_value_eur": 457.97,
+        "pnl_eur": 14.7,
+        "pnl_pct": 3.32,
         "days_held": 4
       }
     ]
@@ -207,6 +262,56 @@
           "quantity": 0.0
         }
       ]
+    },
+    {
+      "date": "2026-03-03",
+      "run_number": 3,
+      "insider_count": 25,
+      "confidence": 74,
+      "market_summary": "Mixed insider buying week. Standout signal is REXR with a triple cluster buy from COO, CFO, and Director — rare alignment of C-suite conviction in an oversold industrial REIT. HRI also notable with a Director increasing stake by 938% into weakness. Several quality names (LRN, POOL) show insiders buy",
+      "total_spent_eur": 2500.0,
+      "picks": [
+        {
+          "ticker": "REXR",
+          "allocation_pct": 35.0,
+          "reasoning": "Strongest cluster buy signal: COO (Laura Clark), CFO (Michael Fitzmaurice), and a Director all buying simultaneously — 3 insiders spending $487K total with max ΔOwn of 273%. Stock is down ~9% over 1 m",
+          "executed": true,
+          "amount_eur": 875.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "HRI",
+          "allocation_pct": 25.0,
+          "reasoning": "Director John Olin purchased $427K worth of shares, increasing his stake by 938% — massive personal conviction. Stock is down 12% over 1 month with RSI at 37.6 (oversold), sitting near the lower Bolli",
+          "executed": true,
+          "amount_eur": 625.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "SKWD",
+          "allocation_pct": 15.0,
+          "reasoning": "CEO Andrew Robinson and Director Christopher Peirce both buying — cluster buy totaling $1.18M with the CEO's personal capital at stake. P&C insurance with solid P/E of 11.7 and 12% profit margin. Stoc",
+          "executed": true,
+          "amount_eur": 375.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "LRN",
+          "allocation_pct": 15.0,
+          "reasoning": "Stock is down 47% over 6 months and 40% over 1 year — massive decline from $171 to ~$84. Insider bought $32.5K which is modest, but with P/E of 12.9, EPS of $6.51, and 12.7% profit margin, fundamental",
+          "executed": true,
+          "amount_eur": 375.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "POOL",
+          "allocation_pct": 10.0,
+          "reasoning": "Director James Hope doubled his stake (+121% ΔOwn) spending $300K after a 28% 6-month decline and 35.5% 1-year decline. RSI at 33.9 is oversold. P/E of 20.1 with EPS of $10.86 — quality industrial dis",
+          "executed": true,
+          "amount_eur": 250.0,
+          "quantity": 0.0
+        }
+      ]
     }
   ],
   "portfolio_history": [
@@ -230,9 +335,9 @@
     },
     {
       "date": "2026-03-03",
-      "total_invested_eur": 5377.31,
-      "total_value_eur": 5245.76,
-      "unrealized_pnl_eur": -131.55
+      "total_invested_eur": 8277.06,
+      "total_value_eur": 8241.94,
+      "unrealized_pnl_eur": -35.12
     }
   ]
 }
