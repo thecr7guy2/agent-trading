@@ -1,109 +1,109 @@
 {
-  "last_updated": "2026-03-02T14:30:00",
+  "last_updated": "2026-03-03T09:00:00",
   "portfolio": {
     "total_invested_eur": 5377.31,
-    "total_value_eur": 5300.66,
-    "unrealized_pnl_eur": -76.65,
-    "unrealized_pnl_pct": -1.43,
+    "total_value_eur": 5330.66,
+    "unrealized_pnl_eur": -46.65,
+    "unrealized_pnl_pct": -0.87,
     "positions": [
       {
         "ticker": "AVTR_US_EQ",
         "quantity": 81.21,
         "avg_buy_price": 9.0699,
-        "current_price": 8.94,
+        "current_price": 8.8,
         "invested_eur": 736.57,
-        "current_value_eur": 726.02,
-        "pnl_eur": -10.55,
-        "pnl_pct": -1.43,
-        "days_held": 6
+        "current_value_eur": 714.65,
+        "pnl_eur": -21.92,
+        "pnl_pct": -2.98,
+        "days_held": 7
       },
       {
         "ticker": "TLS_US_EQ",
         "quantity": 166.46,
         "avg_buy_price": 3.91,
-        "current_price": 4.02,
+        "current_price": 3.89,
         "invested_eur": 650.86,
-        "current_value_eur": 669.17,
-        "pnl_eur": 18.31,
-        "pnl_pct": 2.81,
-        "days_held": 6
+        "current_value_eur": 647.53,
+        "pnl_eur": -3.33,
+        "pnl_pct": -0.51,
+        "days_held": 7
       },
       {
         "ticker": "VNO_US_EQ",
         "quantity": 15.556,
         "avg_buy_price": 28.5099,
-        "current_price": 27.64,
+        "current_price": 27.51,
         "invested_eur": 443.5,
-        "current_value_eur": 429.97,
-        "pnl_eur": -13.53,
-        "pnl_pct": -3.05,
-        "days_held": 3
+        "current_value_eur": 427.95,
+        "pnl_eur": -15.55,
+        "pnl_pct": -3.51,
+        "days_held": 4
       },
       {
         "ticker": "PODD_US_EQ",
         "quantity": 1.791,
         "avg_buy_price": 246.9626,
-        "current_price": 243.18,
+        "current_price": 245.45,
         "invested_eur": 442.31,
-        "current_value_eur": 435.54,
-        "pnl_eur": -6.77,
-        "pnl_pct": -1.53,
-        "days_held": 6
+        "current_value_eur": 439.6,
+        "pnl_eur": -2.71,
+        "pnl_pct": -0.61,
+        "days_held": 7
       },
       {
         "ticker": "VERX_US_EQ",
         "quantity": 51.584,
         "avg_buy_price": 14.37,
-        "current_price": 14.2,
+        "current_price": 14.4,
         "invested_eur": 741.26,
-        "current_value_eur": 732.49,
-        "pnl_eur": -8.77,
-        "pnl_pct": -1.18,
-        "days_held": 3
+        "current_value_eur": 742.81,
+        "pnl_eur": 1.55,
+        "pnl_pct": 0.21,
+        "days_held": 4
       },
       {
         "ticker": "WY_US_EQ",
         "quantity": 23.547,
         "avg_buy_price": 25.0299,
-        "current_price": 24.43,
+        "current_price": 24.7,
         "invested_eur": 589.38,
-        "current_value_eur": 575.25,
-        "pnl_eur": -14.13,
-        "pnl_pct": -2.4,
-        "days_held": 6
+        "current_value_eur": 581.61,
+        "pnl_eur": -7.77,
+        "pnl_pct": -1.32,
+        "days_held": 7
       },
       {
         "ticker": "CNDT_US_EQ",
         "quantity": 193.2,
         "avg_buy_price": 1.53,
-        "current_price": 1.46,
+        "current_price": 1.47,
         "invested_eur": 295.6,
-        "current_value_eur": 282.07,
-        "pnl_eur": -13.53,
-        "pnl_pct": -4.58,
-        "days_held": 6
+        "current_value_eur": 284.0,
+        "pnl_eur": -11.6,
+        "pnl_pct": -3.92,
+        "days_held": 7
       },
       {
         "ticker": "UBER_US_EQ",
         "quantity": 13.721,
         "avg_buy_price": 75.3998,
-        "current_price": 73.89,
+        "current_price": 74.44,
         "invested_eur": 1034.56,
-        "current_value_eur": 1013.84,
-        "pnl_eur": -20.72,
-        "pnl_pct": -2.0,
-        "days_held": 3
+        "current_value_eur": 1021.39,
+        "pnl_eur": -13.17,
+        "pnl_pct": -1.27,
+        "days_held": 4
       },
       {
         "ticker": "SXC_US_EQ",
         "quantity": 77.36,
         "avg_buy_price": 5.73,
-        "current_price": 5.64,
+        "current_price": 6.09,
         "invested_eur": 443.27,
-        "current_value_eur": 436.31,
-        "pnl_eur": -6.96,
-        "pnl_pct": -1.57,
-        "days_held": 3
+        "current_value_eur": 471.12,
+        "pnl_eur": 27.85,
+        "pnl_pct": 6.28,
+        "days_held": 4
       }
     ]
   },
@@ -227,6 +227,12 @@
       "total_invested_eur": 5377.31,
       "total_value_eur": 5300.66,
       "unrealized_pnl_eur": -76.65
+    },
+    {
+      "date": "2026-03-03",
+      "total_invested_eur": 5377.31,
+      "total_value_eur": 5330.66,
+      "unrealized_pnl_eur": -46.65
     }
   ]
 }
