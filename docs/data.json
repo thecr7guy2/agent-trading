@@ -1,163 +1,207 @@
 {
-  "last_updated": "2026-03-10T14:30:01",
+  "last_updated": "2026-03-10T16:35:00",
   "portfolio": {
-    "total_invested_eur": 10743.43,
-    "total_value_eur": 10361.49,
-    "unrealized_pnl_eur": -381.94,
-    "unrealized_pnl_pct": -3.56,
+    "total_invested_eur": 13220.68,
+    "total_value_eur": 12918.88,
+    "unrealized_pnl_eur": -301.8,
+    "unrealized_pnl_pct": -2.28,
     "positions": [
+      {
+        "ticker": "PRCT_US_EQ",
+        "quantity": 17.407,
+        "avg_buy_price": 25.1399,
+        "current_price": 25.5,
+        "invested_eur": 437.61,
+        "current_value_eur": 443.88,
+        "pnl_eur": 6.27,
+        "pnl_pct": 1.43,
+        "days_held": 0
+      },
+      {
+        "ticker": "HOG_US_EQ",
+        "quantity": 53.483,
+        "avg_buy_price": 19.0601,
+        "current_price": 19.15,
+        "invested_eur": 1019.39,
+        "current_value_eur": 1024.2,
+        "pnl_eur": 4.81,
+        "pnl_pct": 0.47,
+        "days_held": 0
+      },
+      {
+        "ticker": "FSS_US_EQ",
+        "quantity": 2.584,
+        "avg_buy_price": 112.7399,
+        "current_price": 112.64,
+        "invested_eur": 291.32,
+        "current_value_eur": 291.06,
+        "pnl_eur": -0.26,
+        "pnl_pct": -0.09,
+        "days_held": 0
+      },
+      {
+        "ticker": "VSNTV_US_EQ",
+        "quantity": 19.722,
+        "avg_buy_price": 36.9602,
+        "current_price": 37.22,
+        "invested_eur": 728.93,
+        "current_value_eur": 734.05,
+        "pnl_eur": 5.12,
+        "pnl_pct": 0.7,
+        "days_held": 0
+      },
       {
         "ticker": "TSLX_US_EQ",
         "quantity": 39.107,
         "avg_buy_price": 18.5601,
-        "current_price": 18.32,
+        "current_price": 18.47,
         "invested_eur": 725.83,
-        "current_value_eur": 716.44,
-        "pnl_eur": -9.39,
-        "pnl_pct": -1.29,
+        "current_value_eur": 722.31,
+        "pnl_eur": -3.52,
+        "pnl_pct": -0.48,
         "days_held": 4
       },
       {
         "ticker": "REXR_US_EQ",
         "quantity": 27.481,
         "avg_buy_price": 36.9099,
-        "current_price": 35.44,
+        "current_price": 35.82,
         "invested_eur": 1014.32,
-        "current_value_eur": 973.93,
-        "pnl_eur": -40.39,
-        "pnl_pct": -3.98,
+        "current_value_eur": 984.37,
+        "pnl_eur": -29.95,
+        "pnl_pct": -2.95,
         "days_held": 7
       },
       {
         "ticker": "GPK_US_EQ",
         "quantity": 51.952,
         "avg_buy_price": 11.1699,
-        "current_price": 10.46,
+        "current_price": 10.54,
         "invested_eur": 580.3,
-        "current_value_eur": 543.42,
-        "pnl_eur": -36.88,
-        "pnl_pct": -6.36,
+        "current_value_eur": 547.57,
+        "pnl_eur": -32.73,
+        "pnl_pct": -5.64,
         "days_held": 4
       },
       {
         "ticker": "GIG_US_EQ",
         "quantity": 68.92,
         "avg_buy_price": 4.21,
-        "current_price": 4.16,
+        "current_price": 4.1,
         "invested_eur": 290.15,
-        "current_value_eur": 286.71,
-        "pnl_eur": -3.44,
-        "pnl_pct": -1.19,
+        "current_value_eur": 282.57,
+        "pnl_eur": -7.58,
+        "pnl_pct": -2.61,
         "days_held": 4
       },
       {
         "ticker": "AVTR_US_EQ",
         "quantity": 81.21,
         "avg_buy_price": 9.0699,
-        "current_price": 7.98,
+        "current_price": 8.0,
         "invested_eur": 736.57,
-        "current_value_eur": 648.06,
-        "pnl_eur": -88.51,
-        "pnl_pct": -12.02,
+        "current_value_eur": 649.68,
+        "pnl_eur": -86.89,
+        "pnl_pct": -11.8,
         "days_held": 14
       },
       {
         "ticker": "TLS_US_EQ",
         "quantity": 166.46,
         "avg_buy_price": 3.91,
-        "current_price": 4.38,
+        "current_price": 4.37,
         "invested_eur": 650.86,
-        "current_value_eur": 729.09,
-        "pnl_eur": 78.23,
-        "pnl_pct": 12.02,
+        "current_value_eur": 727.43,
+        "pnl_eur": 76.57,
+        "pnl_pct": 11.76,
         "days_held": 14
       },
       {
         "ticker": "VNO_US_EQ",
         "quantity": 15.556,
         "avg_buy_price": 28.5099,
-        "current_price": 26.76,
+        "current_price": 26.86,
         "invested_eur": 443.5,
-        "current_value_eur": 416.28,
-        "pnl_eur": -27.22,
-        "pnl_pct": -6.14,
+        "current_value_eur": 417.83,
+        "pnl_eur": -25.67,
+        "pnl_pct": -5.79,
         "days_held": 11
       },
       {
         "ticker": "HRI_US_EQ",
         "quantity": 5.347,
         "avg_buy_price": 135.6592,
-        "current_price": 122.69,
+        "current_price": 120.61,
         "invested_eur": 725.37,
-        "current_value_eur": 656.02,
-        "pnl_eur": -69.35,
-        "pnl_pct": -9.56,
+        "current_value_eur": 644.9,
+        "pnl_eur": -80.47,
+        "pnl_pct": -11.09,
         "days_held": 7
       },
       {
         "ticker": "POOL_US_EQ",
         "quantity": 1.326,
         "avg_buy_price": 218.6425,
-        "current_price": 212.61,
+        "current_price": 211.65,
         "invested_eur": 289.92,
-        "current_value_eur": 281.92,
-        "pnl_eur": -8.0,
-        "pnl_pct": -2.76,
+        "current_value_eur": 280.65,
+        "pnl_eur": -9.27,
+        "pnl_pct": -3.2,
         "days_held": 7
       },
       {
         "ticker": "PODD_US_EQ",
         "quantity": 1.791,
         "avg_buy_price": 246.9626,
-        "current_price": 235.57,
+        "current_price": 239.51,
         "invested_eur": 442.31,
-        "current_value_eur": 421.91,
-        "pnl_eur": -20.4,
-        "pnl_pct": -4.61,
+        "current_value_eur": 428.96,
+        "pnl_eur": -13.35,
+        "pnl_pct": -3.02,
         "days_held": 14
       },
       {
         "ticker": "VERX_US_EQ",
         "quantity": 51.584,
         "avg_buy_price": 14.37,
-        "current_price": 14.24,
+        "current_price": 14.55,
         "invested_eur": 741.26,
-        "current_value_eur": 734.56,
-        "pnl_eur": -6.7,
-        "pnl_pct": -0.9,
+        "current_value_eur": 750.55,
+        "pnl_eur": 9.29,
+        "pnl_pct": 1.25,
         "days_held": 11
       },
       {
         "ticker": "WY_US_EQ",
         "quantity": 23.547,
         "avg_buy_price": 25.0299,
-        "current_price": 24.23,
+        "current_price": 24.11,
         "invested_eur": 589.38,
-        "current_value_eur": 570.54,
-        "pnl_eur": -18.84,
-        "pnl_pct": -3.2,
+        "current_value_eur": 567.72,
+        "pnl_eur": -21.66,
+        "pnl_pct": -3.68,
         "days_held": 14
       },
       {
         "ticker": "LRN_US_EQ",
         "quantity": 5.151,
         "avg_buy_price": 84.4205,
-        "current_price": 83.94,
+        "current_price": 84.56,
         "invested_eur": 434.85,
-        "current_value_eur": 432.37,
-        "pnl_eur": -2.48,
-        "pnl_pct": -0.57,
+        "current_value_eur": 435.57,
+        "pnl_eur": 0.72,
+        "pnl_pct": 0.17,
         "days_held": 7
       },
       {
         "ticker": "SKWD_US_EQ",
         "quantity": 9.118,
         "avg_buy_price": 47.7396,
-        "current_price": 45.82,
+        "current_price": 46.4,
         "invested_eur": 435.29,
-        "current_value_eur": 417.79,
-        "pnl_eur": -17.5,
-        "pnl_pct": -4.02,
+        "current_value_eur": 423.08,
+        "pnl_eur": -12.21,
+        "pnl_pct": -2.81,
         "days_held": 7
       },
       {
@@ -175,33 +219,33 @@
         "ticker": "CNDT_US_EQ",
         "quantity": 193.2,
         "avg_buy_price": 1.53,
-        "current_price": 1.3,
+        "current_price": 1.35,
         "invested_eur": 295.6,
-        "current_value_eur": 251.16,
-        "pnl_eur": -44.44,
-        "pnl_pct": -15.03,
+        "current_value_eur": 260.82,
+        "pnl_eur": -34.78,
+        "pnl_pct": -11.77,
         "days_held": 14
       },
       {
         "ticker": "UBER_US_EQ",
         "quantity": 13.721,
         "avg_buy_price": 75.3998,
-        "current_price": 72.58,
+        "current_price": 73.22,
         "invested_eur": 1034.56,
-        "current_value_eur": 995.87,
-        "pnl_eur": -38.69,
-        "pnl_pct": -3.74,
+        "current_value_eur": 1004.65,
+        "pnl_eur": -29.91,
+        "pnl_pct": -2.89,
         "days_held": 11
       },
       {
         "ticker": "SXC_US_EQ",
         "quantity": 77.36,
         "avg_buy_price": 5.73,
-        "current_price": 5.87,
+        "current_price": 6.02,
         "invested_eur": 443.27,
-        "current_value_eur": 454.1,
-        "pnl_eur": 10.83,
-        "pnl_pct": 2.44,
+        "current_value_eur": 465.71,
+        "pnl_eur": 22.44,
+        "pnl_pct": 5.06,
         "days_held": 11
       }
     ]
@@ -406,6 +450,56 @@
           "quantity": 0.0
         }
       ]
+    },
+    {
+      "date": "2026-03-10",
+      "run_number": 5,
+      "insider_count": 21,
+      "confidence": 71,
+      "market_summary": "Mixed insider buying week with several very large dollar-amount purchases standing out. VSNT ($5.3M, +919% stake) and PRCT ($10.5M, +861% stake) represent enormous personal conviction from directors in beaten-down names. HOG offers the cleanest signal with a CEO+Director cluster buy after a -35% dec",
+      "total_spent_eur": 2125.0,
+      "picks": [
+        {
+          "ticker": "HOG",
+          "allocation_pct": 35.0,
+          "reasoning": "Source: openinsider. Strongest insider signal of the batch — CEO Artie Starrs and Director Lori Ann Flees both buying (cluster buy), with CEO doubling stake (100% ΔOwn). $362K committed after a -35% 6",
+          "executed": true,
+          "amount_eur": 875.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "VSNT",
+          "allocation_pct": 25.0,
+          "reasoning": "Source: openinsider. Director David Novak purchased $5.27M — the largest dollar amount of any insider this batch — increasing his stake by 919%. Massive personal conviction at a P/E of 5.7 in media/en",
+          "executed": true,
+          "amount_eur": 625.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "PRCT",
+          "allocation_pct": 15.0,
+          "reasoning": "Source: openinsider. Director Antal Rohit Desai invested $10.5M increasing stake by 861% — enormous personal conviction. Stock is down 56% from 52-week highs and -33% over 6 months, a classic dip-buy ",
+          "executed": true,
+          "amount_eur": 375.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "ELV",
+          "allocation_pct": 15.0,
+          "reasoning": "Source: openinsider. Director Steven Collis (also CEO of AmerisourceBergen — deeply connected to healthcare) bought $870K, increasing stake by 469%. Stock at RSI 33.56 — deeply oversold — and trading ",
+          "executed": false,
+          "amount_eur": 0.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "FSS",
+          "allocation_pct": 10.0,
+          "reasoning": "Capitol Trades signal: Gil Cisneros disclosed a buy of ~$8,000 in Federal Signal Corp. Injected per Capitol Trades minimum pick rule.",
+          "executed": true,
+          "amount_eur": 250.0,
+          "quantity": 0.0
+        }
+      ]
     }
   ],
   "portfolio_history": [
@@ -459,9 +553,9 @@
     },
     {
       "date": "2026-03-10",
-      "total_invested_eur": 10743.43,
-      "total_value_eur": 10361.49,
-      "unrealized_pnl_eur": -381.94
+      "total_invested_eur": 13220.68,
+      "total_value_eur": 12918.88,
+      "unrealized_pnl_eur": -301.8
     }
   ],
   "sp100_history": [
@@ -515,9 +609,9 @@
     },
     {
       "date": "2026-03-10",
-      "sp100_invested_eur": 9375.0,
-      "sp100_value_eur": 9330.99,
-      "sp100_pnl_pct": -0.47
+      "sp100_invested_eur": 11500.0,
+      "sp100_value_eur": 11523.73,
+      "sp100_pnl_pct": 0.21
     }
   ]
 }
