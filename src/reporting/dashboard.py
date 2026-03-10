@@ -2,7 +2,7 @@ import json
 import logging
 import re
 import subprocess
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -125,6 +125,93 @@ def _build_run_entry(decision_result: dict, run_number: int) -> dict:
     }
 
 
+def _compute_sp100_history(data: dict) -> list[dict]:
+    """Compute contribution-weighted S&P 100 benchmark returns parallel to portfolio_history.
+
+    For each portfolio history point, calculates what the same EUR tranches (invested on the
+    same dates as actual runs) would be worth if put into ^OEX instead.
+    """
+    import yfinance as yf
+
+    runs = data.get("runs", [])
+    portfolio_history = data.get("portfolio_history", [])
+
+    if not runs or not portfolio_history:
+        return []
+
+    all_dates = [r["date"] for r in runs] + [h["date"] for h in portfolio_history]
+    start_date = min(all_dates)
+    end_date_obj = date.fromisoformat(max(all_dates)) + timedelta(days=5)
+
+    try:
+        hist = yf.Ticker("^OEX").history(
+            start=start_date,
+            end=end_date_obj.isoformat(),
+            auto_adjust=True,
+        )
+        if hist.empty:
+            logger.warning("^OEX returned empty history — skipping benchmark")
+            return []
+        prices: dict[str, float] = {
+            idx.date().isoformat(): float(row["Close"])
+            for idx, row in hist.iterrows()
+        }
+    except Exception:
+        logger.warning("Failed to fetch ^OEX benchmark data", exc_info=True)
+        return []
+
+    def nearest_price(target_date: str) -> float | None:
+        """Return closing price on or before target_date (up to 5 days back for weekends/holidays)."""
+        d = date.fromisoformat(target_date)
+        for offset in range(6):
+            key = (d - timedelta(days=offset)).isoformat()
+            if key in prices:
+                return prices[key]
+        return None
+
+    # Build investment tranches from each run: (run_date, eur_amount, oex_units_bought)
+    run_investments: list[tuple[str, float, float]] = []
+    for run in sorted(runs, key=lambda r: r["date"]):
+        run_date = run["date"]
+        amount = float(run.get("total_spent_eur", 0) or 0)
+        if amount <= 0:
+            continue
+        price = nearest_price(run_date)
+        if not price:
+            logger.warning("No ^OEX price found near %s — skipping tranche", run_date)
+            continue
+        run_investments.append((run_date, amount, amount / price))
+
+    if not run_investments:
+        return []
+
+    result = []
+    for h in portfolio_history:
+        h_date = h["date"]
+        current_price = nearest_price(h_date)
+        if current_price is None:
+            continue
+
+        # Only count tranches invested on or before this history date
+        total_units = sum(units for rd, _, units in run_investments if rd <= h_date)
+        total_invested = sum(amt for rd, amt, _ in run_investments if rd <= h_date)
+
+        if total_invested <= 0:
+            continue
+
+        sp100_value = total_units * current_price
+        sp100_pnl_pct = round((sp100_value - total_invested) / total_invested * 100, 2)
+
+        result.append({
+            "date": h_date,
+            "sp100_invested_eur": round(total_invested, 2),
+            "sp100_value_eur": round(sp100_value, 2),
+            "sp100_pnl_pct": sp100_pnl_pct,
+        })
+
+    return result
+
+
 def update_dashboard_data(decision_result: dict, eod_result: dict) -> None:
     data = _read_data()
 
@@ -167,6 +254,7 @@ def update_dashboard_data(decision_result: dict, eod_result: dict) -> None:
     )
     # Keep last 70 data points (~10 weeks at 2x/week + buffer)
     data["portfolio_history"] = history[-70:]
+    data["sp100_history"] = _compute_sp100_history(data)
 
     data["last_updated"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
 
@@ -205,6 +293,7 @@ def refresh_portfolio_snapshot(demo_positions: list[dict]) -> None:
         }
     )
     data["portfolio_history"] = history[-70:]
+    data["sp100_history"] = _compute_sp100_history(data)
     data["last_updated"] = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
 
     _DATA_FILE.parent.mkdir(parents=True, exist_ok=True)

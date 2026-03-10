@@ -457,5 +457,19 @@
       "total_value_eur": 10254.22,
       "unrealized_pnl_eur": -489.21
     }
+  ],
+  "sp100_history": [
+    {
+      "date": "2026-02-24",
+      "sp100_invested_eur": 2500.0,
+      "sp100_value_eur": 2500.0,
+      "sp100_pnl_pct": 0.0
+    },
+    {
+      "date": "2026-02-27",
+      "sp100_invested_eur": 4750.0,
+      "sp100_value_eur": 4735.53,
+      "sp100_pnl_pct": -0.3
+    }
   ]
 }

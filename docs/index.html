@@ -269,6 +269,22 @@
     .alloc-bar-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
     .alloc-bar { height: 3px; background: var(--amber); opacity: 0.45; border-radius: 1px; min-width: 2px; }
 
+    /* ── Benchmark Panel ── */
+    .benchmark-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+    }
+    .benchmark-col {
+      padding: 14px 20px;
+      border-right: 1px solid var(--border);
+    }
+    .benchmark-col:last-child { border-right: none; }
+    .benchmark-verdict {
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 0.07em;
+    }
+
     /* ── Responsive ── */
     @media (max-width: 960px) {
       .stats-row { grid-template-columns: repeat(2, 1fr); }
@@ -364,6 +380,31 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- Benchmark Comparison -->
+    <div class="panel" id="benchmark-panel" style="margin-bottom:20px">
+      <div class="panel-header">
+        <span class="panel-title">BENCHMARK · S&P 100</span>
+        <span class="benchmark-verdict" id="benchmark-verdict">—</span>
+      </div>
+      <div class="benchmark-grid">
+        <div class="benchmark-col">
+          <div class="stat-label">PORTFOLIO RETURN</div>
+          <div class="stat-value" id="bench-portfolio-pct">—</div>
+          <div class="stat-sub">SINCE FIRST TRADE</div>
+        </div>
+        <div class="benchmark-col">
+          <div class="stat-label">S&P 100 RETURN</div>
+          <div class="stat-value" id="bench-sp100-pct">—</div>
+          <div class="stat-sub">SAME PERIOD (^OEX)</div>
+        </div>
+        <div class="benchmark-col">
+          <div class="stat-label">ALPHA</div>
+          <div class="stat-value" id="bench-alpha">—</div>
+          <div class="stat-sub" id="bench-alpha-sub">—</div>
+        </div>
+      </div>
     </div>
 
     <!-- Positions Table -->
@@ -510,7 +551,7 @@
     };
   }
 
-  function renderCharts(history) {
+  function renderCharts(history, sp100History) {
     const emptyEl      = document.getElementById('chart-empty');
     const chartsEl     = document.getElementById('charts-content');
 
@@ -529,12 +570,17 @@
         labels[0] + ' → ' + labels[labels.length - 1];
     }
 
-    // ── Top chart: P&L % over time ──────────────────────────────────────────
+    // ── Portfolio P&L % ──────────────────────────────────────────────────────
     const pnlPcts = history.map(h =>
       h.total_invested_eur > 0
         ? parseFloat(((h.unrealized_pnl_eur / h.total_invested_eur) * 100).toFixed(2))
         : 0
     );
+
+    // ── S&P 100 benchmark (aligned to portfolio dates) ───────────────────────
+    const sp100Map = {};
+    (sp100History || []).forEach(s => { sp100Map[s.date] = s.sp100_pnl_pct; });
+    const sp100Pcts = labels.map(d => sp100Map[d] != null ? sp100Map[d] : null);
 
     if (_chartPnl) _chartPnl.destroy();
     _chartPnl = new Chart(
@@ -544,33 +590,56 @@
         plugins: [_splitFillPlugin()],
         data: {
           labels,
-          datasets: [{
-            data: pnlPcts,
-            borderColor: ctx => {
-              // Amber when positive overall, red when negative
-              const last = pnlPcts[pnlPcts.length - 1] || 0;
-              return last >= 0 ? '#f0a500' : '#ff4444';
+          datasets: [
+            {
+              label: 'Portfolio',
+              data: pnlPcts,
+              borderColor: '#f0a500',
+              borderWidth: 2,
+              fill: false,
+              tension: 0.3,
+              pointRadius: pnlPcts.length <= 14 ? 3 : 0,
+              pointBackgroundColor: '#f0a500',
+              segment: {
+                borderColor: ctx => ctx.p1.parsed.y >= 0 ? '#f0a500' : '#ff4444',
+              },
             },
-            borderWidth: 2,
-            fill: false,
-            tension: 0.3,
-            pointRadius: pnlPcts.length <= 14 ? 3 : 0,
-            pointBackgroundColor: '#f0a500',
-            segment: {
-              borderColor: ctx =>
-                ctx.p1.parsed.y >= 0 ? '#f0a500' : '#ff4444',
+            {
+              label: 'S&P 100',
+              data: sp100Pcts,
+              borderColor: '#4a9eff',
+              borderWidth: 1.5,
+              borderDash: [5, 4],
+              fill: false,
+              tension: 0.3,
+              pointRadius: 0,
+              spanGaps: true,
             },
-          }],
+          ],
         },
         options: {
           ..._chartDefaults,
           interaction: { mode: 'index', intersect: false },
           plugins: {
             ..._chartDefaults.plugins,
+            legend: {
+              display: true,
+              labels: {
+                color: '#666',
+                font: { size: 9, family: 'Courier New' },
+                boxWidth: 18,
+                padding: 14,
+                usePointStyle: false,
+              },
+            },
             tooltip: {
               ..._chartDefaults.plugins.tooltip,
               callbacks: {
-                label: ctx => ' Return: ' + (ctx.raw >= 0 ? '+' : '') + ctx.raw.toFixed(2) + '%',
+                label: ctx => {
+                  if (ctx.raw == null) return null;
+                  const prefix = ctx.dataset.label === 'S&P 100' ? ' S&P 100: ' : ' Portfolio: ';
+                  return prefix + (ctx.raw >= 0 ? '+' : '') + ctx.raw.toFixed(2) + '%';
+                },
               },
             },
           },
@@ -687,6 +756,49 @@
     }).join('');
   }
 
+  // ── Benchmark Panel ──────────────────────────────────────────────────────────
+  function renderBenchmark(portfolio, sp100History) {
+    const panel = document.getElementById('benchmark-panel');
+    if (!sp100History || !sp100History.length) {
+      panel.style.display = 'none';
+      return;
+    }
+    panel.style.display = '';
+
+    const latest       = sp100History[sp100History.length - 1];
+    const portfolioPct = Number(portfolio.unrealized_pnl_pct || 0);
+    const sp100Pct     = Number(latest.sp100_pnl_pct || 0);
+    const alpha        = parseFloat((portfolioPct - sp100Pct).toFixed(2));
+
+    const portEl = document.getElementById('bench-portfolio-pct');
+    portEl.textContent = fmtPct(portfolioPct);
+    portEl.className   = 'stat-value ' + pnlCls(portfolioPct);
+
+    const spEl = document.getElementById('bench-sp100-pct');
+    spEl.textContent = fmtPct(sp100Pct);
+    spEl.className   = 'stat-value ' + pnlCls(sp100Pct);
+
+    const alphaEl = document.getElementById('bench-alpha');
+    alphaEl.textContent = (alpha >= 0 ? '+' : '') + alpha.toFixed(2) + '%';
+    alphaEl.className   = 'stat-value ' + pnlCls(alpha);
+
+    const subEl = document.getElementById('bench-alpha-sub');
+    subEl.textContent = alpha >= 0 ? 'OUTPERFORMING' : 'UNDERPERFORMING';
+    subEl.className   = 'stat-sub ' + (alpha >= 0 ? 'col-green' : 'col-red');
+
+    const verdictEl = document.getElementById('benchmark-verdict');
+    if (alpha > 0) {
+      verdictEl.textContent = '▲ BEATING INDEX BY ' + alpha.toFixed(2) + '%';
+      verdictEl.style.color = 'var(--green)';
+    } else if (alpha < 0) {
+      verdictEl.textContent = '▼ LAGGING INDEX BY ' + Math.abs(alpha).toFixed(2) + '%';
+      verdictEl.style.color = 'var(--red)';
+    } else {
+      verdictEl.textContent = '= IN LINE WITH INDEX';
+      verdictEl.style.color = 'var(--muted)';
+    }
+  }
+
   // ── Main Load ────────────────────────────────────────────────────────────────
   async function loadData() {
     let data;
@@ -711,8 +823,9 @@
     const p = data.portfolio || {};
     renderTickerTape(p.positions || []);
     renderStats(p);
-    renderCharts(data.portfolio_history || []);
+    renderCharts(data.portfolio_history || [], data.sp100_history || []);
     renderRunPanel(data.runs || []);
+    renderBenchmark(p, data.sp100_history || []);
     renderPositions(p.positions || [], p.total_value_eur || 0);
   }
 
