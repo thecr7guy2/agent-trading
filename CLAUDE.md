@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Insider-signal-driven agentic trading system. A 2-stage LLM pipeline uses MiniMax for research analysis and Claude Opus for final buy decisions. Candidates come exclusively from OpenInsider cluster buys, enriched with yfinance + news data. Trades execute automatically on a single T212 demo (practice) account with a configurable EUR budget. A scheduler daemon handles trade execution and EOD reporting autonomously. No database — all state comes from the T212 API and a small JSON blacklist file.
+Signal-driven agentic trading system. Claude Opus reads enriched insider + politician buy data and decides what to buy — once per run, fully autonomous. Candidates come from two sources: **OpenInsider** (corporate cluster buys) and **Capitol Trades** (US politician disclosures), enriched with yfinance + news data. Trades execute automatically on a single T212 demo (practice) account with a configurable EUR budget. A scheduler daemon handles trade execution and EOD reporting autonomously. No database — all state comes from the T212 API and a small JSON blacklist file.
 
 ## Tech Stack
 
@@ -33,9 +33,18 @@ uv run pytest tests/ -v
 # Run the scheduler daemon (24/7 autonomous operation)
 uv run python scripts/run_scheduler.py
 
+# Run full pipeline without placing orders (dry run)
+uv run python scripts/dry_run.py
+uv run python scripts/dry_run.py --budget 1500 --lookback 7
+
+# Trigger one decision cycle immediately (places real demo orders)
+uv run python scripts/run_daily.py
+
 # Show current portfolio P&L from T212
 uv run python scripts/report.py
-uv run python scripts/report.py --account demo
+
+# Show next scheduled job times
+uv run python scripts/check_schedule.py
 
 # Start an MCP server (for development/testing)
 uv run python -m src.mcp_servers.market_data.server
@@ -44,14 +53,16 @@ uv run python -m src.mcp_servers.trading.server
 
 ## Autonomous Scheduler (Daily Schedule — Europe/Berlin)
 
-The scheduler daemon (`scripts/run_scheduler.py`) runs 2 jobs automatically on weekdays:
+The scheduler daemon (`scripts/run_scheduler.py`) runs jobs automatically:
 
-| Time  | Job              | Description                                                  |
-|-------|------------------|--------------------------------------------------------------|
-| 17:10 | Trade execution  | Build insider digest, run LLM pipeline, buy stocks           |
-| 17:35 | EOD snapshot     | Portfolio snapshot + daily MD report generation              |
+| Time | Days | Job |
+|------|------|-----|
+| `17:10` | Tue + Fri | Trade execution — build digest, run Claude Opus, place orders |
+| `17:35` | Tue + Fri | EOD snapshot + daily MD report + dashboard push |
+| `10:00` | Mon–Fri | Lightweight portfolio snapshot → dashboard refresh |
+| `15:30` | Mon–Fri | Lightweight portfolio snapshot → dashboard refresh |
 
-Times are configurable via `.env` (`SCHEDULER_EXECUTE_TIME`, `SCHEDULER_EOD_TIME`). No human approval is required. The supervisor skips internally if fewer than `MIN_INSIDER_TICKERS` candidates are found, or if fewer than `TRADE_EVERY_N_DAYS` trading days have passed since the last run.
+All times configurable via `.env`. Trade days via `SCHEDULER_TRADE_DAYS` (default `tue,fri`). Snapshot times via `SCHEDULER_SNAPSHOT_TIMES`. The supervisor skips internally if fewer than `MIN_INSIDER_TICKERS` candidates are found.
 
 ## Code Style
 
@@ -67,31 +78,28 @@ Times are configurable via `.env` (`SCHEDULER_EXECUTE_TIME`, `SCHEDULER_EOD_TIME
 ```
 src/
 ├── mcp_servers/          # MCP server implementations (one per domain)
-│   ├── market_data/      # yfinance, NewsAPI, OpenInsider, FMP earnings
+│   ├── market_data/      # yfinance, NewsAPI, OpenInsider, Capitol Trades, FMP
 │   │   ├── server.py     # FastMCP server — all market data tools
 │   │   ├── finance.py    # yfinance wrappers (price, fundamentals, technicals)
-│   │   ├── screener.py   # Screener helpers (used for enrichment, not candidate sourcing)
+│   │   ├── screener.py   # Screener helpers (enrichment only, not candidate sourcing)
 │   │   ├── news.py       # NewsAPI headlines
-│   │   ├── insider.py    # OpenInsider scraper — primary candidate source
+│   │   ├── insider.py    # OpenInsider scraper — corporate insider candidates
+│   │   ├── capitol_trades.py  # Capitol Trades scraper — politician buy candidates
 │   │   └── earnings.py   # FMP/yfinance earnings calendar
 │   └── trading/          # Trading 212 API + portfolio helpers
 │       ├── server.py     # FastMCP server — buy/sell/portfolio tools
 │       ├── t212_client.py # T212 REST API client (demo account only)
 │       └── portfolio.py  # get_demo_positions helper
-├── agents/               # LLM agent pipeline (2 active stages)
-│   ├── base_agent.py     # Abstract base — all agent stages implement this
-│   ├── research_agent.py  # Stage 1: MiniMax analyst — pros/cons/catalyst per ticker
-│   ├── trader_agent.py   # Stage 2: Claude Opus — final buy decisions
-│   ├── sentiment_agent.py # Unused — MiniMax sentiment scorer (not called in pipeline)
-│   ├── market_agent.py   # Unused — legacy MiniMax fallback (no tools)
-│   ├── risk_agent.py     # Unused — RiskReviewAgent exists but not called
+├── agents/               # LLM agent pipeline (Claude Opus only)
+│   ├── base_agent.py     # Abstract base — all agents implement this
+│   ├── trader_agent.py   # Claude Opus — reads enriched candidates, outputs ranked buy list
 │   ├── tool_executor.py  # Wraps MCPToolClient for agent tool calls with timeout + logging
-│   ├── pipeline.py       # Runs research → decision
-│   ├── providers/        # LLM API wrappers (claude.py, minimax.py)
-│   └── prompts/          # Per-stage system prompts (markdown files)
+│   ├── pipeline.py       # Single-stage pipeline: candidates → Claude Opus decision
+│   ├── providers/        # LLM API wrappers (claude.py)
+│   └── prompts/          # System prompts (trader_aggressive.md — only active prompt)
 ├── orchestrator/         # Supervisor, scheduling, rotation, execution
 │   ├── supervisor.py     # Main orchestrator — builds digest, runs pipeline, executes trades
-│   ├── scheduler.py      # APScheduler cron jobs (decision + EOD only)
+│   ├── scheduler.py      # APScheduler cron jobs
 │   ├── trade_executor.py # execute_with_fallback — tries candidates until budget spent
 │   ├── rotation.py       # Trading day check
 │   └── mcp_client.py     # MCP tool client wrappers
@@ -101,24 +109,32 @@ src/
 │   └── telegram.py       # Telegram bot (notify-only, no-op if disabled)
 ├── reporting/
 │   ├── formatter.py      # Rich terminal output
-│   └── daily_report.py   # Clean markdown daily report generation
+│   ├── daily_report.py   # Clean markdown daily report generation
+│   └── dashboard.py      # GitHub Pages dashboard data management
 └── models.py             # All Pydantic models (no DB dependencies)
 └── config.py             # Pydantic Settings (reads .env)
 
 scripts/
 ├── run_scheduler.py      # Daemon for 24/7 autonomous operation
+├── run_daily.py          # Trigger one decision cycle manually
+├── dry_run.py            # Full pipeline without placing orders
+├── check_schedule.py     # Show next scheduled job times
 └── report.py             # Live portfolio P&L from T212
 
 reports/
 └── YYYY-MM-DD.md         # Daily trading reports (auto-generated)
+
+docs/
+├── index.html            # GitHub Pages dashboard
+└── data.json             # Dashboard data (auto-updated by scheduler)
 ```
 
 ## Architecture Rules
 
 1. **No database.** Positions come from the T212 API live. The only persistence is `recently_traded.json` (3-day buy blacklist). Do not add any DB layer.
 2. **MCP servers are tool providers only.** They expose tools via the MCP protocol. They do NOT contain business logic or make LLM calls. Keep them thin wrappers around external APIs.
-3. **Agents are LLM wrappers.** Each agent calls one LLM API with a prompt + tools and returns structured output (Pydantic models). Agents do not talk to each other directly.
-4. **The orchestrator ties everything together.** It runs the daily pipeline: collect insider signals → enrich → research → trade decision → execute with fallback → EOD report. All sequencing lives here.
+3. **Agents are LLM wrappers.** Each agent calls one LLM API with a prompt and returns structured output (Pydantic models).
+4. **The orchestrator ties everything together.** It runs the daily pipeline: collect signals → merge → enrich → Claude decision → execute with fallback → EOD report. All sequencing lives here.
 5. **Config via environment variables.** All API keys and settings come from `.env` loaded by `src/config.py` using Pydantic Settings. Never hardcode secrets.
 6. **Fully autonomous operation.** No approval gates — all buys execute automatically. The daily budget cap and `min_insider_tickers` threshold are the safety nets.
 7. **Trade fallback.** If a buy fails (ticker unavailable, order rejected), the executor tries the next candidate until the budget is spent or all candidates are exhausted.
@@ -126,7 +142,9 @@ reports/
 
 ## Signal Sources
 
-All candidates come from **OpenInsider only**. The supervisor calls `get_insider_candidates()` and enriches each candidate in parallel:
+Candidates come from two sources, fetched in parallel and merged by ticker.
+
+### OpenInsider (corporate insiders)
 
 | Data | Source | Purpose |
 |------|--------|---------|
@@ -138,51 +156,56 @@ All candidates come from **OpenInsider only**. The supervisor calls `get_insider
 | **OpenInsider history** | `insider.py` | 30/60/90-day insider buy counts, acceleration flag |
 | **NewsAPI / yfinance news** | `news.py` / `finance.py` | Recent headlines (NewsAPI first, yfinance fallback) |
 
+### Capitol Trades (politician disclosures)
+
+- Scrapes `capitoltrades.com` for recent US Congressional buy disclosures
+- Scored by trade size × recency decay
+- Mega-caps (>$50B market cap) are filtered out — routine allocation, not signal
+- If Capitol Trades candidates are available, at least 1 is guaranteed in the final output (`enforce_ct_pick`)
+- Same ticker in both sources → merged into single candidate with combined conviction score and `source: "openinsider+capitol_trades"`
+
 ## Pydantic Models
 
 All models live in `src/models.py`. Import from there everywhere — never use raw dicts for structured data.
 
-**Pipeline stage models:**
-- `ResearchReport` / `ResearchFinding` — Stage 1 output: per-ticker pros/cons/catalyst (MiniMax)
-- `DailyPicks` — Stage 2 output: ranked buy list with reasoning (Claude Opus)
-- `PickReview` — wraps `DailyPicks` directly (Stage 4 risk review is inactive)
+**Pipeline models:**
+- `DailyPicks` — Claude Opus output: ranked buy list with reasoning
+- `PickReview` — wraps `DailyPicks` (risk review stage is inactive — DailyPicks goes straight in)
+- `StockPick` — a single stock recommendation (ticker, action, allocation %, reasoning, source)
 
 **Trading models:**
-- `StockPick` — a single stock recommendation (ticker, action, allocation %, reasoning)
 - `Position` — a current holding (sourced from T212, not DB)
 
-## LLM Agent Pipeline (2 active stages)
+## LLM Agent Pipeline (1 active stage)
 
 | Stage | Agent | Provider | Model | Role |
 |-------|-------|----------|-------|------|
-| 1 — Research | `ResearchAgent` | MiniMax | MiniMax-M2.5 | Analyst — pros/cons/catalyst only, no verdict |
-| 2 — Trader | `TraderAgent` | Claude | Opus 4.6 | Portfolio manager — final buy decisions |
-| ~~3 — Risk Review~~ | ~~`RiskReviewAgent`~~ | — | — | *(skipped — DailyPicks wrapped directly into PickReview)* |
+| Trader | `TraderAgent` | Claude | Opus 4.6 | Portfolio manager — reads enriched candidates, outputs ranked buy list |
 
-Both stages share a single run per day. The pipeline is:
-1. `build_insider_digest()` — OpenInsider candidates + parallel enrichment
-2. `run_research()` — MiniMax analyses all candidates, returns pros/cons/catalyst per ticker
-3. `run_decision()` — Claude Opus reads enriched data + MiniMax notes, outputs ranked buy list
-4. `execute_with_fallback()` — places orders on T212 demo, tries each pick in order until budget spent
+The pipeline is:
+1. `build_insider_digest()` — OpenInsider + Capitol Trades candidates fetched in parallel, merged by ticker, enriched with yfinance + news
+2. Blacklist filter + pool-aware cap (Capitol Trades reserved slots guaranteed)
+3. `run_decision()` — Claude Opus reads all enriched data, outputs ranked buy list
+4. `enforce_ct_pick()` — post-processing: injects top CT candidate if none selected
+5. `execute_with_fallback()` — places orders on T212 demo, tries each pick in order until budget spent
 
 ### Provider Details
-- **MiniMax:** `openai` SDK (OpenAI-compatible), MiniMax-M2.5 model
 - **Claude:** `anthropic` SDK, Opus 4.6 for trader
-- System prompts live in `src/agents/prompts/` as markdown files, NOT as inline strings
-- `TraderAgent` always uses `trader_aggressive.md` (single prompt, no strategy split)
+- System prompt: `src/agents/prompts/trader_aggressive.md` — the only active prompt file
 
 ## Insider Conviction Scoring
 
-OpenInsider candidates are scored by `insider.py` before any enrichment.
-
+### OpenInsider
 Formula per transaction: `conviction_score = delta_own_pct × title_multiplier × recency_decay`
 - **C-suite multiplier** — CEO/CFO/COO/President/CTO/Chairman get 3× weight; all others 1×
 - **ΔOwn %** — stake increase as a % of existing holdings (`New` positions treated as 100%)
 - **Recency decay** — `e^(-0.2 × days_since_trade)` — fresher buys score higher
-- Scores are summed across all transactions per ticker
 - Only included if: cluster buy (2+ insiders) OR solo C-suite with ΔOwn ≥ 3%
 
-The top `INSIDER_TOP_N` (default 25) candidates by conviction score are passed to the pipeline.
+### Capitol Trades
+Formula per transaction: `conviction_score = trade_amount_midpoint × recency_decay`
+- Grouped by ticker; scores summed across politicians
+- Mega-caps (market cap > `CAPITOL_TRADES_MAX_MARKET_CAP`, default $50B) filtered out
 
 ## MCP Server Guidelines
 
@@ -196,9 +219,8 @@ All required env vars are in `.env.example`. Key vars:
 
 ```
 ANTHROPIC_API_KEY        # Required
-MINIMAX_API_KEY          # Required
 T212_API_KEY             # Required (demo/practice account)
-T212_API_SECRET          # Optional (if T212 requires secret)
+T212_API_SECRET          # Optional
 NEWS_API_KEY             # Optional — falls back to yfinance news
 FMP_API_KEY              # Optional — falls back to yfinance recommendations
 TELEGRAM_BOT_TOKEN       # Optional — Telegram notifications
@@ -208,14 +230,23 @@ TELEGRAM_ENABLED         # Optional (bool, default false)
 
 Key tuning vars (all have defaults):
 ```
-BUDGET_PER_RUN_EUR       # Default 1000.0
-MAX_PICKS_PER_RUN        # Default 5
-INSIDER_LOOKBACK_DAYS    # Default 3 — how far back to scrape OpenInsider
-INSIDER_TOP_N            # Default 25 — candidates passed to pipeline
-MIN_INSIDER_TICKERS      # Default 10 — skip run if fewer candidates found
-TRADE_EVERY_N_DAYS       # Default 2 — minimum trading days between runs
-RECENTLY_TRADED_DAYS     # Default 3 — blacklist window
-PIPELINE_TIMEOUT_SECONDS # Default 900
+BUDGET_PER_RUN_EUR            # Default 1000.0
+MAX_PICKS_PER_RUN             # Default 5
+INSIDER_LOOKBACK_DAYS         # Default 5 — how far back to scrape OpenInsider
+INSIDER_TOP_N                 # Default 25 — OpenInsider candidates scored
+RESEARCH_TOP_N                # Default 15 — candidates passed to Claude
+MIN_INSIDER_TICKERS           # Default 10 — skip run if fewer candidates found
+RECENTLY_TRADED_DAYS          # Default 3 — blacklist window
+CAPITOL_TRADES_ENABLED        # Default true
+CAPITOL_TRADES_LOOKBACK_DAYS  # Default 3
+CAPITOL_TRADES_TOP_N          # Default 10
+CAPITOL_TRADES_RESERVED_SLOTS # Default 3 — CT slots guaranteed in research pool
+CAPITOL_TRADES_MAX_MARKET_CAP # Default 50000000000 ($50B)
+SCHEDULER_TRADE_DAYS          # Default tue,fri
+SCHEDULER_EXECUTE_TIME        # Default 17:10
+SCHEDULER_EOD_TIME            # Default 17:35
+SCHEDULER_SNAPSHOT_TIMES      # Default 10:00,15:30
+PIPELINE_TIMEOUT_SECONDS      # Default 900
 ```
 
 ## Git
@@ -229,4 +260,4 @@ PIPELINE_TIMEOUT_SECONDS # Default 900
 - Use `pytest` with `pytest-asyncio` for async tests.
 - Mock external APIs (yfinance, T212, LLMs) — never hit real APIs in tests.
 - Test files mirror source structure: `tests/test_agents/`, `tests/test_mcp_servers/`, `tests/test_orchestrator/`, `tests/test_reporting/`, etc.
-- When adding new config fields to `Settings`, update test fixtures in `test_scheduler.py` and `test_supervisor.py` (they use `SimpleNamespace` mocks).
+- When adding new config fields to `Settings`, update test fixtures that use `SimpleNamespace` mocks (check `test_scheduler.py` and `test_supervisor.py`).
