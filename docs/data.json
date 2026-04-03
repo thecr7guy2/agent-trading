@@ -1,9 +1,9 @@
 {
-  "last_updated": "2026-04-03T13:30:02",
+  "last_updated": "2026-04-03T15:35:00",
   "portfolio": {
     "total_invested_eur": 37645.06,
-    "total_value_eur": 36537.89,
-    "unrealized_pnl_eur": -1107.17,
+    "total_value_eur": 36537.88,
+    "unrealized_pnl_eur": -1107.18,
     "unrealized_pnl_pct": -2.94,
     "positions": [
       {
@@ -1086,6 +1086,56 @@
           "quantity": 0.0
         }
       ]
+    },
+    {
+      "date": "2026-04-03",
+      "run_number": 12,
+      "insider_count": 19,
+      "confidence": 72,
+      "market_summary": "Moderate insider buying activity this week with several cluster buys standing out. PGC has the strongest combined signal — CEO, CFO, and director all buying ahead of April 22 earnings with $549K deployed. POCI's CFO+COO cluster in a micro-cap is compelling despite fundamental weakness. ALT's CEO+CFO",
+      "total_spent_eur": 2500.0,
+      "picks": [
+        {
+          "ticker": "PGC",
+          "allocation_pct": 30.0,
+          "reasoning": "Source: openinsider. Triple cluster buy — CEO Kennedy, CFO Cavallaro, and Director Campion all buying, totalling $549K. CEO's stake increased 85%. Regional bank with solid profitability (14.4% profit ",
+          "executed": true,
+          "amount_eur": 750.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "POCI",
+          "allocation_pct": 25.0,
+          "reasoning": "Source: openinsider. CFO and COO both buying (cluster buy), $225K total, CFO's stake up 145%. C-suite dual buy in a micro-cap medical instruments company is high conviction. Stock flat YoY, not extend",
+          "executed": true,
+          "amount_eur": 625.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "ALT",
+          "allocation_pct": 20.0,
+          "reasoning": "Source: openinsider. CEO Durso and CFO Weaver both buying (cluster), $79K total, CEO stake up 46%. Stock down ~20% in 1m and 25% over 1y — classic dip-buy by the two most informed executives. MASH/obe",
+          "executed": true,
+          "amount_eur": 500.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "RBRK",
+          "allocation_pct": 15.0,
+          "reasoning": "Source: openinsider. Director McLaughlin bought $502K, increasing stake by 354% — a massive conviction signal from a board member. Stock down 38% over 6m creating a solid entry point. Cybersecurity/da",
+          "executed": true,
+          "amount_eur": 375.0,
+          "quantity": 0.0
+        },
+        {
+          "ticker": "IBP",
+          "allocation_pct": 10.0,
+          "reasoning": "Capitol Trades signal: David Taylor disclosed a buy of ~$8,000 in Installed Building Products Inc. Injected per Capitol Trades minimum pick rule.",
+          "executed": true,
+          "amount_eur": 250.0,
+          "quantity": 0.0
+        }
+      ]
     }
   ],
   "portfolio_history": [
@@ -1248,8 +1298,8 @@
     {
       "date": "2026-04-03",
       "total_invested_eur": 37645.06,
-      "total_value_eur": 36537.89,
-      "unrealized_pnl_eur": -1107.17
+      "total_value_eur": 36537.88,
+      "unrealized_pnl_eur": -1107.18
     }
   ],
   "sp100_history": [
@@ -1411,9 +1461,9 @@
     },
     {
       "date": "2026-04-03",
-      "sp100_invested_eur": 24750.0,
-      "sp100_value_eur": 24329.97,
-      "sp100_pnl_pct": -1.7
+      "sp100_invested_eur": 27250.0,
+      "sp100_value_eur": 26829.97,
+      "sp100_pnl_pct": -1.54
     }
   ]
 }
