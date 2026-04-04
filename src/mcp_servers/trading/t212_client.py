@@ -189,7 +189,9 @@ class T212Client:
 
         # Step 3: Prefix fallback — T212 may use a shorter base symbol.
         # e.g. Yahoo: STMPA.PA, T212: STM_US_EQ  (STM is a prefix of STMPA)
-        if len(base) >= 3:
+        # ONLY apply for tickers with a dot (EU/international exchange suffixes).
+        # Bare US tickers like LENZ must NOT prefix-match to LEN — that's a different company.
+        if "." in normalized and len(base) >= 3:
             best_match = None
             best_len = 0
             for symbol in symbols:
