@@ -159,7 +159,21 @@ async def _try_buy(
         order = await t212.place_market_order(broker_ticker, quantity)
 
         filled_qty = float(order.get("filledQuantity", quantity))
-        filled_value = float(order.get("filledValue", amount_eur))
+        raw_filled_value = order.get("filledValue")
+        if raw_filled_value is not None and float(raw_filled_value) > 0:
+            filled_value = float(raw_filled_value)
+        else:
+            # T212 demo sometimes omits filledValue — estimate from quantity × price
+            filled_value = filled_qty * current_price
+            logger.warning(
+                "filledValue missing in T212 response for %s — estimating from qty×price: "
+                "%.4f shares × €%.4f = €%.2f (target was €%.2f)",
+                ticker,
+                filled_qty,
+                current_price,
+                filled_value,
+                amount_eur,
+            )
 
         return TradeResult(
             ticker=ticker,
