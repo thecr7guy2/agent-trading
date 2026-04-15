@@ -1,10 +1,10 @@
 {
   "last_updated": "2026-04-15T13:30:30",
   "portfolio": {
-    "total_invested_eur": 46019.79,
-    "total_value_eur": 46709.19,
-    "unrealized_pnl_eur": 689.4,
-    "unrealized_pnl_pct": 1.5,
+    "total_invested_eur": 35876.53,
+    "total_value_eur": 36328.08,
+    "unrealized_pnl_eur": 451.55,
+    "unrealized_pnl_pct": 1.26,
     "positions": [
       {
         "ticker": "SCVL_US_EQ",
@@ -148,17 +148,6 @@
         "pnl_eur": -226.31,
         "pnl_pct": -26.01,
         "days_held": 40
-      },
-      {
-        "ticker": "LEN_US_EQ",
-        "quantity": 116.029,
-        "avg_buy_price": 87.42,
-        "current_price": 89.47,
-        "invested_eur": 10143.26,
-        "current_value_eur": 10381.11,
-        "pnl_eur": 237.85,
-        "pnl_pct": 2.34,
-        "days_held": 15
       },
       {
         "ticker": "FCNCA_US_EQ",
@@ -702,7 +691,7 @@
         {
           "ticker": "TLSI",
           "allocation_pct": 30.0,
-          "reasoning": "Strongest cluster buy in the cohort: 4 insiders including CEO purchased $1.77M simultaneously, with 100% ΔOwn. Earnings on March 26 provides a near-term catalyst just one month out. Revenue growth tra",
+          "reasoning": "Strongest cluster buy in the cohort: 4 insiders including CEO purchased $1.77M simultaneously, with 100% \u0394Own. Earnings on March 26 provides a near-term catalyst just one month out. Revenue growth tra",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -710,7 +699,7 @@
         {
           "ticker": "AVTR",
           "allocation_pct": 25.0,
-          "reasoning": "Director increased stake by 572% — the largest proportional increase in the entire cohort — buying $458K at near 52-week lows after a 48% 1-year decline. RSI at 31.26 confirms oversold conditions. Cla",
+          "reasoning": "Director increased stake by 572% \u2014 the largest proportional increase in the entire cohort \u2014 buying $458K at near 52-week lows after a 48% 1-year decline. RSI at 31.26 confirms oversold conditions. Cla",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -718,7 +707,7 @@
         {
           "ticker": "WY",
           "allocation_pct": 20.0,
-          "reasoning": "Cluster buy with 2 directors purchasing $615K combined, one with 492% ΔOwn. Stock near 52-week low with RSI at 37 approaching oversold. Upcoming dividend ex-date March 10 provides near-term income cat",
+          "reasoning": "Cluster buy with 2 directors purchasing $615K combined, one with 492% \u0394Own. Stock near 52-week low with RSI at 37 approaching oversold. Upcoming dividend ex-date March 10 provides near-term income cat",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -726,7 +715,7 @@
         {
           "ticker": "PODD",
           "allocation_pct": 15.0,
-          "reasoning": "CEO purchased $1.03M after a 25% 6-month decline — the largest single C-suite dollar commitment in the cohort. A CEO buying over $1M of their own company after a significant drawdown is a high-quality",
+          "reasoning": "CEO purchased $1.03M after a 25% 6-month decline \u2014 the largest single C-suite dollar commitment in the cohort. A CEO buying over $1M of their own company after a significant drawdown is a high-quality",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -746,13 +735,13 @@
       "run_number": 2,
       "insider_count": 20,
       "confidence": 74,
-      "market_summary": "Strong insider buying week with multiple high-conviction signals. The standout is Uber's CFO making a $1.6M purchase that tripled his stake during a 21% drawdown. Two cluster buys identified — VERX (CEO + Director) and SXC (CFO + SVP) — both in beaten-down names. VNO shows a director making a 500% s",
+      "market_summary": "Strong insider buying week with multiple high-conviction signals. The standout is Uber's CFO making a $1.6M purchase that tripled his stake during a 21% drawdown. Two cluster buys identified \u2014 VERX (CEO + Director) and SXC (CFO + SVP) \u2014 both in beaten-down names. VNO shows a director making a 500% s",
       "total_spent_eur": 2250.0,
       "picks": [
         {
           "ticker": "UBER",
           "allocation_pct": 35.0,
-          "reasoning": "CFO Balaji Krishnamurthy purchased $1.6M worth of shares, increasing his stake by 357% — an extraordinary conviction signal from the CFO. Stock is down 21% over 6 months, providing margin of safety. S",
+          "reasoning": "CFO Balaji Krishnamurthy purchased $1.6M worth of shares, increasing his stake by 357% \u2014 an extraordinary conviction signal from the CFO. Stock is down 21% over 6 months, providing margin of safety. S",
           "executed": true,
           "amount_eur": 875.0,
           "quantity": 0.0
@@ -760,7 +749,7 @@
         {
           "ticker": "VERX",
           "allocation_pct": 25.0,
-          "reasoning": "Cluster buy: CEO Christopher Young and Director Eric Andersen both purchased shares totalling $1.25M. CEO doubled his stake (100% ΔOwn). Stock is down 58% from 52-week high and 26% in the last month —",
+          "reasoning": "Cluster buy: CEO Christopher Young and Director Eric Andersen both purchased shares totalling $1.25M. CEO doubled his stake (100% \u0394Own). Stock is down 58% from 52-week high and 26% in the last month \u2014",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -796,13 +785,13 @@
       "run_number": 3,
       "insider_count": 25,
       "confidence": 74,
-      "market_summary": "Mixed insider buying week. Standout signal is REXR with a triple cluster buy from COO, CFO, and Director — rare alignment of C-suite conviction in an oversold industrial REIT. HRI also notable with a Director increasing stake by 938% into weakness. Several quality names (LRN, POOL) show insiders buy",
+      "market_summary": "Mixed insider buying week. Standout signal is REXR with a triple cluster buy from COO, CFO, and Director \u2014 rare alignment of C-suite conviction in an oversold industrial REIT. HRI also notable with a Director increasing stake by 938% into weakness. Several quality names (LRN, POOL) show insiders buy",
       "total_spent_eur": 2500.0,
       "picks": [
         {
           "ticker": "REXR",
           "allocation_pct": 35.0,
-          "reasoning": "Strongest cluster buy signal: COO (Laura Clark), CFO (Michael Fitzmaurice), and a Director all buying simultaneously — 3 insiders spending $487K total with max ΔOwn of 273%. Stock is down ~9% over 1 m",
+          "reasoning": "Strongest cluster buy signal: COO (Laura Clark), CFO (Michael Fitzmaurice), and a Director all buying simultaneously \u2014 3 insiders spending $487K total with max \u0394Own of 273%. Stock is down ~9% over 1 m",
           "executed": true,
           "amount_eur": 875.0,
           "quantity": 0.0
@@ -810,7 +799,7 @@
         {
           "ticker": "HRI",
           "allocation_pct": 25.0,
-          "reasoning": "Director John Olin purchased $427K worth of shares, increasing his stake by 938% — massive personal conviction. Stock is down 12% over 1 month with RSI at 37.6 (oversold), sitting near the lower Bolli",
+          "reasoning": "Director John Olin purchased $427K worth of shares, increasing his stake by 938% \u2014 massive personal conviction. Stock is down 12% over 1 month with RSI at 37.6 (oversold), sitting near the lower Bolli",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -818,7 +807,7 @@
         {
           "ticker": "SKWD",
           "allocation_pct": 15.0,
-          "reasoning": "CEO Andrew Robinson and Director Christopher Peirce both buying — cluster buy totaling $1.18M with the CEO's personal capital at stake. P&C insurance with solid P/E of 11.7 and 12% profit margin. Stoc",
+          "reasoning": "CEO Andrew Robinson and Director Christopher Peirce both buying \u2014 cluster buy totaling $1.18M with the CEO's personal capital at stake. P&C insurance with solid P/E of 11.7 and 12% profit margin. Stoc",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -826,7 +815,7 @@
         {
           "ticker": "LRN",
           "allocation_pct": 15.0,
-          "reasoning": "Stock is down 47% over 6 months and 40% over 1 year — massive decline from $171 to ~$84. Insider bought $32.5K which is modest, but with P/E of 12.9, EPS of $6.51, and 12.7% profit margin, fundamental",
+          "reasoning": "Stock is down 47% over 6 months and 40% over 1 year \u2014 massive decline from $171 to ~$84. Insider bought $32.5K which is modest, but with P/E of 12.9, EPS of $6.51, and 12.7% profit margin, fundamental",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -834,7 +823,7 @@
         {
           "ticker": "POOL",
           "allocation_pct": 10.0,
-          "reasoning": "Director James Hope doubled his stake (+121% ΔOwn) spending $300K after a 28% 6-month decline and 35.5% 1-year decline. RSI at 33.9 is oversold. P/E of 20.1 with EPS of $10.86 — quality industrial dis",
+          "reasoning": "Director James Hope doubled his stake (+121% \u0394Own) spending $300K after a 28% 6-month decline and 35.5% 1-year decline. RSI at 33.9 is oversold. P/E of 20.1 with EPS of $10.86 \u2014 quality industrial dis",
           "executed": true,
           "amount_eur": 250.0,
           "quantity": 0.0
@@ -852,7 +841,7 @@
         {
           "ticker": "TTD",
           "allocation_pct": 30.0,
-          "reasoning": "Source: openinsider. CEO Jeff Green purchased $148M of his own stock — an extraordinary dollar amount with a 373% stake increase. Stock is down 55% from 52w high and 44% over 6 months, representing a ",
+          "reasoning": "Source: openinsider. CEO Jeff Green purchased $148M of his own stock \u2014 an extraordinary dollar amount with a 373% stake increase. Stock is down 55% from 52w high and 44% over 6 months, representing a ",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -860,7 +849,7 @@
         {
           "ticker": "TSLX",
           "allocation_pct": 25.0,
-          "reasoning": "Source: openinsider. Cluster buy — 3 VPs bought simultaneously totaling $672K, with one insider increasing stake by 947%. Stock down 22% over 6 months with RSI at 41.6 (oversold territory). P/E of 10.",
+          "reasoning": "Source: openinsider. Cluster buy \u2014 3 VPs bought simultaneously totaling $672K, with one insider increasing stake by 947%. Stock down 22% over 6 months with RSI at 41.6 (oversold territory). P/E of 10.",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -868,7 +857,7 @@
         {
           "ticker": "GPK",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. CEO Robbert Rietbroek and a director both bought (cluster buy) totaling $700K. CEO doubling his stake (100% ΔOwn) after a 57% decline from 52w high is a strong dip-buy signal. RSI",
+          "reasoning": "Source: openinsider. CEO Robbert Rietbroek and a director both bought (cluster buy) totaling $700K. CEO doubling his stake (100% \u0394Own) after a 57% decline from 52w high is a strong dip-buy signal. RSI",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -902,7 +891,7 @@
         {
           "ticker": "HOG",
           "allocation_pct": 35.0,
-          "reasoning": "Source: openinsider. Strongest insider signal of the batch — CEO Artie Starrs and Director Lori Ann Flees both buying (cluster buy), with CEO doubling stake (100% ΔOwn). $362K committed after a -35% 6",
+          "reasoning": "Source: openinsider. Strongest insider signal of the batch \u2014 CEO Artie Starrs and Director Lori Ann Flees both buying (cluster buy), with CEO doubling stake (100% \u0394Own). $362K committed after a -35% 6",
           "executed": true,
           "amount_eur": 875.0,
           "quantity": 0.0
@@ -910,7 +899,7 @@
         {
           "ticker": "VSNT",
           "allocation_pct": 25.0,
-          "reasoning": "Source: openinsider. Director David Novak purchased $5.27M — the largest dollar amount of any insider this batch — increasing his stake by 919%. Massive personal conviction at a P/E of 5.7 in media/en",
+          "reasoning": "Source: openinsider. Director David Novak purchased $5.27M \u2014 the largest dollar amount of any insider this batch \u2014 increasing his stake by 919%. Massive personal conviction at a P/E of 5.7 in media/en",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -918,7 +907,7 @@
         {
           "ticker": "PRCT",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. Director Antal Rohit Desai invested $10.5M increasing stake by 861% — enormous personal conviction. Stock is down 56% from 52-week highs and -33% over 6 months, a classic dip-buy ",
+          "reasoning": "Source: openinsider. Director Antal Rohit Desai invested $10.5M increasing stake by 861% \u2014 enormous personal conviction. Stock is down 56% from 52-week highs and -33% over 6 months, a classic dip-buy ",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -926,7 +915,7 @@
         {
           "ticker": "ELV",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. Director Steven Collis (also CEO of AmerisourceBergen — deeply connected to healthcare) bought $870K, increasing stake by 469%. Stock at RSI 33.56 — deeply oversold — and trading ",
+          "reasoning": "Source: openinsider. Director Steven Collis (also CEO of AmerisourceBergen \u2014 deeply connected to healthcare) bought $870K, increasing stake by 469%. Stock at RSI 33.56 \u2014 deeply oversold \u2014 and trading ",
           "executed": false,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -946,13 +935,13 @@
       "run_number": 6,
       "insider_count": 23,
       "confidence": 72,
-      "market_summary": "Broad market weakness continues with most portfolio positions in the red. However, insider buying signals are strong this week — particularly the ROCK CEO/Director cluster buy after a -33% decline ($734K, 407% stake increase) and the massive 13-insider cluster at SSP ($3.85M). PennantPark CFO buying",
+      "market_summary": "Broad market weakness continues with most portfolio positions in the red. However, insider buying signals are strong this week \u2014 particularly the ROCK CEO/Director cluster buy after a -33% decline ($734K, 407% stake increase) and the massive 13-insider cluster at SSP ($3.85M). PennantPark CFO buying",
       "total_spent_eur": 2500.0,
       "picks": [
         {
           "ticker": "ROCK",
           "allocation_pct": 35.0,
-          "reasoning": "Source: openinsider. Strongest insider signal in the batch — CEO William Bosway and Director James Metcalf cluster buying $734K total, with Bosway increasing his stake by 407%. Stock is down -25% in 1",
+          "reasoning": "Source: openinsider. Strongest insider signal in the batch \u2014 CEO William Bosway and Director James Metcalf cluster buying $734K total, with Bosway increasing his stake by 407%. Stock is down -25% in 1",
           "executed": true,
           "amount_eur": 875.0,
           "quantity": 0.0
@@ -960,7 +949,7 @@
         {
           "ticker": "PNNT",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. CFO Richard Allorto doubled his stake in PNNT ($73K, 100% ΔOwn) while stock is down -29% over 6 months and -22% over 1 year. RSI at 29 is deeply oversold. Same CFO also bought sis",
+          "reasoning": "Source: openinsider. CFO Richard Allorto doubled his stake in PNNT ($73K, 100% \u0394Own) while stock is down -29% over 6 months and -22% over 1 year. RSI at 29 is deeply oversold. Same CFO also bought sis",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -968,7 +957,7 @@
         {
           "ticker": "SSP",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider+capitol_trades. Massive cluster buy — 13 insiders purchasing $3.85M total, with 178% max stake increase. The Scripps family (10%+ holders Sanchez, Brickner) are aggressively accumu",
+          "reasoning": "Source: openinsider+capitol_trades. Massive cluster buy \u2014 13 insiders purchasing $3.85M total, with 178% max stake increase. The Scripps family (10%+ holders Sanchez, Brickner) are aggressively accumu",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -996,13 +985,13 @@
       "run_number": 7,
       "insider_count": 21,
       "confidence": 72,
-      "market_summary": "Strong insider buying week with several high-dollar C-suite cluster buys. MTN stands out with CEO+CFO both buying ~$5M total. IFF CEO committed ~$12M and FOX CEO ~$10.6M — these are exceptionally large personal commitments. Many signals are dip-buys into beaten-down names (ECC -40% 6m, CRH -14% 1m, ",
+      "market_summary": "Strong insider buying week with several high-dollar C-suite cluster buys. MTN stands out with CEO+CFO both buying ~$5M total. IFF CEO committed ~$12M and FOX CEO ~$10.6M \u2014 these are exceptionally large personal commitments. Many signals are dip-buys into beaten-down names (ECC -40% 6m, CRH -14% 1m, ",
       "total_spent_eur": 2500.0,
       "picks": [
         {
           "ticker": "MTN",
           "allocation_pct": 30.0,
-          "reasoning": "Highest conviction signal: CEO Robert Katz and CFO Angela Korch both buying — a C-suite cluster buy totaling ~$5M. This is the CEO and CFO independently committing nearly $5M of personal capital. Stoc",
+          "reasoning": "Highest conviction signal: CEO Robert Katz and CFO Angela Korch both buying \u2014 a C-suite cluster buy totaling ~$5M. This is the CEO and CFO independently committing nearly $5M of personal capital. Stoc",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -1010,7 +999,7 @@
         {
           "ticker": "IFF",
           "allocation_pct": 25.0,
-          "reasoning": "CEO Erik Fyrwald and Director Paul Fribourg cluster buy totaling ~$12M — massive dollar commitment. Stock down 13.7% in the last month, RSI at 39.9, near lower Bollinger band — classic dip-buy by insi",
+          "reasoning": "CEO Erik Fyrwald and Director Paul Fribourg cluster buy totaling ~$12M \u2014 massive dollar commitment. Stock down 13.7% in the last month, RSI at 39.9, near lower Bollinger band \u2014 classic dip-buy by insi",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -1018,7 +1007,7 @@
         {
           "ticker": "FOX",
           "allocation_pct": 15.0,
-          "reasoning": "CEO/Executive Chairman Lachlan Murdoch purchased $10.6M of stock — massive personal conviction from the person running the company. P/E of 12.7 is reasonable for a media company, 11.4% profit margin i",
+          "reasoning": "CEO/Executive Chairman Lachlan Murdoch purchased $10.6M of stock \u2014 massive personal conviction from the person running the company. P/E of 12.7 is reasonable for a media company, 11.4% profit margin i",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1026,7 +1015,7 @@
         {
           "ticker": "CRH",
           "allocation_pct": 15.0,
-          "reasoning": "Cluster buy from two directors (Fearon and Talbot) totaling $601K. Stock down 14.3% in last month, RSI at 33.3 — deeply oversold and near lower Bollinger band. $70B building materials company with sol",
+          "reasoning": "Cluster buy from two directors (Fearon and Talbot) totaling $601K. Stock down 14.3% in last month, RSI at 33.3 \u2014 deeply oversold and near lower Bollinger band. $70B building materials company with sol",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1046,13 +1035,13 @@
       "run_number": 8,
       "insider_count": 22,
       "confidence": 68,
-      "market_summary": "Broad market weakness evident — the portfolio has widespread losses with 7 positions past the -10% stop loss threshold, suggesting a risk-off environment. Despite this, insider buying signals remain strong: a CEO tripling his biotech stake (TNXP), a triple cluster buy in industrials (GPGI), and a re",
+      "market_summary": "Broad market weakness evident \u2014 the portfolio has widespread losses with 7 positions past the -10% stop loss threshold, suggesting a risk-off environment. Despite this, insider buying signals remain strong: a CEO tripling his biotech stake (TNXP), a triple cluster buy in industrials (GPGI), and a re",
       "total_spent_eur": 2000.0,
       "picks": [
         {
           "ticker": "TNXP",
           "allocation_pct": 30.0,
-          "reasoning": "Source: openinsider. CEO Seth Lederman bought $223K worth of shares, increasing his stake by 374% — an extraordinary commitment. Stock is down 38% over 6 months, so this is a deep dip-buy by the perso",
+          "reasoning": "Source: openinsider. CEO Seth Lederman bought $223K worth of shares, increasing his stake by 374% \u2014 an extraordinary commitment. Stock is down 38% over 6 months, so this is a deep dip-buy by the perso",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -1060,7 +1049,7 @@
         {
           "ticker": "HBIO",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. Cluster buy — both CEO John Duke and Director Stephen Denelsky bought simultaneously, totalling $73.7K with a 91% max stake increase. Stock is down 9.3% over 1 month and 20% over ",
+          "reasoning": "Source: openinsider. Cluster buy \u2014 both CEO John Duke and Director Stephen Denelsky bought simultaneously, totalling $73.7K with a 91% max stake increase. Stock is down 9.3% over 1 month and 20% over ",
           "executed": false,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1068,7 +1057,7 @@
         {
           "ticker": "GPGI",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. Triple cluster buy — 3 insiders (Schoen, Cote, Knott) purchased $901.7K worth of shares with 100% stake increase. Stock is down 24% in the past month with RSI at 32 (deeply overso",
+          "reasoning": "Source: openinsider. Triple cluster buy \u2014 3 insiders (Schoen, Cote, Knott) purchased $901.7K worth of shares with 100% stake increase. Stock is down 24% in the past month with RSI at 32 (deeply overso",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1096,13 +1085,13 @@
       "run_number": 9,
       "insider_count": 22,
       "confidence": 72,
-      "market_summary": "Broad market weakness is creating dip-buy opportunities that insiders are exploiting. The standout signal this week is the 6-insider cluster buy at FMBM including the CEO — rare to see that many insiders buying simultaneously. Several C-suite officers are committing serious personal capital after sh",
+      "market_summary": "Broad market weakness is creating dip-buy opportunities that insiders are exploiting. The standout signal this week is the 6-insider cluster buy at FMBM including the CEO \u2014 rare to see that many insiders buying simultaneously. Several C-suite officers are committing serious personal capital after sh",
       "total_spent_eur": 1750.0,
       "picks": [
         {
           "ticker": "FMBM",
           "allocation_pct": 30.0,
-          "reasoning": "Strongest insider signal of the batch: 6 insiders buying including CEO Wilkerson, EVP/CLO Eberly, and EVP/CXO Driest — a true cluster buy with $440K total. Max ΔOwn 41%. P/E of 10.3 with 22.5% profit ",
+          "reasoning": "Strongest insider signal of the batch: 6 insiders buying including CEO Wilkerson, EVP/CLO Eberly, and EVP/CXO Driest \u2014 a true cluster buy with $440K total. Max \u0394Own 41%. P/E of 10.3 with 22.5% profit ",
           "executed": false,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1110,7 +1099,7 @@
         {
           "ticker": "TTAM",
           "allocation_pct": 25.0,
-          "reasoning": "CFO Lawrence Wilt bought $298K worth of stock, doubling his stake (100% ΔOwn) after a -23% decline in the last month. Strong dip-buy signal from a C-suite officer. P/E 14.6, decent margins, building m",
+          "reasoning": "CFO Lawrence Wilt bought $298K worth of stock, doubling his stake (100% \u0394Own) after a -23% decline in the last month. Strong dip-buy signal from a C-suite officer. P/E 14.6, decent margins, building m",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -1118,7 +1107,7 @@
         {
           "ticker": "GO",
           "allocation_pct": 20.0,
-          "reasoning": "CEO Jason Potter spent $1.69M of personal money, nearly doubling his stake (99% ΔOwn), after a brutal -33% one-month and -57% six-month decline. This is the largest dollar commitment among all candida",
+          "reasoning": "CEO Jason Potter spent $1.69M of personal money, nearly doubling his stake (99% \u0394Own), after a brutal -33% one-month and -57% six-month decline. This is the largest dollar commitment among all candida",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1152,7 +1141,7 @@
         {
           "ticker": "PICS",
           "allocation_pct": 30.0,
-          "reasoning": "CEO Eduardo Chedid Simoes plus IR/Strategy officer and a director all buying — classic cluster buy with C-suite participation, $2.26M total. CEO doubled his stake (100% ΔOwn). Stock down 37% in 1 mont",
+          "reasoning": "CEO Eduardo Chedid Simoes plus IR/Strategy officer and a director all buying \u2014 classic cluster buy with C-suite participation, $2.26M total. CEO doubled his stake (100% \u0394Own). Stock down 37% in 1 mont",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -1160,7 +1149,7 @@
         {
           "ticker": "FMBM",
           "allocation_pct": 20.0,
-          "reasoning": "Massive 6-insider cluster buy including CEO Aubrey Wilkerson and two EVPs — $440K total, 41% max stake increase. Regional bank with solid fundamentals: P/E 10.3, 22.5% profit margin. Stock pulled back",
+          "reasoning": "Massive 6-insider cluster buy including CEO Aubrey Wilkerson and two EVPs \u2014 $440K total, 41% max stake increase. Regional bank with solid fundamentals: P/E 10.3, 22.5% profit margin. Stock pulled back",
           "executed": false,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1168,7 +1157,7 @@
         {
           "ticker": "LGIH",
           "allocation_pct": 20.0,
-          "reasoning": "Insider purchase of $172.5K in a homebuilder down 25% in 1 month and 44% over 1 year. P/E of 12.4 is reasonable for the sector. RSI at 36 — oversold territory. Earnings on April 28 could be a near-ter",
+          "reasoning": "Insider purchase of $172.5K in a homebuilder down 25% in 1 month and 44% over 1 year. P/E of 12.4 is reasonable for the sector. RSI at 36 \u2014 oversold territory. Earnings on April 28 could be a near-ter",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1176,7 +1165,7 @@
         {
           "ticker": "BORR",
           "allocation_pct": 15.0,
-          "reasoning": "Two directors (Currie and Troim) bought nearly $3.9M combined — a significant cluster buy with Troim increasing stake by 239%. Offshore drilling fundamentals improving with strong 1y return of 154%. R",
+          "reasoning": "Two directors (Currie and Troim) bought nearly $3.9M combined \u2014 a significant cluster buy with Troim increasing stake by 239%. Offshore drilling fundamentals improving with strong 1y return of 154%. R",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1184,7 +1173,7 @@
         {
           "ticker": "BETR",
           "allocation_pct": 15.0,
-          "reasoning": "CEO Vishal Garg bought $1.87M of his own stock (67% stake increase) alongside a 10% holder — cluster buy with strong CEO conviction. Stock down 46% in 6 months creating a deep value entry. Crypto mort",
+          "reasoning": "CEO Vishal Garg bought $1.87M of his own stock (67% stake increase) alongside a 10% holder \u2014 cluster buy with strong CEO conviction. Stock down 46% in 6 months creating a deep value entry. Crypto mort",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1202,7 +1191,7 @@
         {
           "ticker": "LENZ",
           "allocation_pct": 35.0,
-          "reasoning": "Source: openinsider. Triple cluster buy with CEO, CFO, and Director all purchasing simultaneously — $365K total with CEO/CFO showing 139% max stake increase. Stock is down 36.5% in 1 month and 81.4% f",
+          "reasoning": "Source: openinsider. Triple cluster buy with CEO, CFO, and Director all purchasing simultaneously \u2014 $365K total with CEO/CFO showing 139% max stake increase. Stock is down 36.5% in 1 month and 81.4% f",
           "executed": true,
           "amount_eur": 875.0,
           "quantity": 0.0
@@ -1210,7 +1199,7 @@
         {
           "ticker": "INSE",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. Triple cluster buy — CEO Brooks Pierce, Executive Chairman Weil (10% holder), and Director Chambrello all buying, totaling $545K. Stock is down 26% over 6 months with a small-cap ",
+          "reasoning": "Source: openinsider. Triple cluster buy \u2014 CEO Brooks Pierce, Executive Chairman Weil (10% holder), and Director Chambrello all buying, totaling $545K. Stock is down 26% over 6 months with a small-cap ",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1218,7 +1207,7 @@
         {
           "ticker": "HTGC",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. Seven insider purchases forming a strong cluster buy from three directors — $618K total with 33% max stake increase. Hercules Capital trades at P/E 7.8 with 63.8% profit margins, ",
+          "reasoning": "Source: openinsider. Seven insider purchases forming a strong cluster buy from three directors \u2014 $618K total with 33% max stake increase. Hercules Capital trades at P/E 7.8 with 63.8% profit margins, ",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1226,7 +1215,7 @@
         {
           "ticker": "PANW",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. CEO Nikesh Arora purchased $10M of his own stock — a massive dollar commitment from the top decision-maker at a $129B cybersecurity leader. Stock is down 22% over 6 months from hi",
+          "reasoning": "Source: openinsider. CEO Nikesh Arora purchased $10M of his own stock \u2014 a massive dollar commitment from the top decision-maker at a $129B cybersecurity leader. Stock is down 22% over 6 months from hi",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1234,7 +1223,7 @@
         {
           "ticker": "TSM",
           "allocation_pct": 10.0,
-          "reasoning": "Source: openinsider. Cluster buy from VP and SVP — two senior executives buying $331K total with 11% max stake increase. TSM is the world's most important semiconductor foundry, down 11% in the last m",
+          "reasoning": "Source: openinsider. Cluster buy from VP and SVP \u2014 two senior executives buying $331K total with 11% max stake increase. TSM is the world's most important semiconductor foundry, down 11% in the last m",
           "executed": true,
           "amount_eur": 250.0,
           "quantity": 0.0
@@ -1246,13 +1235,13 @@
       "run_number": 12,
       "insider_count": 19,
       "confidence": 72,
-      "market_summary": "Moderate insider buying activity this week with several cluster buys standing out. PGC has the strongest combined signal — CEO, CFO, and director all buying ahead of April 22 earnings with $549K deployed. POCI's CFO+COO cluster in a micro-cap is compelling despite fundamental weakness. ALT's CEO+CFO",
+      "market_summary": "Moderate insider buying activity this week with several cluster buys standing out. PGC has the strongest combined signal \u2014 CEO, CFO, and director all buying ahead of April 22 earnings with $549K deployed. POCI's CFO+COO cluster in a micro-cap is compelling despite fundamental weakness. ALT's CEO+CFO",
       "total_spent_eur": 2500.0,
       "picks": [
         {
           "ticker": "PGC",
           "allocation_pct": 30.0,
-          "reasoning": "Source: openinsider. Triple cluster buy — CEO Kennedy, CFO Cavallaro, and Director Campion all buying, totalling $549K. CEO's stake increased 85%. Regional bank with solid profitability (14.4% profit ",
+          "reasoning": "Source: openinsider. Triple cluster buy \u2014 CEO Kennedy, CFO Cavallaro, and Director Campion all buying, totalling $549K. CEO's stake increased 85%. Regional bank with solid profitability (14.4% profit ",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -1268,7 +1257,7 @@
         {
           "ticker": "ALT",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. CEO Durso and CFO Weaver both buying (cluster), $79K total, CEO stake up 46%. Stock down ~20% in 1m and 25% over 1y — classic dip-buy by the two most informed executives. MASH/obe",
+          "reasoning": "Source: openinsider. CEO Durso and CFO Weaver both buying (cluster), $79K total, CEO stake up 46%. Stock down ~20% in 1m and 25% over 1y \u2014 classic dip-buy by the two most informed executives. MASH/obe",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1276,7 +1265,7 @@
         {
           "ticker": "RBRK",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. Director McLaughlin bought $502K, increasing stake by 354% — a massive conviction signal from a board member. Stock down 38% over 6m creating a solid entry point. Cybersecurity/da",
+          "reasoning": "Source: openinsider. Director McLaughlin bought $502K, increasing stake by 354% \u2014 a massive conviction signal from a board member. Stock down 38% over 6m creating a solid entry point. Cybersecurity/da",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1302,7 +1291,7 @@
         {
           "ticker": "LPCN",
           "allocation_pct": 0.0,
-          "reasoning": "Already in portfolio — skipping despite strong signal.",
+          "reasoning": "Already in portfolio \u2014 skipping despite strong signal.",
           "executed": false,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1310,7 +1299,7 @@
         {
           "ticker": "HMH",
           "allocation_pct": 30.0,
-          "reasoning": "Source: openinsider. Strongest cluster buy of the day — 4 insiders including CFO McGee and CCO Dyrseth buying $1.46M total in a recent IPO. C-suite conviction across multiple officers is the gold stan",
+          "reasoning": "Source: openinsider. Strongest cluster buy of the day \u2014 4 insiders including CFO McGee and CCO Dyrseth buying $1.46M total in a recent IPO. C-suite conviction across multiple officers is the gold stan",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1318,7 +1307,7 @@
         {
           "ticker": "SCVL",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. CFO Jackson bought $500K at a dip — stock down 15.6% in 1m and 21% in 6m. P/E of 8.3 is cheap for retail, RSI at 33.6 confirms oversold. CFO buying into weakness with their own $5",
+          "reasoning": "Source: openinsider. CFO Jackson bought $500K at a dip \u2014 stock down 15.6% in 1m and 21% in 6m. P/E of 8.3 is cheap for retail, RSI at 33.6 confirms oversold. CFO buying into weakness with their own $5",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1326,7 +1315,7 @@
         {
           "ticker": "LULU",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. Interim Co-CEO and President Maestrini bought ~$495K of stock with the company down 42.5% from 52w high and trading at P/E of 11.5 — historically cheap for LULU. RSI at 39 confirm",
+          "reasoning": "Source: openinsider. Interim Co-CEO and President Maestrini bought ~$495K of stock with the company down 42.5% from 52w high and trading at P/E of 11.5 \u2014 historically cheap for LULU. RSI at 39 confirm",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1342,7 +1331,7 @@
         {
           "ticker": "GSBD",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. Director Carlos Evans tripled his stake (+346% ΔOwn) with $451K purchase. BDC with solid fundamentals — P/E 8.95, 32.6% profit margin, stable price action. Earnings May 7 is a nea",
+          "reasoning": "Source: openinsider. Director Carlos Evans tripled his stake (+346% \u0394Own) with $451K purchase. BDC with solid fundamentals \u2014 P/E 8.95, 32.6% profit margin, stable price action. Earnings May 7 is a nea",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1368,7 +1357,7 @@
         {
           "ticker": "OSCR",
           "allocation_pct": 25.0,
-          "reasoning": "CEO Mark Bertolini committed $11.9M of personal capital — the largest single insider purchase in this entire candidate set. Stock is down -21.6% over 6 months. Earnings on May 6 with consensus at $1.2",
+          "reasoning": "CEO Mark Bertolini committed $11.9M of personal capital \u2014 the largest single insider purchase in this entire candidate set. Stock is down -21.6% over 6 months. Earnings on May 6 with consensus at $1.2",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1376,7 +1365,7 @@
         {
           "ticker": "BETR",
           "allocation_pct": 20.0,
-          "reasoning": "Triple cluster buy: CEO Vishal Garg (10% owner), CTO, and a Director all bought totalling $596K. Stock down -42.6% over 6 months. Earnings on May 11 — three insiders buying ahead of earnings is a stro",
+          "reasoning": "Triple cluster buy: CEO Vishal Garg (10% owner), CTO, and a Director all bought totalling $596K. Stock down -42.6% over 6 months. Earnings on May 11 \u2014 three insiders buying ahead of earnings is a stro",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1392,7 +1381,7 @@
         {
           "ticker": "FUL",
           "allocation_pct": 10.0,
-          "reasoning": "CEO Celeste Mastin purchased $295K of shares. Profitable specialty chemicals company (P/E 22, EPS $2.89) with steady fundamentals. Earnings not until June 24 — CEO buying well ahead suggests confidenc",
+          "reasoning": "CEO Celeste Mastin purchased $295K of shares. Profitable specialty chemicals company (P/E 22, EPS $2.89) with steady fundamentals. Earnings not until June 24 \u2014 CEO buying well ahead suggests confidenc",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
