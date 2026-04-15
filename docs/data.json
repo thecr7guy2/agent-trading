@@ -1,680 +1,680 @@
 {
-  "last_updated": "2026-04-15T13:30:30",
+  "last_updated": "2026-04-15T14:10:38",
   "portfolio": {
-    "total_invested_eur": 35876.53,
-    "total_value_eur": 36328.08,
-    "unrealized_pnl_eur": 451.55,
-    "unrealized_pnl_pct": 1.26,
+    "total_invested_eur": 30918.8,
+    "total_value_eur": 30900.61,
+    "unrealized_pnl_eur": -18.19,
+    "unrealized_pnl_pct": -0.06,
     "positions": [
       {
         "ticker": "SCVL_US_EQ",
         "quantity": 36.677,
         "avg_buy_price": 15.7799,
-        "current_price": 17.85,
+        "current_price": 18.03,
         "invested_eur": 578.76,
-        "current_value_eur": 654.68,
-        "pnl_eur": 75.92,
-        "pnl_pct": 13.12,
+        "current_value_eur": 661.29,
+        "pnl_eur": 82.53,
+        "pnl_pct": 14.26,
         "days_held": 8
       },
       {
         "ticker": "PRCT_US_EQ",
         "quantity": 17.407,
         "avg_buy_price": 25.1399,
-        "current_price": 24.68,
+        "current_price": 25.42,
         "invested_eur": 437.61,
-        "current_value_eur": 429.6,
-        "pnl_eur": -8.01,
-        "pnl_pct": -1.83,
+        "current_value_eur": 442.49,
+        "pnl_eur": 4.88,
+        "pnl_pct": 1.12,
         "days_held": 36
       },
       {
         "ticker": "MTN_US_EQ",
         "quantity": 6.155,
         "avg_buy_price": 140.7392,
-        "current_price": 127.99,
+        "current_price": 127.65,
         "invested_eur": 866.25,
-        "current_value_eur": 787.78,
-        "pnl_eur": -78.47,
-        "pnl_pct": -9.06,
+        "current_value_eur": 785.69,
+        "pnl_eur": -80.56,
+        "pnl_pct": -9.3,
         "days_held": 29
       },
       {
         "ticker": "FSS_US_EQ",
         "quantity": 6.678,
         "avg_buy_price": 108.6268,
-        "current_price": 117.56,
+        "current_price": 114.68,
         "invested_eur": 725.41,
-        "current_value_eur": 785.07,
-        "pnl_eur": 59.66,
-        "pnl_pct": 8.22,
+        "current_value_eur": 765.83,
+        "pnl_eur": 40.42,
+        "pnl_pct": 5.57,
         "days_held": 36
       },
       {
         "ticker": "PGC_US_EQ",
         "quantity": 23.873,
         "avg_buy_price": 37.0,
-        "current_price": 39.37,
+        "current_price": 38.62,
         "invested_eur": 883.3,
-        "current_value_eur": 939.88,
-        "pnl_eur": 56.58,
-        "pnl_pct": 6.41,
+        "current_value_eur": 921.98,
+        "pnl_eur": 38.68,
+        "pnl_pct": 4.38,
         "days_held": 9
       },
       {
         "ticker": "REXR_US_EQ",
         "quantity": 27.481,
         "avg_buy_price": 36.9099,
-        "current_price": 35.04,
+        "current_price": 35.29,
         "invested_eur": 1014.32,
-        "current_value_eur": 962.93,
-        "pnl_eur": -51.39,
-        "pnl_pct": -5.07,
+        "current_value_eur": 969.8,
+        "pnl_eur": -44.52,
+        "pnl_pct": -4.39,
         "days_held": 43
       },
       {
         "ticker": "PICS_US_EQ",
         "quantity": 80.79,
         "avg_buy_price": 10.72,
-        "current_price": 13.18,
+        "current_price": 13.44,
         "invested_eur": 866.07,
-        "current_value_eur": 1064.81,
-        "pnl_eur": 198.74,
-        "pnl_pct": 22.95,
+        "current_value_eur": 1085.82,
+        "pnl_eur": 219.75,
+        "pnl_pct": 25.37,
         "days_held": 19
       },
       {
         "ticker": "PNNT_US_EQ",
         "quantity": 92.07,
         "avg_buy_price": 4.66,
-        "current_price": 4.55,
+        "current_price": 4.56,
         "invested_eur": 429.05,
-        "current_value_eur": 418.92,
-        "pnl_eur": -10.13,
-        "pnl_pct": -2.36,
+        "current_value_eur": 419.84,
+        "pnl_eur": -9.21,
+        "pnl_pct": -2.15,
         "days_held": 33
       },
       {
         "ticker": "SSP_US_EQ",
         "quantity": 147.18,
         "avg_buy_price": 3.9,
-        "current_price": 4.39,
+        "current_price": 4.75,
         "invested_eur": 574.0,
-        "current_value_eur": 646.12,
-        "pnl_eur": 72.12,
-        "pnl_pct": 12.56,
+        "current_value_eur": 699.11,
+        "pnl_eur": 125.11,
+        "pnl_pct": 21.8,
         "days_held": 33
       },
       {
         "ticker": "PANW_US_EQ",
         "quantity": 2.737,
         "avg_buy_price": 157.9503,
-        "current_price": 164.76,
+        "current_price": 162.03,
         "invested_eur": 432.31,
-        "current_value_eur": 450.95,
-        "pnl_eur": 18.64,
-        "pnl_pct": 4.31,
+        "current_value_eur": 443.48,
+        "pnl_eur": 11.17,
+        "pnl_pct": 2.58,
         "days_held": 15
       },
       {
         "ticker": "TLS_US_EQ",
         "quantity": 166.46,
         "avg_buy_price": 3.91,
-        "current_price": 4.18,
+        "current_price": 4.35,
         "invested_eur": 650.86,
-        "current_value_eur": 695.8,
-        "pnl_eur": 44.94,
-        "pnl_pct": 6.9,
+        "current_value_eur": 724.1,
+        "pnl_eur": 73.24,
+        "pnl_pct": 11.25,
         "days_held": 50
       },
       {
         "ticker": "FUL_US_EQ",
         "quantity": 4.593,
         "avg_buy_price": 64.0801,
-        "current_price": 63.39,
+        "current_price": 61.69,
         "invested_eur": 294.32,
-        "current_value_eur": 291.15,
-        "pnl_eur": -3.17,
-        "pnl_pct": -1.08,
+        "current_value_eur": 283.34,
+        "pnl_eur": -10.98,
+        "pnl_pct": -3.73,
         "days_held": 5
       },
       {
         "ticker": "TTD_US_EQ",
         "quantity": 30.055,
         "avg_buy_price": 28.9499,
-        "current_price": 21.42,
+        "current_price": 22.14,
         "invested_eur": 870.09,
-        "current_value_eur": 643.78,
-        "pnl_eur": -226.31,
-        "pnl_pct": -26.01,
+        "current_value_eur": 665.42,
+        "pnl_eur": -204.67,
+        "pnl_pct": -23.52,
         "days_held": 40
       },
       {
         "ticker": "FCNCA_US_EQ",
         "quantity": 0.237,
         "avg_buy_price": 1826.8776,
-        "current_price": 1990.98,
+        "current_price": 1976.62,
         "invested_eur": 432.97,
-        "current_value_eur": 471.86,
-        "pnl_eur": 38.89,
-        "pnl_pct": 8.98,
+        "current_value_eur": 468.46,
+        "pnl_eur": 35.49,
+        "pnl_pct": 8.2,
         "days_held": 26
       },
       {
         "ticker": "CNDT_US_EQ",
         "quantity": 193.2,
         "avg_buy_price": 1.53,
-        "current_price": 1.5,
+        "current_price": 1.54,
         "invested_eur": 295.6,
-        "current_value_eur": 289.8,
-        "pnl_eur": -5.8,
-        "pnl_pct": -1.96,
+        "current_value_eur": 297.53,
+        "pnl_eur": 1.93,
+        "pnl_pct": 0.65,
         "days_held": 50
       },
       {
         "ticker": "UBER_US_EQ",
         "quantity": 13.721,
         "avg_buy_price": 75.3998,
-        "current_price": 73.82,
+        "current_price": 76.03,
         "invested_eur": 1034.56,
-        "current_value_eur": 1012.88,
-        "pnl_eur": -21.68,
-        "pnl_pct": -2.1,
+        "current_value_eur": 1043.21,
+        "pnl_eur": 8.65,
+        "pnl_pct": 0.84,
         "days_held": 47
       },
       {
         "ticker": "OSUR_US_EQ",
         "quantity": 138.35,
         "avg_buy_price": 3.14,
-        "current_price": 3.18,
+        "current_price": 3.21,
         "invested_eur": 434.42,
-        "current_value_eur": 439.95,
-        "pnl_eur": 5.53,
-        "pnl_pct": 1.27,
+        "current_value_eur": 444.1,
+        "pnl_eur": 9.68,
+        "pnl_pct": 2.23,
         "days_held": 22
       },
       {
         "ticker": "TNXP_US_EQ",
         "quantity": 52.302,
         "avg_buy_price": 16.62,
-        "current_price": 13.43,
+        "current_price": 13.98,
         "invested_eur": 869.26,
-        "current_value_eur": 702.42,
-        "pnl_eur": -166.84,
-        "pnl_pct": -19.19,
+        "current_value_eur": 731.18,
+        "pnl_eur": -138.08,
+        "pnl_pct": -15.88,
         "days_held": 26
       },
       {
         "ticker": "CRH_US_EQ",
         "quantity": 4.143,
         "avg_buy_price": 104.4002,
-        "current_price": 118.05,
+        "current_price": 115.92,
         "invested_eur": 432.53,
-        "current_value_eur": 489.08,
-        "pnl_eur": 56.55,
-        "pnl_pct": 13.07,
+        "current_value_eur": 480.26,
+        "pnl_eur": 47.73,
+        "pnl_pct": 11.04,
         "days_held": 29
       },
       {
         "ticker": "VSNTV_US_EQ",
         "quantity": 19.722,
         "avg_buy_price": 36.9602,
-        "current_price": 41.25,
+        "current_price": 40.87,
         "invested_eur": 728.93,
-        "current_value_eur": 813.53,
-        "pnl_eur": 84.6,
-        "pnl_pct": 11.61,
+        "current_value_eur": 806.04,
+        "pnl_eur": 77.11,
+        "pnl_pct": 10.58,
         "days_held": 36
       },
       {
         "ticker": "GSBD_US_EQ",
         "quantity": 47.03,
         "avg_buy_price": 9.2301,
-        "current_price": 9.48,
+        "current_price": 9.52,
         "invested_eur": 434.09,
-        "current_value_eur": 445.84,
-        "pnl_eur": 11.75,
-        "pnl_pct": 2.71,
+        "current_value_eur": 447.73,
+        "pnl_eur": 13.64,
+        "pnl_pct": 3.14,
         "days_held": 8
       },
       {
         "ticker": "LULU_US_EQ",
         "quantity": 3.796,
         "avg_buy_price": 152.5105,
-        "current_price": 160.61,
+        "current_price": 161.49,
         "invested_eur": 578.93,
-        "current_value_eur": 609.68,
-        "pnl_eur": 30.75,
-        "pnl_pct": 5.31,
+        "current_value_eur": 613.02,
+        "pnl_eur": 34.09,
+        "pnl_pct": 5.89,
         "days_held": 8
       },
       {
         "ticker": "VALE_US_EQ",
         "quantity": 27.007,
         "avg_buy_price": 16.0699,
-        "current_price": 17.76,
+        "current_price": 17.73,
         "invested_eur": 434.0,
-        "current_value_eur": 479.64,
-        "pnl_eur": 45.64,
-        "pnl_pct": 10.52,
+        "current_value_eur": 478.83,
+        "pnl_eur": 44.83,
+        "pnl_pct": 10.33,
         "days_held": 8
       },
       {
         "ticker": "GIG_US_EQ",
         "quantity": 68.92,
         "avg_buy_price": 4.21,
-        "current_price": 3.52,
+        "current_price": 3.7,
         "invested_eur": 290.15,
-        "current_value_eur": 242.6,
-        "pnl_eur": -47.55,
-        "pnl_pct": -16.39,
+        "current_value_eur": 255.0,
+        "pnl_eur": -35.15,
+        "pnl_pct": -12.11,
         "days_held": 40
       },
       {
         "ticker": "RBRK_US_EQ",
         "quantity": 8.402,
         "avg_buy_price": 51.7198,
-        "current_price": 48.73,
+        "current_price": 50.14,
         "invested_eur": 434.55,
-        "current_value_eur": 409.43,
-        "pnl_eur": -25.12,
-        "pnl_pct": -5.78,
+        "current_value_eur": 421.28,
+        "pnl_eur": -13.27,
+        "pnl_pct": -3.05,
         "days_held": 9
       },
       {
         "ticker": "PODD_US_EQ",
         "quantity": 1.791,
         "avg_buy_price": 246.9626,
-        "current_price": 201.98,
+        "current_price": 202.56,
         "invested_eur": 442.31,
-        "current_value_eur": 361.75,
-        "pnl_eur": -80.56,
-        "pnl_pct": -18.21,
+        "current_value_eur": 362.78,
+        "pnl_eur": -79.53,
+        "pnl_pct": -17.98,
         "days_held": 50
       },
       {
         "ticker": "WY_US_EQ",
         "quantity": 23.547,
         "avg_buy_price": 25.0299,
-        "current_price": 24.56,
+        "current_price": 24.4,
         "invested_eur": 589.38,
-        "current_value_eur": 578.31,
-        "pnl_eur": -11.07,
-        "pnl_pct": -1.88,
+        "current_value_eur": 574.55,
+        "pnl_eur": -14.83,
+        "pnl_pct": -2.52,
         "days_held": 50
       },
       {
         "ticker": "SKWD_US_EQ",
         "quantity": 9.118,
         "avg_buy_price": 47.7396,
-        "current_price": 45.85,
+        "current_price": 45.81,
         "invested_eur": 435.29,
-        "current_value_eur": 418.06,
-        "pnl_eur": -17.23,
-        "pnl_pct": -3.96,
+        "current_value_eur": 417.7,
+        "pnl_eur": -17.59,
+        "pnl_pct": -4.04,
         "days_held": 43
       },
       {
         "ticker": "DBDR_US_EQ",
         "quantity": 33.319,
         "avg_buy_price": 17.34,
-        "current_price": 15.89,
+        "current_price": 16.59,
         "invested_eur": 577.75,
-        "current_value_eur": 529.44,
-        "pnl_eur": -48.31,
-        "pnl_pct": -8.36,
+        "current_value_eur": 552.76,
+        "pnl_eur": -24.99,
+        "pnl_pct": -4.33,
         "days_held": 26
       },
       {
         "ticker": "LW_US_EQ",
         "quantity": 10.327,
         "avg_buy_price": 42.63,
-        "current_price": 43.64,
+        "current_price": 43.07,
         "invested_eur": 440.24,
-        "current_value_eur": 450.67,
-        "pnl_eur": 10.43,
-        "pnl_pct": 2.37,
+        "current_value_eur": 444.78,
+        "pnl_eur": 4.54,
+        "pnl_pct": 1.03,
         "days_held": 5
       },
       {
         "ticker": "CRM_US_EQ",
         "quantity": 2.231,
         "avg_buy_price": 194.1685,
-        "current_price": 173.97,
+        "current_price": 175.88,
         "invested_eur": 433.19,
-        "current_value_eur": 388.13,
-        "pnl_eur": -45.06,
-        "pnl_pct": -10.4,
+        "current_value_eur": 392.39,
+        "pnl_eur": -40.8,
+        "pnl_pct": -9.42,
         "days_held": 26
       },
       {
         "ticker": "OSCR_US_EQ",
         "quantity": 49.835,
         "avg_buy_price": 14.72,
-        "current_price": 15.63,
+        "current_price": 14.99,
         "invested_eur": 733.57,
-        "current_value_eur": 778.92,
-        "pnl_eur": 45.35,
-        "pnl_pct": 6.18,
+        "current_value_eur": 747.03,
+        "pnl_eur": 13.46,
+        "pnl_pct": 1.83,
         "days_held": 5
       },
       {
         "ticker": "GO_US_EQ",
         "quantity": 85.92,
         "avg_buy_price": 6.75,
-        "current_price": 7.24,
+        "current_price": 7.12,
         "invested_eur": 579.96,
-        "current_value_eur": 622.06,
-        "pnl_eur": 42.1,
-        "pnl_pct": 7.26,
+        "current_value_eur": 611.75,
+        "pnl_eur": 31.79,
+        "pnl_pct": 5.48,
         "days_held": 22
       },
       {
         "ticker": "IFF_US_EQ",
         "quantity": 10.092,
         "avg_buy_price": 71.4199,
-        "current_price": 72.19,
+        "current_price": 71.64,
         "invested_eur": 720.77,
-        "current_value_eur": 728.54,
-        "pnl_eur": 7.77,
-        "pnl_pct": 1.08,
+        "current_value_eur": 722.99,
+        "pnl_eur": 2.22,
+        "pnl_pct": 0.31,
         "days_held": 29
       },
       {
         "ticker": "RPM_US_EQ",
         "quantity": 2.982,
         "avg_buy_price": 97.2099,
-        "current_price": 108.79,
+        "current_price": 106.45,
         "invested_eur": 289.88,
-        "current_value_eur": 324.41,
-        "pnl_eur": 34.53,
-        "pnl_pct": 11.91,
+        "current_value_eur": 317.43,
+        "pnl_eur": 27.55,
+        "pnl_pct": 9.5,
         "days_held": 22
       },
       {
         "ticker": "TSLX_US_EQ",
         "quantity": 39.107,
         "avg_buy_price": 18.5601,
-        "current_price": 18.72,
+        "current_price": 18.87,
         "invested_eur": 725.83,
-        "current_value_eur": 732.08,
-        "pnl_eur": 6.25,
-        "pnl_pct": 0.86,
+        "current_value_eur": 737.95,
+        "pnl_eur": 12.12,
+        "pnl_pct": 1.67,
         "days_held": 40
       },
       {
         "ticker": "GPK_US_EQ",
         "quantity": 51.952,
         "avg_buy_price": 11.1699,
-        "current_price": 9.68,
+        "current_price": 9.88,
         "invested_eur": 580.3,
-        "current_value_eur": 502.9,
-        "pnl_eur": -77.4,
-        "pnl_pct": -13.34,
+        "current_value_eur": 513.29,
+        "pnl_eur": -67.01,
+        "pnl_pct": -11.55,
         "days_held": 40
       },
       {
         "ticker": "LGIH_US_EQ",
         "quantity": 14.872,
         "avg_buy_price": 38.7998,
-        "current_price": 41.02,
+        "current_price": 39.64,
         "invested_eur": 577.03,
-        "current_value_eur": 610.05,
-        "pnl_eur": 33.02,
-        "pnl_pct": 5.72,
+        "current_value_eur": 589.53,
+        "pnl_eur": 12.5,
+        "pnl_pct": 2.17,
         "days_held": 19
       },
       {
         "ticker": "NKE_US_EQ",
         "quantity": 20.369,
         "avg_buy_price": 43.2201,
-        "current_price": 45.05,
+        "current_price": 45.45,
         "invested_eur": 880.35,
-        "current_value_eur": 917.62,
-        "pnl_eur": 37.27,
-        "pnl_pct": 4.23,
+        "current_value_eur": 925.77,
+        "pnl_eur": 45.42,
+        "pnl_pct": 5.16,
         "days_held": 5
       },
       {
         "ticker": "HRI_US_EQ",
         "quantity": 5.347,
         "avg_buy_price": 135.6592,
-        "current_price": 105.58,
+        "current_price": 102.31,
         "invested_eur": 725.37,
-        "current_value_eur": 564.54,
-        "pnl_eur": -160.83,
-        "pnl_pct": -22.17,
+        "current_value_eur": 547.05,
+        "pnl_eur": -178.32,
+        "pnl_pct": -24.58,
         "days_held": 43
       },
       {
         "ticker": "IBP_US_EQ",
         "quantity": 1.072,
         "avg_buy_price": 269.9067,
-        "current_price": 287.62,
+        "current_price": 282.41,
         "invested_eur": 289.34,
-        "current_value_eur": 308.33,
-        "pnl_eur": 18.99,
-        "pnl_pct": 6.56,
+        "current_value_eur": 302.74,
+        "pnl_eur": 13.4,
+        "pnl_pct": 4.63,
         "days_held": 9
       },
       {
         "ticker": "FOX_US_EQ",
         "quantity": 8.149,
         "avg_buy_price": 53.0703,
-        "current_price": 56.62,
+        "current_price": 56.82,
         "invested_eur": 432.47,
-        "current_value_eur": 461.4,
-        "pnl_eur": 28.93,
-        "pnl_pct": 6.69,
+        "current_value_eur": 463.03,
+        "pnl_eur": 30.56,
+        "pnl_pct": 7.07,
         "days_held": 29
       },
       {
         "ticker": "LPCN_US_EQ",
         "quantity": 168.7,
         "avg_buy_price": 2.09,
-        "current_price": 2.46,
+        "current_price": 2.51,
         "invested_eur": 352.58,
-        "current_value_eur": 415.0,
-        "pnl_eur": 62.42,
-        "pnl_pct": 17.7,
+        "current_value_eur": 423.44,
+        "pnl_eur": 70.86,
+        "pnl_pct": 20.1,
         "days_held": 9
       },
       {
         "ticker": "TTAM_US_EQ",
         "quantity": 49.154,
         "avg_buy_price": 14.7699,
-        "current_price": 16.41,
+        "current_price": 16.23,
         "invested_eur": 726.0,
-        "current_value_eur": 806.62,
-        "pnl_eur": 80.62,
-        "pnl_pct": 11.1,
+        "current_value_eur": 797.77,
+        "pnl_eur": 71.77,
+        "pnl_pct": 9.89,
         "days_held": 22
       },
       {
         "ticker": "BORR_US_EQ",
         "quantity": 71.38,
         "avg_buy_price": 6.06,
-        "current_price": 5.58,
+        "current_price": 5.62,
         "invested_eur": 432.56,
-        "current_value_eur": 398.3,
-        "pnl_eur": -34.26,
-        "pnl_pct": -7.92,
+        "current_value_eur": 401.16,
+        "pnl_eur": -31.4,
+        "pnl_pct": -7.26,
         "days_held": 19
       },
       {
         "ticker": "AURC_US_EQ",
         "quantity": 31.672,
         "avg_buy_price": 32.4343,
-        "current_price": 35.0,
+        "current_price": 35.15,
         "invested_eur": 1027.26,
-        "current_value_eur": 1108.52,
-        "pnl_eur": 81.26,
-        "pnl_pct": 7.91,
+        "current_value_eur": 1113.27,
+        "pnl_eur": 86.01,
+        "pnl_pct": 8.37,
         "days_held": 19
       },
       {
         "ticker": "HOG_US_EQ",
         "quantity": 53.483,
         "avg_buy_price": 19.0601,
-        "current_price": 23.27,
+        "current_price": 22.87,
         "invested_eur": 1019.39,
-        "current_value_eur": 1244.55,
-        "pnl_eur": 225.16,
-        "pnl_pct": 22.09,
+        "current_value_eur": 1223.16,
+        "pnl_eur": 203.77,
+        "pnl_pct": 19.99,
         "days_held": 36
       },
       {
         "ticker": "HMH_US_EQ",
         "quantity": 48.45,
         "avg_buy_price": 18.0,
-        "current_price": 18.66,
+        "current_price": 18.5,
         "invested_eur": 872.1,
-        "current_value_eur": 904.08,
-        "pnl_eur": 31.98,
-        "pnl_pct": 3.67,
+        "current_value_eur": 896.33,
+        "pnl_eur": 24.23,
+        "pnl_pct": 2.78,
         "days_held": 8
       },
       {
         "ticker": "CLH_US_EQ",
         "quantity": 1.495,
         "avg_buy_price": 287.1706,
-        "current_price": 304.44,
+        "current_price": 300.67,
         "invested_eur": 429.32,
-        "current_value_eur": 455.14,
-        "pnl_eur": 25.82,
-        "pnl_pct": 6.01,
+        "current_value_eur": 449.5,
+        "pnl_eur": 20.18,
+        "pnl_pct": 4.7,
         "days_held": 33
       },
       {
         "ticker": "HTGC_US_EQ",
         "quantity": 39.786,
         "avg_buy_price": 14.49,
-        "current_price": 15.37,
+        "current_price": 15.62,
         "invested_eur": 576.5,
-        "current_value_eur": 611.51,
-        "pnl_eur": 35.01,
-        "pnl_pct": 6.07,
+        "current_value_eur": 621.46,
+        "pnl_eur": 44.96,
+        "pnl_pct": 7.8,
         "days_held": 15
       },
       {
         "ticker": "AVTR_US_EQ",
         "quantity": 81.21,
         "avg_buy_price": 9.0699,
-        "current_price": 8.2,
+        "current_price": 8.4,
         "invested_eur": 736.57,
-        "current_value_eur": 665.92,
-        "pnl_eur": -70.65,
-        "pnl_pct": -9.59,
+        "current_value_eur": 682.16,
+        "pnl_eur": -54.41,
+        "pnl_pct": -7.39,
         "days_held": 50
       },
       {
         "ticker": "VNO_US_EQ",
         "quantity": 15.556,
         "avg_buy_price": 28.5099,
-        "current_price": 27.96,
+        "current_price": 27.92,
         "invested_eur": 443.5,
-        "current_value_eur": 434.95,
-        "pnl_eur": -8.55,
-        "pnl_pct": -1.93,
+        "current_value_eur": 434.32,
+        "pnl_eur": -9.18,
+        "pnl_pct": -2.07,
         "days_held": 47
       },
       {
         "ticker": "INSE_US_EQ",
         "quantity": 83.18,
         "avg_buy_price": 6.95,
-        "current_price": 7.01,
+        "current_price": 7.06,
         "invested_eur": 578.1,
-        "current_value_eur": 583.09,
-        "pnl_eur": 4.99,
-        "pnl_pct": 0.86,
+        "current_value_eur": 587.25,
+        "pnl_eur": 9.15,
+        "pnl_pct": 1.58,
         "days_held": 15
       },
       {
         "ticker": "POOL_US_EQ",
         "quantity": 1.326,
         "avg_buy_price": 218.6425,
-        "current_price": 220.07,
+        "current_price": 221.67,
         "invested_eur": 289.92,
-        "current_value_eur": 291.81,
-        "pnl_eur": 1.89,
-        "pnl_pct": 0.65,
+        "current_value_eur": 293.93,
+        "pnl_eur": 4.01,
+        "pnl_pct": 1.38,
         "days_held": 43
       },
       {
         "ticker": "ROCK_US_EQ",
         "quantity": 24.354,
         "avg_buy_price": 41.2199,
-        "current_price": 42.3,
+        "current_price": 40.58,
         "invested_eur": 1003.87,
-        "current_value_eur": 1030.17,
-        "pnl_eur": 26.3,
-        "pnl_pct": 2.62,
+        "current_value_eur": 988.29,
+        "pnl_eur": -15.58,
+        "pnl_pct": -1.55,
         "days_held": 33
       },
       {
         "ticker": "AMRZ_US_EQ",
         "quantity": 7.813,
         "avg_buy_price": 54.9802,
-        "current_price": 59.63,
+        "current_price": 59.36,
         "invested_eur": 429.56,
-        "current_value_eur": 465.89,
-        "pnl_eur": 36.33,
-        "pnl_pct": 8.46,
+        "current_value_eur": 463.78,
+        "pnl_eur": 34.22,
+        "pnl_pct": 7.97,
         "days_held": 33
       },
       {
         "ticker": "ALT_US_EQ",
         "quantity": 172.54,
         "avg_buy_price": 3.34,
-        "current_price": 3.29,
+        "current_price": 3.32,
         "invested_eur": 576.28,
-        "current_value_eur": 567.66,
-        "pnl_eur": -8.62,
-        "pnl_pct": -1.5,
+        "current_value_eur": 572.83,
+        "pnl_eur": -3.45,
+        "pnl_pct": -0.6,
         "days_held": 9
       },
       {
         "ticker": "VERX_US_EQ",
         "quantity": 51.584,
         "avg_buy_price": 14.37,
-        "current_price": 11.38,
+        "current_price": 11.9,
         "invested_eur": 741.26,
-        "current_value_eur": 587.03,
-        "pnl_eur": -154.23,
-        "pnl_pct": -20.81,
+        "current_value_eur": 613.85,
+        "pnl_eur": -127.41,
+        "pnl_pct": -17.19,
         "days_held": 47
       },
       {
         "ticker": "TSM_US_EQ",
         "quantity": 0.884,
         "avg_buy_price": 326.0973,
-        "current_price": 381.89,
+        "current_price": 378.86,
         "invested_eur": 288.27,
-        "current_value_eur": 337.59,
-        "pnl_eur": 49.32,
-        "pnl_pct": 17.11,
+        "current_value_eur": 334.91,
+        "pnl_eur": 46.64,
+        "pnl_pct": 16.18,
         "days_held": 15
       },
       {
         "ticker": "LRN_US_EQ",
         "quantity": 5.151,
         "avg_buy_price": 84.4205,
-        "current_price": 93.0,
+        "current_price": 94.31,
         "invested_eur": 434.85,
-        "current_value_eur": 479.04,
-        "pnl_eur": 44.19,
-        "pnl_pct": 10.16,
+        "current_value_eur": 485.79,
+        "pnl_eur": 50.94,
+        "pnl_pct": 11.71,
         "days_held": 43
       },
       {
         "ticker": "SXC_US_EQ",
         "quantity": 77.36,
         "avg_buy_price": 5.73,
-        "current_price": 6.28,
+        "current_price": 6.1,
         "invested_eur": 443.27,
-        "current_value_eur": 485.82,
-        "pnl_eur": 42.55,
-        "pnl_pct": 9.6,
+        "current_value_eur": 471.9,
+        "pnl_eur": 28.63,
+        "pnl_pct": 6.46,
         "days_held": 47
       }
     ]
@@ -691,7 +691,7 @@
         {
           "ticker": "TLSI",
           "allocation_pct": 30.0,
-          "reasoning": "Strongest cluster buy in the cohort: 4 insiders including CEO purchased $1.77M simultaneously, with 100% \u0394Own. Earnings on March 26 provides a near-term catalyst just one month out. Revenue growth tra",
+          "reasoning": "Strongest cluster buy in the cohort: 4 insiders including CEO purchased $1.77M simultaneously, with 100% ΔOwn. Earnings on March 26 provides a near-term catalyst just one month out. Revenue growth tra",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -699,7 +699,7 @@
         {
           "ticker": "AVTR",
           "allocation_pct": 25.0,
-          "reasoning": "Director increased stake by 572% \u2014 the largest proportional increase in the entire cohort \u2014 buying $458K at near 52-week lows after a 48% 1-year decline. RSI at 31.26 confirms oversold conditions. Cla",
+          "reasoning": "Director increased stake by 572% — the largest proportional increase in the entire cohort — buying $458K at near 52-week lows after a 48% 1-year decline. RSI at 31.26 confirms oversold conditions. Cla",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -707,7 +707,7 @@
         {
           "ticker": "WY",
           "allocation_pct": 20.0,
-          "reasoning": "Cluster buy with 2 directors purchasing $615K combined, one with 492% \u0394Own. Stock near 52-week low with RSI at 37 approaching oversold. Upcoming dividend ex-date March 10 provides near-term income cat",
+          "reasoning": "Cluster buy with 2 directors purchasing $615K combined, one with 492% ΔOwn. Stock near 52-week low with RSI at 37 approaching oversold. Upcoming dividend ex-date March 10 provides near-term income cat",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -715,7 +715,7 @@
         {
           "ticker": "PODD",
           "allocation_pct": 15.0,
-          "reasoning": "CEO purchased $1.03M after a 25% 6-month decline \u2014 the largest single C-suite dollar commitment in the cohort. A CEO buying over $1M of their own company after a significant drawdown is a high-quality",
+          "reasoning": "CEO purchased $1.03M after a 25% 6-month decline — the largest single C-suite dollar commitment in the cohort. A CEO buying over $1M of their own company after a significant drawdown is a high-quality",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -735,13 +735,13 @@
       "run_number": 2,
       "insider_count": 20,
       "confidence": 74,
-      "market_summary": "Strong insider buying week with multiple high-conviction signals. The standout is Uber's CFO making a $1.6M purchase that tripled his stake during a 21% drawdown. Two cluster buys identified \u2014 VERX (CEO + Director) and SXC (CFO + SVP) \u2014 both in beaten-down names. VNO shows a director making a 500% s",
+      "market_summary": "Strong insider buying week with multiple high-conviction signals. The standout is Uber's CFO making a $1.6M purchase that tripled his stake during a 21% drawdown. Two cluster buys identified — VERX (CEO + Director) and SXC (CFO + SVP) — both in beaten-down names. VNO shows a director making a 500% s",
       "total_spent_eur": 2250.0,
       "picks": [
         {
           "ticker": "UBER",
           "allocation_pct": 35.0,
-          "reasoning": "CFO Balaji Krishnamurthy purchased $1.6M worth of shares, increasing his stake by 357% \u2014 an extraordinary conviction signal from the CFO. Stock is down 21% over 6 months, providing margin of safety. S",
+          "reasoning": "CFO Balaji Krishnamurthy purchased $1.6M worth of shares, increasing his stake by 357% — an extraordinary conviction signal from the CFO. Stock is down 21% over 6 months, providing margin of safety. S",
           "executed": true,
           "amount_eur": 875.0,
           "quantity": 0.0
@@ -749,7 +749,7 @@
         {
           "ticker": "VERX",
           "allocation_pct": 25.0,
-          "reasoning": "Cluster buy: CEO Christopher Young and Director Eric Andersen both purchased shares totalling $1.25M. CEO doubled his stake (100% \u0394Own). Stock is down 58% from 52-week high and 26% in the last month \u2014",
+          "reasoning": "Cluster buy: CEO Christopher Young and Director Eric Andersen both purchased shares totalling $1.25M. CEO doubled his stake (100% ΔOwn). Stock is down 58% from 52-week high and 26% in the last month —",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -785,13 +785,13 @@
       "run_number": 3,
       "insider_count": 25,
       "confidence": 74,
-      "market_summary": "Mixed insider buying week. Standout signal is REXR with a triple cluster buy from COO, CFO, and Director \u2014 rare alignment of C-suite conviction in an oversold industrial REIT. HRI also notable with a Director increasing stake by 938% into weakness. Several quality names (LRN, POOL) show insiders buy",
+      "market_summary": "Mixed insider buying week. Standout signal is REXR with a triple cluster buy from COO, CFO, and Director — rare alignment of C-suite conviction in an oversold industrial REIT. HRI also notable with a Director increasing stake by 938% into weakness. Several quality names (LRN, POOL) show insiders buy",
       "total_spent_eur": 2500.0,
       "picks": [
         {
           "ticker": "REXR",
           "allocation_pct": 35.0,
-          "reasoning": "Strongest cluster buy signal: COO (Laura Clark), CFO (Michael Fitzmaurice), and a Director all buying simultaneously \u2014 3 insiders spending $487K total with max \u0394Own of 273%. Stock is down ~9% over 1 m",
+          "reasoning": "Strongest cluster buy signal: COO (Laura Clark), CFO (Michael Fitzmaurice), and a Director all buying simultaneously — 3 insiders spending $487K total with max ΔOwn of 273%. Stock is down ~9% over 1 m",
           "executed": true,
           "amount_eur": 875.0,
           "quantity": 0.0
@@ -799,7 +799,7 @@
         {
           "ticker": "HRI",
           "allocation_pct": 25.0,
-          "reasoning": "Director John Olin purchased $427K worth of shares, increasing his stake by 938% \u2014 massive personal conviction. Stock is down 12% over 1 month with RSI at 37.6 (oversold), sitting near the lower Bolli",
+          "reasoning": "Director John Olin purchased $427K worth of shares, increasing his stake by 938% — massive personal conviction. Stock is down 12% over 1 month with RSI at 37.6 (oversold), sitting near the lower Bolli",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -807,7 +807,7 @@
         {
           "ticker": "SKWD",
           "allocation_pct": 15.0,
-          "reasoning": "CEO Andrew Robinson and Director Christopher Peirce both buying \u2014 cluster buy totaling $1.18M with the CEO's personal capital at stake. P&C insurance with solid P/E of 11.7 and 12% profit margin. Stoc",
+          "reasoning": "CEO Andrew Robinson and Director Christopher Peirce both buying — cluster buy totaling $1.18M with the CEO's personal capital at stake. P&C insurance with solid P/E of 11.7 and 12% profit margin. Stoc",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -815,7 +815,7 @@
         {
           "ticker": "LRN",
           "allocation_pct": 15.0,
-          "reasoning": "Stock is down 47% over 6 months and 40% over 1 year \u2014 massive decline from $171 to ~$84. Insider bought $32.5K which is modest, but with P/E of 12.9, EPS of $6.51, and 12.7% profit margin, fundamental",
+          "reasoning": "Stock is down 47% over 6 months and 40% over 1 year — massive decline from $171 to ~$84. Insider bought $32.5K which is modest, but with P/E of 12.9, EPS of $6.51, and 12.7% profit margin, fundamental",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -823,7 +823,7 @@
         {
           "ticker": "POOL",
           "allocation_pct": 10.0,
-          "reasoning": "Director James Hope doubled his stake (+121% \u0394Own) spending $300K after a 28% 6-month decline and 35.5% 1-year decline. RSI at 33.9 is oversold. P/E of 20.1 with EPS of $10.86 \u2014 quality industrial dis",
+          "reasoning": "Director James Hope doubled his stake (+121% ΔOwn) spending $300K after a 28% 6-month decline and 35.5% 1-year decline. RSI at 33.9 is oversold. P/E of 20.1 with EPS of $10.86 — quality industrial dis",
           "executed": true,
           "amount_eur": 250.0,
           "quantity": 0.0
@@ -841,7 +841,7 @@
         {
           "ticker": "TTD",
           "allocation_pct": 30.0,
-          "reasoning": "Source: openinsider. CEO Jeff Green purchased $148M of his own stock \u2014 an extraordinary dollar amount with a 373% stake increase. Stock is down 55% from 52w high and 44% over 6 months, representing a ",
+          "reasoning": "Source: openinsider. CEO Jeff Green purchased $148M of his own stock — an extraordinary dollar amount with a 373% stake increase. Stock is down 55% from 52w high and 44% over 6 months, representing a ",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -849,7 +849,7 @@
         {
           "ticker": "TSLX",
           "allocation_pct": 25.0,
-          "reasoning": "Source: openinsider. Cluster buy \u2014 3 VPs bought simultaneously totaling $672K, with one insider increasing stake by 947%. Stock down 22% over 6 months with RSI at 41.6 (oversold territory). P/E of 10.",
+          "reasoning": "Source: openinsider. Cluster buy — 3 VPs bought simultaneously totaling $672K, with one insider increasing stake by 947%. Stock down 22% over 6 months with RSI at 41.6 (oversold territory). P/E of 10.",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -857,7 +857,7 @@
         {
           "ticker": "GPK",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. CEO Robbert Rietbroek and a director both bought (cluster buy) totaling $700K. CEO doubling his stake (100% \u0394Own) after a 57% decline from 52w high is a strong dip-buy signal. RSI",
+          "reasoning": "Source: openinsider. CEO Robbert Rietbroek and a director both bought (cluster buy) totaling $700K. CEO doubling his stake (100% ΔOwn) after a 57% decline from 52w high is a strong dip-buy signal. RSI",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -891,7 +891,7 @@
         {
           "ticker": "HOG",
           "allocation_pct": 35.0,
-          "reasoning": "Source: openinsider. Strongest insider signal of the batch \u2014 CEO Artie Starrs and Director Lori Ann Flees both buying (cluster buy), with CEO doubling stake (100% \u0394Own). $362K committed after a -35% 6",
+          "reasoning": "Source: openinsider. Strongest insider signal of the batch — CEO Artie Starrs and Director Lori Ann Flees both buying (cluster buy), with CEO doubling stake (100% ΔOwn). $362K committed after a -35% 6",
           "executed": true,
           "amount_eur": 875.0,
           "quantity": 0.0
@@ -899,7 +899,7 @@
         {
           "ticker": "VSNT",
           "allocation_pct": 25.0,
-          "reasoning": "Source: openinsider. Director David Novak purchased $5.27M \u2014 the largest dollar amount of any insider this batch \u2014 increasing his stake by 919%. Massive personal conviction at a P/E of 5.7 in media/en",
+          "reasoning": "Source: openinsider. Director David Novak purchased $5.27M — the largest dollar amount of any insider this batch — increasing his stake by 919%. Massive personal conviction at a P/E of 5.7 in media/en",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -907,7 +907,7 @@
         {
           "ticker": "PRCT",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. Director Antal Rohit Desai invested $10.5M increasing stake by 861% \u2014 enormous personal conviction. Stock is down 56% from 52-week highs and -33% over 6 months, a classic dip-buy ",
+          "reasoning": "Source: openinsider. Director Antal Rohit Desai invested $10.5M increasing stake by 861% — enormous personal conviction. Stock is down 56% from 52-week highs and -33% over 6 months, a classic dip-buy ",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -915,7 +915,7 @@
         {
           "ticker": "ELV",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. Director Steven Collis (also CEO of AmerisourceBergen \u2014 deeply connected to healthcare) bought $870K, increasing stake by 469%. Stock at RSI 33.56 \u2014 deeply oversold \u2014 and trading ",
+          "reasoning": "Source: openinsider. Director Steven Collis (also CEO of AmerisourceBergen — deeply connected to healthcare) bought $870K, increasing stake by 469%. Stock at RSI 33.56 — deeply oversold — and trading ",
           "executed": false,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -935,13 +935,13 @@
       "run_number": 6,
       "insider_count": 23,
       "confidence": 72,
-      "market_summary": "Broad market weakness continues with most portfolio positions in the red. However, insider buying signals are strong this week \u2014 particularly the ROCK CEO/Director cluster buy after a -33% decline ($734K, 407% stake increase) and the massive 13-insider cluster at SSP ($3.85M). PennantPark CFO buying",
+      "market_summary": "Broad market weakness continues with most portfolio positions in the red. However, insider buying signals are strong this week — particularly the ROCK CEO/Director cluster buy after a -33% decline ($734K, 407% stake increase) and the massive 13-insider cluster at SSP ($3.85M). PennantPark CFO buying",
       "total_spent_eur": 2500.0,
       "picks": [
         {
           "ticker": "ROCK",
           "allocation_pct": 35.0,
-          "reasoning": "Source: openinsider. Strongest insider signal in the batch \u2014 CEO William Bosway and Director James Metcalf cluster buying $734K total, with Bosway increasing his stake by 407%. Stock is down -25% in 1",
+          "reasoning": "Source: openinsider. Strongest insider signal in the batch — CEO William Bosway and Director James Metcalf cluster buying $734K total, with Bosway increasing his stake by 407%. Stock is down -25% in 1",
           "executed": true,
           "amount_eur": 875.0,
           "quantity": 0.0
@@ -949,7 +949,7 @@
         {
           "ticker": "PNNT",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. CFO Richard Allorto doubled his stake in PNNT ($73K, 100% \u0394Own) while stock is down -29% over 6 months and -22% over 1 year. RSI at 29 is deeply oversold. Same CFO also bought sis",
+          "reasoning": "Source: openinsider. CFO Richard Allorto doubled his stake in PNNT ($73K, 100% ΔOwn) while stock is down -29% over 6 months and -22% over 1 year. RSI at 29 is deeply oversold. Same CFO also bought sis",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -957,7 +957,7 @@
         {
           "ticker": "SSP",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider+capitol_trades. Massive cluster buy \u2014 13 insiders purchasing $3.85M total, with 178% max stake increase. The Scripps family (10%+ holders Sanchez, Brickner) are aggressively accumu",
+          "reasoning": "Source: openinsider+capitol_trades. Massive cluster buy — 13 insiders purchasing $3.85M total, with 178% max stake increase. The Scripps family (10%+ holders Sanchez, Brickner) are aggressively accumu",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -985,13 +985,13 @@
       "run_number": 7,
       "insider_count": 21,
       "confidence": 72,
-      "market_summary": "Strong insider buying week with several high-dollar C-suite cluster buys. MTN stands out with CEO+CFO both buying ~$5M total. IFF CEO committed ~$12M and FOX CEO ~$10.6M \u2014 these are exceptionally large personal commitments. Many signals are dip-buys into beaten-down names (ECC -40% 6m, CRH -14% 1m, ",
+      "market_summary": "Strong insider buying week with several high-dollar C-suite cluster buys. MTN stands out with CEO+CFO both buying ~$5M total. IFF CEO committed ~$12M and FOX CEO ~$10.6M — these are exceptionally large personal commitments. Many signals are dip-buys into beaten-down names (ECC -40% 6m, CRH -14% 1m, ",
       "total_spent_eur": 2500.0,
       "picks": [
         {
           "ticker": "MTN",
           "allocation_pct": 30.0,
-          "reasoning": "Highest conviction signal: CEO Robert Katz and CFO Angela Korch both buying \u2014 a C-suite cluster buy totaling ~$5M. This is the CEO and CFO independently committing nearly $5M of personal capital. Stoc",
+          "reasoning": "Highest conviction signal: CEO Robert Katz and CFO Angela Korch both buying — a C-suite cluster buy totaling ~$5M. This is the CEO and CFO independently committing nearly $5M of personal capital. Stoc",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -999,7 +999,7 @@
         {
           "ticker": "IFF",
           "allocation_pct": 25.0,
-          "reasoning": "CEO Erik Fyrwald and Director Paul Fribourg cluster buy totaling ~$12M \u2014 massive dollar commitment. Stock down 13.7% in the last month, RSI at 39.9, near lower Bollinger band \u2014 classic dip-buy by insi",
+          "reasoning": "CEO Erik Fyrwald and Director Paul Fribourg cluster buy totaling ~$12M — massive dollar commitment. Stock down 13.7% in the last month, RSI at 39.9, near lower Bollinger band — classic dip-buy by insi",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -1007,7 +1007,7 @@
         {
           "ticker": "FOX",
           "allocation_pct": 15.0,
-          "reasoning": "CEO/Executive Chairman Lachlan Murdoch purchased $10.6M of stock \u2014 massive personal conviction from the person running the company. P/E of 12.7 is reasonable for a media company, 11.4% profit margin i",
+          "reasoning": "CEO/Executive Chairman Lachlan Murdoch purchased $10.6M of stock — massive personal conviction from the person running the company. P/E of 12.7 is reasonable for a media company, 11.4% profit margin i",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1015,7 +1015,7 @@
         {
           "ticker": "CRH",
           "allocation_pct": 15.0,
-          "reasoning": "Cluster buy from two directors (Fearon and Talbot) totaling $601K. Stock down 14.3% in last month, RSI at 33.3 \u2014 deeply oversold and near lower Bollinger band. $70B building materials company with sol",
+          "reasoning": "Cluster buy from two directors (Fearon and Talbot) totaling $601K. Stock down 14.3% in last month, RSI at 33.3 — deeply oversold and near lower Bollinger band. $70B building materials company with sol",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1035,13 +1035,13 @@
       "run_number": 8,
       "insider_count": 22,
       "confidence": 68,
-      "market_summary": "Broad market weakness evident \u2014 the portfolio has widespread losses with 7 positions past the -10% stop loss threshold, suggesting a risk-off environment. Despite this, insider buying signals remain strong: a CEO tripling his biotech stake (TNXP), a triple cluster buy in industrials (GPGI), and a re",
+      "market_summary": "Broad market weakness evident — the portfolio has widespread losses with 7 positions past the -10% stop loss threshold, suggesting a risk-off environment. Despite this, insider buying signals remain strong: a CEO tripling his biotech stake (TNXP), a triple cluster buy in industrials (GPGI), and a re",
       "total_spent_eur": 2000.0,
       "picks": [
         {
           "ticker": "TNXP",
           "allocation_pct": 30.0,
-          "reasoning": "Source: openinsider. CEO Seth Lederman bought $223K worth of shares, increasing his stake by 374% \u2014 an extraordinary commitment. Stock is down 38% over 6 months, so this is a deep dip-buy by the perso",
+          "reasoning": "Source: openinsider. CEO Seth Lederman bought $223K worth of shares, increasing his stake by 374% — an extraordinary commitment. Stock is down 38% over 6 months, so this is a deep dip-buy by the perso",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -1049,7 +1049,7 @@
         {
           "ticker": "HBIO",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. Cluster buy \u2014 both CEO John Duke and Director Stephen Denelsky bought simultaneously, totalling $73.7K with a 91% max stake increase. Stock is down 9.3% over 1 month and 20% over ",
+          "reasoning": "Source: openinsider. Cluster buy — both CEO John Duke and Director Stephen Denelsky bought simultaneously, totalling $73.7K with a 91% max stake increase. Stock is down 9.3% over 1 month and 20% over ",
           "executed": false,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1057,7 +1057,7 @@
         {
           "ticker": "GPGI",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. Triple cluster buy \u2014 3 insiders (Schoen, Cote, Knott) purchased $901.7K worth of shares with 100% stake increase. Stock is down 24% in the past month with RSI at 32 (deeply overso",
+          "reasoning": "Source: openinsider. Triple cluster buy — 3 insiders (Schoen, Cote, Knott) purchased $901.7K worth of shares with 100% stake increase. Stock is down 24% in the past month with RSI at 32 (deeply overso",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1085,13 +1085,13 @@
       "run_number": 9,
       "insider_count": 22,
       "confidence": 72,
-      "market_summary": "Broad market weakness is creating dip-buy opportunities that insiders are exploiting. The standout signal this week is the 6-insider cluster buy at FMBM including the CEO \u2014 rare to see that many insiders buying simultaneously. Several C-suite officers are committing serious personal capital after sh",
+      "market_summary": "Broad market weakness is creating dip-buy opportunities that insiders are exploiting. The standout signal this week is the 6-insider cluster buy at FMBM including the CEO — rare to see that many insiders buying simultaneously. Several C-suite officers are committing serious personal capital after sh",
       "total_spent_eur": 1750.0,
       "picks": [
         {
           "ticker": "FMBM",
           "allocation_pct": 30.0,
-          "reasoning": "Strongest insider signal of the batch: 6 insiders buying including CEO Wilkerson, EVP/CLO Eberly, and EVP/CXO Driest \u2014 a true cluster buy with $440K total. Max \u0394Own 41%. P/E of 10.3 with 22.5% profit ",
+          "reasoning": "Strongest insider signal of the batch: 6 insiders buying including CEO Wilkerson, EVP/CLO Eberly, and EVP/CXO Driest — a true cluster buy with $440K total. Max ΔOwn 41%. P/E of 10.3 with 22.5% profit ",
           "executed": false,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1099,7 +1099,7 @@
         {
           "ticker": "TTAM",
           "allocation_pct": 25.0,
-          "reasoning": "CFO Lawrence Wilt bought $298K worth of stock, doubling his stake (100% \u0394Own) after a -23% decline in the last month. Strong dip-buy signal from a C-suite officer. P/E 14.6, decent margins, building m",
+          "reasoning": "CFO Lawrence Wilt bought $298K worth of stock, doubling his stake (100% ΔOwn) after a -23% decline in the last month. Strong dip-buy signal from a C-suite officer. P/E 14.6, decent margins, building m",
           "executed": true,
           "amount_eur": 625.0,
           "quantity": 0.0
@@ -1107,7 +1107,7 @@
         {
           "ticker": "GO",
           "allocation_pct": 20.0,
-          "reasoning": "CEO Jason Potter spent $1.69M of personal money, nearly doubling his stake (99% \u0394Own), after a brutal -33% one-month and -57% six-month decline. This is the largest dollar commitment among all candida",
+          "reasoning": "CEO Jason Potter spent $1.69M of personal money, nearly doubling his stake (99% ΔOwn), after a brutal -33% one-month and -57% six-month decline. This is the largest dollar commitment among all candida",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1141,7 +1141,7 @@
         {
           "ticker": "PICS",
           "allocation_pct": 30.0,
-          "reasoning": "CEO Eduardo Chedid Simoes plus IR/Strategy officer and a director all buying \u2014 classic cluster buy with C-suite participation, $2.26M total. CEO doubled his stake (100% \u0394Own). Stock down 37% in 1 mont",
+          "reasoning": "CEO Eduardo Chedid Simoes plus IR/Strategy officer and a director all buying — classic cluster buy with C-suite participation, $2.26M total. CEO doubled his stake (100% ΔOwn). Stock down 37% in 1 mont",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -1149,7 +1149,7 @@
         {
           "ticker": "FMBM",
           "allocation_pct": 20.0,
-          "reasoning": "Massive 6-insider cluster buy including CEO Aubrey Wilkerson and two EVPs \u2014 $440K total, 41% max stake increase. Regional bank with solid fundamentals: P/E 10.3, 22.5% profit margin. Stock pulled back",
+          "reasoning": "Massive 6-insider cluster buy including CEO Aubrey Wilkerson and two EVPs — $440K total, 41% max stake increase. Regional bank with solid fundamentals: P/E 10.3, 22.5% profit margin. Stock pulled back",
           "executed": false,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1157,7 +1157,7 @@
         {
           "ticker": "LGIH",
           "allocation_pct": 20.0,
-          "reasoning": "Insider purchase of $172.5K in a homebuilder down 25% in 1 month and 44% over 1 year. P/E of 12.4 is reasonable for the sector. RSI at 36 \u2014 oversold territory. Earnings on April 28 could be a near-ter",
+          "reasoning": "Insider purchase of $172.5K in a homebuilder down 25% in 1 month and 44% over 1 year. P/E of 12.4 is reasonable for the sector. RSI at 36 — oversold territory. Earnings on April 28 could be a near-ter",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1165,7 +1165,7 @@
         {
           "ticker": "BORR",
           "allocation_pct": 15.0,
-          "reasoning": "Two directors (Currie and Troim) bought nearly $3.9M combined \u2014 a significant cluster buy with Troim increasing stake by 239%. Offshore drilling fundamentals improving with strong 1y return of 154%. R",
+          "reasoning": "Two directors (Currie and Troim) bought nearly $3.9M combined — a significant cluster buy with Troim increasing stake by 239%. Offshore drilling fundamentals improving with strong 1y return of 154%. R",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1173,7 +1173,7 @@
         {
           "ticker": "BETR",
           "allocation_pct": 15.0,
-          "reasoning": "CEO Vishal Garg bought $1.87M of his own stock (67% stake increase) alongside a 10% holder \u2014 cluster buy with strong CEO conviction. Stock down 46% in 6 months creating a deep value entry. Crypto mort",
+          "reasoning": "CEO Vishal Garg bought $1.87M of his own stock (67% stake increase) alongside a 10% holder — cluster buy with strong CEO conviction. Stock down 46% in 6 months creating a deep value entry. Crypto mort",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1191,7 +1191,7 @@
         {
           "ticker": "LENZ",
           "allocation_pct": 35.0,
-          "reasoning": "Source: openinsider. Triple cluster buy with CEO, CFO, and Director all purchasing simultaneously \u2014 $365K total with CEO/CFO showing 139% max stake increase. Stock is down 36.5% in 1 month and 81.4% f",
+          "reasoning": "Source: openinsider. Triple cluster buy with CEO, CFO, and Director all purchasing simultaneously — $365K total with CEO/CFO showing 139% max stake increase. Stock is down 36.5% in 1 month and 81.4% f",
           "executed": true,
           "amount_eur": 875.0,
           "quantity": 0.0
@@ -1199,7 +1199,7 @@
         {
           "ticker": "INSE",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. Triple cluster buy \u2014 CEO Brooks Pierce, Executive Chairman Weil (10% holder), and Director Chambrello all buying, totaling $545K. Stock is down 26% over 6 months with a small-cap ",
+          "reasoning": "Source: openinsider. Triple cluster buy — CEO Brooks Pierce, Executive Chairman Weil (10% holder), and Director Chambrello all buying, totaling $545K. Stock is down 26% over 6 months with a small-cap ",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1207,7 +1207,7 @@
         {
           "ticker": "HTGC",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. Seven insider purchases forming a strong cluster buy from three directors \u2014 $618K total with 33% max stake increase. Hercules Capital trades at P/E 7.8 with 63.8% profit margins, ",
+          "reasoning": "Source: openinsider. Seven insider purchases forming a strong cluster buy from three directors — $618K total with 33% max stake increase. Hercules Capital trades at P/E 7.8 with 63.8% profit margins, ",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1215,7 +1215,7 @@
         {
           "ticker": "PANW",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. CEO Nikesh Arora purchased $10M of his own stock \u2014 a massive dollar commitment from the top decision-maker at a $129B cybersecurity leader. Stock is down 22% over 6 months from hi",
+          "reasoning": "Source: openinsider. CEO Nikesh Arora purchased $10M of his own stock — a massive dollar commitment from the top decision-maker at a $129B cybersecurity leader. Stock is down 22% over 6 months from hi",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1223,7 +1223,7 @@
         {
           "ticker": "TSM",
           "allocation_pct": 10.0,
-          "reasoning": "Source: openinsider. Cluster buy from VP and SVP \u2014 two senior executives buying $331K total with 11% max stake increase. TSM is the world's most important semiconductor foundry, down 11% in the last m",
+          "reasoning": "Source: openinsider. Cluster buy from VP and SVP — two senior executives buying $331K total with 11% max stake increase. TSM is the world's most important semiconductor foundry, down 11% in the last m",
           "executed": true,
           "amount_eur": 250.0,
           "quantity": 0.0
@@ -1235,13 +1235,13 @@
       "run_number": 12,
       "insider_count": 19,
       "confidence": 72,
-      "market_summary": "Moderate insider buying activity this week with several cluster buys standing out. PGC has the strongest combined signal \u2014 CEO, CFO, and director all buying ahead of April 22 earnings with $549K deployed. POCI's CFO+COO cluster in a micro-cap is compelling despite fundamental weakness. ALT's CEO+CFO",
+      "market_summary": "Moderate insider buying activity this week with several cluster buys standing out. PGC has the strongest combined signal — CEO, CFO, and director all buying ahead of April 22 earnings with $549K deployed. POCI's CFO+COO cluster in a micro-cap is compelling despite fundamental weakness. ALT's CEO+CFO",
       "total_spent_eur": 2500.0,
       "picks": [
         {
           "ticker": "PGC",
           "allocation_pct": 30.0,
-          "reasoning": "Source: openinsider. Triple cluster buy \u2014 CEO Kennedy, CFO Cavallaro, and Director Campion all buying, totalling $549K. CEO's stake increased 85%. Regional bank with solid profitability (14.4% profit ",
+          "reasoning": "Source: openinsider. Triple cluster buy — CEO Kennedy, CFO Cavallaro, and Director Campion all buying, totalling $549K. CEO's stake increased 85%. Regional bank with solid profitability (14.4% profit ",
           "executed": true,
           "amount_eur": 750.0,
           "quantity": 0.0
@@ -1257,7 +1257,7 @@
         {
           "ticker": "ALT",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. CEO Durso and CFO Weaver both buying (cluster), $79K total, CEO stake up 46%. Stock down ~20% in 1m and 25% over 1y \u2014 classic dip-buy by the two most informed executives. MASH/obe",
+          "reasoning": "Source: openinsider. CEO Durso and CFO Weaver both buying (cluster), $79K total, CEO stake up 46%. Stock down ~20% in 1m and 25% over 1y — classic dip-buy by the two most informed executives. MASH/obe",
           "executed": true,
           "amount_eur": 500.0,
           "quantity": 0.0
@@ -1265,7 +1265,7 @@
         {
           "ticker": "RBRK",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. Director McLaughlin bought $502K, increasing stake by 354% \u2014 a massive conviction signal from a board member. Stock down 38% over 6m creating a solid entry point. Cybersecurity/da",
+          "reasoning": "Source: openinsider. Director McLaughlin bought $502K, increasing stake by 354% — a massive conviction signal from a board member. Stock down 38% over 6m creating a solid entry point. Cybersecurity/da",
           "executed": true,
           "amount_eur": 375.0,
           "quantity": 0.0
@@ -1291,7 +1291,7 @@
         {
           "ticker": "LPCN",
           "allocation_pct": 0.0,
-          "reasoning": "Already in portfolio \u2014 skipping despite strong signal.",
+          "reasoning": "Already in portfolio — skipping despite strong signal.",
           "executed": false,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1299,7 +1299,7 @@
         {
           "ticker": "HMH",
           "allocation_pct": 30.0,
-          "reasoning": "Source: openinsider. Strongest cluster buy of the day \u2014 4 insiders including CFO McGee and CCO Dyrseth buying $1.46M total in a recent IPO. C-suite conviction across multiple officers is the gold stan",
+          "reasoning": "Source: openinsider. Strongest cluster buy of the day — 4 insiders including CFO McGee and CCO Dyrseth buying $1.46M total in a recent IPO. C-suite conviction across multiple officers is the gold stan",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1307,7 +1307,7 @@
         {
           "ticker": "SCVL",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. CFO Jackson bought $500K at a dip \u2014 stock down 15.6% in 1m and 21% in 6m. P/E of 8.3 is cheap for retail, RSI at 33.6 confirms oversold. CFO buying into weakness with their own $5",
+          "reasoning": "Source: openinsider. CFO Jackson bought $500K at a dip — stock down 15.6% in 1m and 21% in 6m. P/E of 8.3 is cheap for retail, RSI at 33.6 confirms oversold. CFO buying into weakness with their own $5",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1315,7 +1315,7 @@
         {
           "ticker": "LULU",
           "allocation_pct": 20.0,
-          "reasoning": "Source: openinsider. Interim Co-CEO and President Maestrini bought ~$495K of stock with the company down 42.5% from 52w high and trading at P/E of 11.5 \u2014 historically cheap for LULU. RSI at 39 confirm",
+          "reasoning": "Source: openinsider. Interim Co-CEO and President Maestrini bought ~$495K of stock with the company down 42.5% from 52w high and trading at P/E of 11.5 — historically cheap for LULU. RSI at 39 confirm",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1331,7 +1331,7 @@
         {
           "ticker": "GSBD",
           "allocation_pct": 15.0,
-          "reasoning": "Source: openinsider. Director Carlos Evans tripled his stake (+346% \u0394Own) with $451K purchase. BDC with solid fundamentals \u2014 P/E 8.95, 32.6% profit margin, stable price action. Earnings May 7 is a nea",
+          "reasoning": "Source: openinsider. Director Carlos Evans tripled his stake (+346% ΔOwn) with $451K purchase. BDC with solid fundamentals — P/E 8.95, 32.6% profit margin, stable price action. Earnings May 7 is a nea",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1357,7 +1357,7 @@
         {
           "ticker": "OSCR",
           "allocation_pct": 25.0,
-          "reasoning": "CEO Mark Bertolini committed $11.9M of personal capital \u2014 the largest single insider purchase in this entire candidate set. Stock is down -21.6% over 6 months. Earnings on May 6 with consensus at $1.2",
+          "reasoning": "CEO Mark Bertolini committed $11.9M of personal capital — the largest single insider purchase in this entire candidate set. Stock is down -21.6% over 6 months. Earnings on May 6 with consensus at $1.2",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1365,7 +1365,7 @@
         {
           "ticker": "BETR",
           "allocation_pct": 20.0,
-          "reasoning": "Triple cluster buy: CEO Vishal Garg (10% owner), CTO, and a Director all bought totalling $596K. Stock down -42.6% over 6 months. Earnings on May 11 \u2014 three insiders buying ahead of earnings is a stro",
+          "reasoning": "Triple cluster buy: CEO Vishal Garg (10% owner), CTO, and a Director all bought totalling $596K. Stock down -42.6% over 6 months. Earnings on May 11 — three insiders buying ahead of earnings is a stro",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1381,7 +1381,7 @@
         {
           "ticker": "FUL",
           "allocation_pct": 10.0,
-          "reasoning": "CEO Celeste Mastin purchased $295K of shares. Profitable specialty chemicals company (P/E 22, EPS $2.89) with steady fundamentals. Earnings not until June 24 \u2014 CEO buying well ahead suggests confidenc",
+          "reasoning": "CEO Celeste Mastin purchased $295K of shares. Profitable specialty chemicals company (P/E 22, EPS $2.89) with steady fundamentals. Earnings not until June 24 — CEO buying well ahead suggests confidenc",
           "executed": true,
           "amount_eur": 0.0,
           "quantity": 0.0
@@ -1596,10 +1596,221 @@
     },
     {
       "date": "2026-04-15",
-      "total_invested_eur": 46019.79,
-      "total_value_eur": 46709.19,
-      "unrealized_pnl_eur": 689.4
+      "total_invested_eur": 30918.8,
+      "total_value_eur": 30900.61,
+      "unrealized_pnl_eur": -18.19
     }
   ],
-  "sp100_history": []
+  "sp100_history": [
+    {
+      "date": "2026-02-24",
+      "sp100_invested_eur": 2500.0,
+      "sp100_value_eur": 2500.0,
+      "sp100_pnl_pct": 0.0
+    },
+    {
+      "date": "2026-02-27",
+      "sp100_invested_eur": 4750.0,
+      "sp100_value_eur": 4735.53,
+      "sp100_pnl_pct": -0.3
+    },
+    {
+      "date": "2026-03-02",
+      "sp100_invested_eur": 4750.0,
+      "sp100_value_eur": 4740.64,
+      "sp100_pnl_pct": -0.2
+    },
+    {
+      "date": "2026-03-03",
+      "sp100_invested_eur": 7250.0,
+      "sp100_value_eur": 7213.27,
+      "sp100_pnl_pct": -0.51
+    },
+    {
+      "date": "2026-03-04",
+      "sp100_invested_eur": 7250.0,
+      "sp100_value_eur": 7269.78,
+      "sp100_pnl_pct": 0.27
+    },
+    {
+      "date": "2026-03-05",
+      "sp100_invested_eur": 7250.0,
+      "sp100_value_eur": 7244.0,
+      "sp100_pnl_pct": -0.08
+    },
+    {
+      "date": "2026-03-06",
+      "sp100_invested_eur": 9375.0,
+      "sp100_value_eur": 9288.63,
+      "sp100_pnl_pct": -0.92
+    },
+    {
+      "date": "2026-03-09",
+      "sp100_invested_eur": 9375.0,
+      "sp100_value_eur": 9364.85,
+      "sp100_pnl_pct": -0.11
+    },
+    {
+      "date": "2026-03-10",
+      "sp100_invested_eur": 11500.0,
+      "sp100_value_eur": 11480.95,
+      "sp100_pnl_pct": -0.17
+    },
+    {
+      "date": "2026-03-11",
+      "sp100_invested_eur": 11500.0,
+      "sp100_value_eur": 11480.23,
+      "sp100_pnl_pct": -0.17
+    },
+    {
+      "date": "2026-03-12",
+      "sp100_invested_eur": 11500.0,
+      "sp100_value_eur": 11314.42,
+      "sp100_pnl_pct": -1.61
+    },
+    {
+      "date": "2026-03-13",
+      "sp100_invested_eur": 14000.0,
+      "sp100_value_eur": 13710.49,
+      "sp100_pnl_pct": -2.07
+    },
+    {
+      "date": "2026-03-16",
+      "sp100_invested_eur": 14000.0,
+      "sp100_value_eur": 13848.17,
+      "sp100_pnl_pct": -1.08
+    },
+    {
+      "date": "2026-03-17",
+      "sp100_invested_eur": 16500.0,
+      "sp100_value_eur": 16354.11,
+      "sp100_pnl_pct": -0.88
+    },
+    {
+      "date": "2026-03-18",
+      "sp100_invested_eur": 16500.0,
+      "sp100_value_eur": 16115.69,
+      "sp100_pnl_pct": -2.33
+    },
+    {
+      "date": "2026-03-19",
+      "sp100_invested_eur": 16500.0,
+      "sp100_value_eur": 16052.23,
+      "sp100_pnl_pct": -2.71
+    },
+    {
+      "date": "2026-03-20",
+      "sp100_invested_eur": 18500.0,
+      "sp100_value_eur": 17824.44,
+      "sp100_pnl_pct": -3.65
+    },
+    {
+      "date": "2026-03-23",
+      "sp100_invested_eur": 18500.0,
+      "sp100_value_eur": 18027.96,
+      "sp100_pnl_pct": -2.55
+    },
+    {
+      "date": "2026-03-24",
+      "sp100_invested_eur": 20250.0,
+      "sp100_value_eur": 19664.41,
+      "sp100_pnl_pct": -2.89
+    },
+    {
+      "date": "2026-03-25",
+      "sp100_invested_eur": 20250.0,
+      "sp100_value_eur": 19787.58,
+      "sp100_pnl_pct": -2.28
+    },
+    {
+      "date": "2026-03-26",
+      "sp100_invested_eur": 20250.0,
+      "sp100_value_eur": 19408.54,
+      "sp100_pnl_pct": -4.16
+    },
+    {
+      "date": "2026-03-27",
+      "sp100_invested_eur": 22250.0,
+      "sp100_value_eur": 21048.87,
+      "sp100_pnl_pct": -5.4
+    },
+    {
+      "date": "2026-03-30",
+      "sp100_invested_eur": 22250.0,
+      "sp100_value_eur": 20980.1,
+      "sp100_pnl_pct": -5.71
+    },
+    {
+      "date": "2026-03-31",
+      "sp100_invested_eur": 24750.0,
+      "sp100_value_eur": 24149.81,
+      "sp100_pnl_pct": -2.43
+    },
+    {
+      "date": "2026-04-01",
+      "sp100_invested_eur": 24750.0,
+      "sp100_value_eur": 24326.87,
+      "sp100_pnl_pct": -1.71
+    },
+    {
+      "date": "2026-04-02",
+      "sp100_invested_eur": 24750.0,
+      "sp100_value_eur": 24329.97,
+      "sp100_pnl_pct": -1.7
+    },
+    {
+      "date": "2026-04-03",
+      "sp100_invested_eur": 27250.0,
+      "sp100_value_eur": 26829.97,
+      "sp100_pnl_pct": -1.54
+    },
+    {
+      "date": "2026-04-06",
+      "sp100_invested_eur": 27250.0,
+      "sp100_value_eur": 26951.42,
+      "sp100_pnl_pct": -1.1
+    },
+    {
+      "date": "2026-04-07",
+      "sp100_invested_eur": 27250.0,
+      "sp100_value_eur": 26981.93,
+      "sp100_pnl_pct": -0.98
+    },
+    {
+      "date": "2026-04-08",
+      "sp100_invested_eur": 27250.0,
+      "sp100_value_eur": 27635.22,
+      "sp100_pnl_pct": 1.41
+    },
+    {
+      "date": "2026-04-09",
+      "sp100_invested_eur": 27250.0,
+      "sp100_value_eur": 27861.82,
+      "sp100_pnl_pct": 2.25
+    },
+    {
+      "date": "2026-04-10",
+      "sp100_invested_eur": 27250.0,
+      "sp100_value_eur": 27887.56,
+      "sp100_pnl_pct": 2.34
+    },
+    {
+      "date": "2026-04-13",
+      "sp100_invested_eur": 27250.0,
+      "sp100_value_eur": 28139.9,
+      "sp100_pnl_pct": 3.27
+    },
+    {
+      "date": "2026-04-14",
+      "sp100_invested_eur": 27250.0,
+      "sp100_value_eur": 28557.32,
+      "sp100_pnl_pct": 4.8
+    },
+    {
+      "date": "2026-04-15",
+      "sp100_invested_eur": 27250.0,
+      "sp100_value_eur": 28639.98,
+      "sp100_pnl_pct": 5.1
+    }
+  ]
 }

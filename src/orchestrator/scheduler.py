@@ -91,7 +91,7 @@ class OrchestratorScheduler:
     async def _run_snapshot_job(self) -> None:
         logger.info("Running portfolio snapshot job")
         try:
-            from src.mcp_servers.trading.portfolio import get_demo_positions
+            from src.mcp_servers.trading.portfolio import get_account_cash, get_demo_positions
             from src.mcp_servers.trading.t212_client import T212Client
             from src.reporting.dashboard import push_dashboard_data, refresh_portfolio_snapshot
 
@@ -102,10 +102,11 @@ class OrchestratorScheduler:
             )
             try:
                 positions = await get_demo_positions(t212)
+                cash = await get_account_cash(t212)
             finally:
                 await t212.close()
 
-            refresh_portfolio_snapshot(positions)
+            refresh_portfolio_snapshot(positions, account_cash=cash)
             push_dashboard_data()
             logger.info("Portfolio snapshot pushed to dashboard")
         except Exception:

@@ -21,6 +21,14 @@ _t212_live: T212Client | None = None
 _t212_demo: T212Client | None = None
 
 
+def _positive_float(value: object) -> float | None:
+    try:
+        val = float(value)
+    except (TypeError, ValueError):
+        return None
+    return val if val > 0 else None
+
+
 async def _get_t212_live() -> T212Client:
     global _t212_live
     if _t212_live is None:
@@ -90,8 +98,11 @@ async def place_buy_order(
         quantity = amount_eur / current_price
         order = await t212.place_market_order(broker_ticker, quantity)
 
-        filled_qty = float(order.get("filledQuantity", quantity))
-        filled_value = float(order.get("filledValue", amount_eur))
+        filled_qty = _positive_float(order.get("filledQuantity")) or quantity
+        filled_value = _positive_float(order.get("filledValue"))
+        if filled_value is None:
+            estimated = filled_qty * current_price
+            filled_value = estimated if estimated > 0 else amount_eur
 
         return {
             "status": "filled",
@@ -135,8 +146,9 @@ async def place_sell_order(
             }
 
         order = await t212.place_market_order(broker_ticker, -abs(quantity))
-        filled_qty = float(abs(order.get("filledQuantity", quantity)))
-        filled_value = float(order.get("filledValue", 0))
+        raw_qty = _positive_float(order.get("filledQuantity"))
+        filled_qty = abs(raw_qty) if raw_qty is not None else quantity
+        filled_value = _positive_float(order.get("filledValue")) or 0.0
 
         return {
             "status": "filled",

@@ -263,14 +263,24 @@ def update_dashboard_data(decision_result: dict, eod_result: dict) -> None:
     logger.info("Dashboard data updated → %s", _DATA_FILE)
 
 
-def refresh_portfolio_snapshot(demo_positions: list[dict]) -> None:
+def refresh_portfolio_snapshot(demo_positions: list[dict], account_cash: dict | None = None) -> None:
     """Update data.json with a fresh portfolio snapshot without touching the runs section."""
     data = _read_data()
 
     positions = _build_positions(demo_positions)
-    total_invested = round(sum(p["invested_eur"] for p in positions), 2)
-    total_value = round(sum(p["current_value_eur"] for p in positions), 2)
-    pnl_eur = round(total_value - total_invested, 2)
+    cash = account_cash or {}
+    invested_cash = float(cash.get("invested", 0) or 0)
+    ppl_cash = float(cash.get("ppl", 0) or 0)
+
+    # Match Trading212 app totals when account cash snapshot is available.
+    if invested_cash > 0 or not positions:
+        total_invested = round(invested_cash, 2)
+        pnl_eur = round(ppl_cash, 2)
+        total_value = round(total_invested + pnl_eur, 2)
+    else:
+        total_invested = round(sum(p["invested_eur"] for p in positions), 2)
+        total_value = round(sum(p["current_value_eur"] for p in positions), 2)
+        pnl_eur = round(total_value - total_invested, 2)
     pnl_pct = round((pnl_eur / total_invested * 100) if total_invested > 0 else 0.0, 2)
 
     data["portfolio"] = {

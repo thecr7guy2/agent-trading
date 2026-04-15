@@ -18,7 +18,7 @@ from src.mcp_servers.market_data.finance import (
 )
 from src.mcp_servers.market_data.insider import get_insider_candidates, get_ticker_insider_history
 from src.mcp_servers.market_data.news import get_company_news
-from src.mcp_servers.trading.portfolio import get_demo_positions
+from src.mcp_servers.trading.portfolio import get_account_cash, get_demo_positions
 from src.mcp_servers.trading.t212_client import T212Client
 from src.models import PickReview, StockPick
 from src.notifications.telegram import TelegramNotifier
@@ -323,6 +323,40 @@ class Supervisor:
         if not force and not is_trading_day(run_date, self._settings.orchestrator_timezone):
             return {"status": "skipped", "reason": "non-trading-day", "date": str(run_date)}
 
+        # Fetch portfolio up front — needed for cap guard and for pipeline context.
+        t212 = self._get_t212()
+        try:
+            portfolio = await get_demo_positions(t212)
+        except Exception:
+            logger.exception("Failed to fetch demo positions")
+            portfolio = []
+
+        account_cash = await self._get_account_cash_snapshot(t212)
+        invested_cap = float(getattr(self._settings, "max_demo_portfolio_invested_eur", 0) or 0)
+        total_invested, total_value, unrealized_pnl = self._resolve_portfolio_totals(
+            positions=portfolio,
+            account_cash=account_cash,
+        )
+        if invested_cap > 0 and total_invested >= invested_cap:
+            logger.info(
+                "Skipping buys — demo invested cap reached (€%.2f >= €%.2f)",
+                total_invested,
+                invested_cap,
+            )
+            return {
+                "status": "skipped",
+                "reason": (
+                    f"demo invested cap reached: €{total_invested:.2f} "
+                    f">= €{invested_cap:.2f}"
+                ),
+                "date": str(run_date),
+                "portfolio": {
+                    "total_invested": str(round(Decimal(str(total_invested)), 2)),
+                    "total_value": str(round(Decimal(str(total_value)), 2)),
+                    "unrealized_pnl": str(round(Decimal(str(unrealized_pnl)), 2)),
+                },
+            }
+
         # Build enriched insider digest
         digest = await self.build_insider_digest()
         insider_count = digest.get("insider_count", 0)
@@ -368,14 +402,6 @@ class Supervisor:
                 len(filtered),
                 self._settings.research_top_n,
             )
-
-        # Get current portfolio
-        t212 = self._get_t212()
-        try:
-            portfolio = await get_demo_positions(t212)
-        except Exception:
-            logger.exception("Failed to fetch demo positions")
-            portfolio = []
 
         # Run pipeline
         pipeline = self._get_pipeline()
@@ -508,23 +534,20 @@ class Supervisor:
         except Exception:
             logger.exception("Failed to fetch demo positions for EOD snapshot")
 
-        total_invested = Decimal("0")
-        total_value = Decimal("0")
-        for pos in positions:
-            qty = Decimal(str(pos.get("quantity", 0)))
-            avg = Decimal(str(pos.get("avg_buy_price", 0)))
-            total_invested += qty * avg
-            current = pos.get("current_price", 0.0)
-            total_value += qty * Decimal(str(current)) if current > 0 else qty * avg
+        account_cash = await self._get_account_cash_snapshot(t212)
+        total_invested, total_value, unrealized_pnl = self._resolve_portfolio_totals(
+            positions=positions,
+            account_cash=account_cash,
+        )
 
         return {
             "status": "ok",
             "date": str(run_date),
             "snapshots": {
                 "demo": {
-                    "total_invested": str(round(total_invested, 2)),
-                    "total_value": str(round(total_value, 2)),
-                    "unrealized_pnl": str(round(total_value - total_invested, 2)),
+                    "total_invested": str(round(Decimal(str(total_invested)), 2)),
+                    "total_value": str(round(Decimal(str(total_value)), 2)),
+                    "unrealized_pnl": str(round(Decimal(str(unrealized_pnl)), 2)),
                 }
             },
             "demo_positions": positions,
@@ -541,3 +564,48 @@ class Supervisor:
             return float(Decimal(str(val)))
         except (InvalidOperation, ValueError):
             return 0.0
+
+    @staticmethod
+    def _compute_portfolio_totals(positions: list[dict]) -> tuple[Decimal, Decimal]:
+        total_invested = Decimal("0")
+        total_value = Decimal("0")
+        for pos in positions:
+            qty = Decimal(str(pos.get("quantity", 0)))
+            avg = Decimal(str(pos.get("avg_buy_price", 0)))
+            total_invested += qty * avg
+            current = pos.get("current_price", 0.0)
+            total_value += qty * Decimal(str(current)) if current > 0 else qty * avg
+        return total_invested, total_value
+
+    async def _get_account_cash_snapshot(self, t212: T212Client) -> dict:
+        try:
+            return await get_account_cash(t212)
+        except Exception:
+            logger.exception("Failed to fetch account cash snapshot")
+            return {}
+
+    @classmethod
+    def _resolve_portfolio_totals(
+        cls,
+        positions: list[dict],
+        account_cash: dict | None = None,
+    ) -> tuple[float, float, float]:
+        """Return (invested, value, pnl) in EUR.
+
+        Primary source of truth: T212 account cash endpoint (matches Trading212 app totals).
+        Fallback: aggregate from normalized positions when cash snapshot is unavailable.
+        """
+        cash = account_cash or {}
+        invested = float(cash.get("invested", 0) or 0)
+        ppl = float(cash.get("ppl", 0) or 0)
+
+        # Cash endpoint is considered valid when it has a positive invested balance,
+        # or when the account has no open positions (legitimate zero invested).
+        if invested > 0 or not positions:
+            value = invested + ppl
+            return invested, value, ppl
+
+        computed_invested, computed_value = cls._compute_portfolio_totals(positions)
+        invested_f = float(computed_invested)
+        value_f = float(computed_value)
+        return invested_f, value_f, value_f - invested_f

@@ -16,6 +16,14 @@ from src.utils.recently_traded import add_many
 logger = logging.getLogger(__name__)
 
 
+def _positive_float(value: object) -> float | None:
+    try:
+        val = float(value)
+    except (TypeError, ValueError):
+        return None
+    return val if val > 0 else None
+
+
 @dataclass
 class TradeResult:
     ticker: str
@@ -158,22 +166,34 @@ async def _try_buy(
         quantity = amount_eur / current_price
         order = await t212.place_market_order(broker_ticker, quantity)
 
-        filled_qty = float(order.get("filledQuantity", quantity))
-        raw_filled_value = order.get("filledValue")
-        if raw_filled_value is not None and float(raw_filled_value) > 0:
-            filled_value = float(raw_filled_value)
-        else:
-            # T212 demo sometimes omits filledValue — estimate from quantity × price
-            filled_value = filled_qty * current_price
+        # T212 demo can return a just-created order with fill fields still at 0.
+        # In that case, use the requested quantity/amount so accounting and notifications stay sane.
+        raw_filled_qty = _positive_float(order.get("filledQuantity"))
+        if raw_filled_qty is None:
+            filled_qty = quantity
             logger.warning(
-                "filledValue missing in T212 response for %s — estimating from qty×price: "
-                "%.4f shares × €%.4f = €%.2f (target was €%.2f)",
+                "filledQuantity missing/zero in T212 response for %s — using requested qty %.4f",
                 ticker,
+                quantity,
+            )
+        else:
+            filled_qty = raw_filled_qty
+
+        raw_filled_value = _positive_float(order.get("filledValue"))
+        if raw_filled_value is None:
+            estimated = filled_qty * current_price
+            filled_value = estimated if estimated > 0 else amount_eur
+            logger.warning(
+                "filledValue missing/zero in T212 response for %s — using estimate €%.2f "
+                "(qty %.4f × price €%.4f, target €%.2f)",
+                ticker,
+                filled_value,
                 filled_qty,
                 current_price,
-                filled_value,
                 amount_eur,
             )
+        else:
+            filled_value = raw_filled_value
 
         return TradeResult(
             ticker=ticker,

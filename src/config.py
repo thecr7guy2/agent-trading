@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     # Budget
     budget_per_run_eur: float = 1000.0
     max_picks_per_run: int = 5
+    max_demo_portfolio_invested_eur: float = 46_000.0
 
     # Stock variety — rolling blacklist
     recently_traded_path: str = "recently_traded.json"

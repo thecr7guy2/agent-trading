@@ -150,6 +150,7 @@ cp .env.example .env
 | `TELEGRAM_BOT_TOKEN` | ➖ | For trade notifications |
 | `BUDGET_PER_RUN_EUR` | ➖ | Default: `1000.0` |
 | `MAX_PICKS_PER_RUN` | ➖ | Default: `5` |
+| `MAX_DEMO_PORTFOLIO_INVESTED_EUR` | ➖ | Default: `46000.0` — skip new buys once invested capital reaches this cap |
 | `INSIDER_TOP_N` | ➖ | Default: `25` — OpenInsider candidates scored |
 | `RESEARCH_TOP_N` | ➖ | Default: `15` — candidates passed to Claude |
 | `CAPITOL_TRADES_ENABLED` | ➖ | Default: `true` |
