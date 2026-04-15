@@ -38,7 +38,7 @@ class TestTelegramNotifier:
     def test_disabled_when_token_missing(self):
         settings = Settings(
             anthropic_api_key="test",
-    
+
             t212_api_key="test",
             t212_api_secret="test",
             telegram_enabled=True,
