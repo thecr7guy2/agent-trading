@@ -25,6 +25,7 @@
       font-family: 'Courier New', Courier, monospace;
       min-height: 100vh;
       font-size: 13px;
+      overflow-x: hidden;
     }
 
     /* ── Ticker Tape ── */
@@ -158,10 +159,11 @@
     /* ── Two-column ── */
     .main-grid {
       display: grid;
-      grid-template-columns: 65fr 35fr;
+      grid-template-columns: minmax(0, 65fr) minmax(320px, 35fr);
       gap: 12px;
       margin-bottom: 20px;
     }
+    .main-grid > * { min-width: 0; }
 
     /* ── Panel ── */
     .panel {
@@ -182,9 +184,11 @@
       text-transform: uppercase;
     }
     .panel-body { padding: 16px; }
+    .panel-header > * { min-width: 0; }
 
     /* ── Charts ── */
     .chart-wrap { position: relative; }
+    .chart-canvas-shell { position: relative; height: clamp(220px, 28vw, 320px); }
     .chart-sub-label {
       font-size: 9px;
       color: var(--amber);
@@ -249,6 +253,8 @@
 
     /* ── Positions Table ── */
     .positions-panel { background: var(--panel); border: 1px solid var(--border); }
+    .positions-table-wrap { overflow-x: auto; }
+    .positions-mobile-list { display: none; }
     table { width: 100%; border-collapse: collapse; }
     thead th {
       font-size: 9px;
@@ -287,8 +293,129 @@
 
     /* ── Responsive ── */
     @media (max-width: 960px) {
-      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .header-bar {
+        padding: 12px 18px;
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      .header-meta {
+        width: 100%;
+        text-align: left;
+      }
+      main {
+        padding: 18px;
+      }
+      .stats-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .main-grid  { grid-template-columns: 1fr; }
+      .benchmark-grid { grid-template-columns: 1fr; }
+      .benchmark-col {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .benchmark-col:last-child { border-bottom: none; }
+      .panel-header {
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      table { min-width: 860px; }
+    }
+
+    @media (max-width: 640px) {
+      body { font-size: 12px; }
+      .ticker-tape { height: 32px; }
+      .ticker-tape-inner span {
+        padding: 0 18px;
+        font-size: 10px;
+      }
+      .header-title {
+        white-space: normal;
+        line-height: 1.4;
+      }
+      .header-badges {
+        width: 100%;
+      }
+      main {
+        padding: 14px;
+      }
+      .stats-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+      .stat-card,
+      .panel-body,
+      .benchmark-col {
+        padding: 14px;
+      }
+      .stat-value {
+        font-size: 20px;
+      }
+      .chart-canvas-shell {
+        height: 220px;
+      }
+      .run-meta-row {
+        gap: 6px;
+        align-items: flex-start;
+        flex-direction: column;
+      }
+      .pick-row {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+      .pick-status {
+        justify-self: start;
+      }
+      .pick-amount {
+        text-align: left;
+      }
+      .positions-table-wrap { display: none; }
+      .positions-mobile-list {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+      }
+      .position-card {
+        border: 1px solid var(--border);
+        background: rgba(240, 240, 240, 0.01);
+        padding: 12px;
+      }
+      .position-card-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+      .position-card-ticker {
+        font-size: 16px;
+        font-weight: bold;
+        color: var(--white);
+      }
+      .position-card-pct {
+        font-size: 12px;
+        font-weight: bold;
+      }
+      .position-card-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px 12px;
+      }
+      .position-card-metric {
+        min-width: 0;
+      }
+      .position-card-label {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 9px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--amber);
+      }
+      .position-card-value {
+        display: block;
+        font-size: 12px;
+        color: var(--text);
+        word-break: break-word;
+      }
     }
 
     ::-webkit-scrollbar { width: 5px; height: 5px; }
@@ -361,7 +488,7 @@
             </div>
             <div id="charts-content">
               <div class="chart-sub-label">P&amp;L % OVER TIME</div>
-              <div style="position:relative;height:160px">
+              <div class="chart-canvas-shell">
                 <canvas id="chart-pnl-pct"></canvas>
               </div>
             </div>
@@ -413,7 +540,7 @@
         <span class="panel-title">OPEN POSITIONS</span>
         <span id="positions-count" style="font-size:10px;color:var(--muted)">— HOLDINGS</span>
       </div>
-      <div style="overflow-x:auto">
+      <div class="positions-table-wrap">
         <table>
           <thead>
             <tr>
@@ -433,6 +560,7 @@
           </tbody>
         </table>
       </div>
+      <div class="positions-mobile-list" id="positions-mobile-list"></div>
     </div>
 
   </main>
@@ -719,14 +847,16 @@
 
   // ── Positions Table ──────────────────────────────────────────────────────────
   function renderPositions(positions, totalValue) {
-    const tbody   = document.getElementById('positions-body');
-    const countEl = document.getElementById('positions-count');
+    const tbody    = document.getElementById('positions-body');
+    const countEl  = document.getElementById('positions-count');
+    const mobileEl = document.getElementById('positions-mobile-list');
 
     const sorted = (positions || []).slice().sort((a, b) => b.current_value_eur - a.current_value_eur);
     countEl.textContent = sorted.length + (sorted.length !== 1 ? ' HOLDINGS' : ' HOLDING');
 
     if (!sorted.length) {
       tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:32px;color:var(--muted)">No open positions.</td></tr>';
+      mobileEl.innerHTML = '<div class="position-card"><span class="position-card-value col-muted">No open positions.</span></div>';
       return;
     }
 
@@ -753,6 +883,53 @@
         <td class="${pCls}">${arr ? arr + ' ' : ''}${fmtPct(pos.pnl_pct)}</td>
         <td style="color:var(--muted)">${pos.days_held ?? '—'}</td>
       </tr>`;
+    }).join('');
+
+    mobileEl.innerHTML = sorted.map(pos => {
+      const t    = cleanTicker(pos.ticker);
+      const pCls = pnlCls(pos.pnl_pct);
+      const pct  = `${pnlArrow(pos.pnl_pct) ? pnlArrow(pos.pnl_pct) + ' ' : ''}${fmtPct(pos.pnl_pct)}`;
+
+      return `<article class="position-card">
+        <div class="position-card-header">
+          <span class="position-card-ticker">${t}</span>
+          <span class="position-card-pct ${pCls}">${pct}</span>
+        </div>
+        <div class="position-card-grid">
+          <div class="position-card-metric">
+            <span class="position-card-label">Quantity</span>
+            <span class="position-card-value">${Number(pos.quantity || 0).toFixed(3)}</span>
+          </div>
+          <div class="position-card-metric">
+            <span class="position-card-label">Days Held</span>
+            <span class="position-card-value col-muted">${pos.days_held ?? '—'}</span>
+          </div>
+          <div class="position-card-metric">
+            <span class="position-card-label">Avg Buy</span>
+            <span class="position-card-value">${fmtEur(pos.avg_buy_price)}</span>
+          </div>
+          <div class="position-card-metric">
+            <span class="position-card-label">Current</span>
+            <span class="position-card-value">${fmtEur(pos.current_price)}</span>
+          </div>
+          <div class="position-card-metric">
+            <span class="position-card-label">Invested</span>
+            <span class="position-card-value col-muted">${fmtEur(pos.invested_eur)}</span>
+          </div>
+          <div class="position-card-metric">
+            <span class="position-card-label">Value</span>
+            <span class="position-card-value">${fmtEur(pos.current_value_eur)}</span>
+          </div>
+          <div class="position-card-metric">
+            <span class="position-card-label">P&amp;L EUR</span>
+            <span class="position-card-value ${pCls}">${fmtEur(pos.pnl_eur)}</span>
+          </div>
+          <div class="position-card-metric">
+            <span class="position-card-label">Allocation</span>
+            <span class="position-card-value col-muted">${totalValue > 0 ? (pos.current_value_eur / totalValue * 100).toFixed(1) : '0.0'}%</span>
+          </div>
+        </div>
+      </article>`;
     }).join('');
   }
 
