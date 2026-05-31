@@ -1,10 +1,10 @@
 {
   "last_updated": "2026-05-29T15:35:00",
   "portfolio": {
-    "total_invested_eur": 46339.75,
-    "total_value_eur": 47930.75,
-    "unrealized_pnl_eur": 1591.0,
-    "unrealized_pnl_pct": 3.43,
+    "total_invested_eur": 36019.99,
+    "total_value_eur": 37079.37,
+    "unrealized_pnl_eur": 1059.38,
+    "unrealized_pnl_pct": 2.94,
     "positions": [
       {
         "ticker": "SCVL_US_EQ",
@@ -214,17 +214,6 @@
         "pnl_eur": 4.88,
         "pnl_pct": 0.56,
         "days_held": 31
-      },
-      {
-        "ticker": "SRADl_EQ",
-        "quantity": 78.18,
-        "avg_buy_price": 132.0,
-        "current_price": 138.8,
-        "invested_eur": 10319.76,
-        "current_value_eur": 10851.38,
-        "pnl_eur": 531.62,
-        "pnl_pct": 5.15,
-        "days_held": 21
       },
       {
         "ticker": "BCML_US_EQ",
@@ -2449,9 +2438,9 @@
     },
     {
       "date": "2026-05-29",
-      "total_invested_eur": 46339.75,
-      "total_value_eur": 47930.75,
-      "unrealized_pnl_eur": 1591.0
+      "total_invested_eur": 36019.99,
+      "total_value_eur": 37079.37,
+      "unrealized_pnl_eur": 1059.38
     }
   ],
   "sp100_history": [
