@@ -8,7 +8,7 @@ packages = ["src"]
 [project]
 name = "trading-bot"
 version = "0.1.0"
-description = "Multi-LLM agentic trading system for European stocks"
+description = "Public-disclosure signal research with Claude-directed demo portfolio execution"
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.10",

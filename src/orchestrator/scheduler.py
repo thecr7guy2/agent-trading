@@ -1,3 +1,5 @@
+"""Schedule decision cycles, end-of-day reports, and dashboard snapshots."""
+
 import logging
 from datetime import date
 from pathlib import Path
@@ -28,6 +30,8 @@ def _parse_hhmm(value: str) -> tuple[int, int]:
 
 
 class OrchestratorScheduler:
+    """Configure and run the experiment's APScheduler jobs."""
+
     def __init__(self, supervisor: Supervisor | None = None, settings: Settings | None = None):
         self._settings = settings or get_settings()
         self._supervisor = supervisor or Supervisor(settings=self._settings)
