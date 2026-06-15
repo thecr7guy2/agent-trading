@@ -1,222 +1,213 @@
-# Insider Signals Trading Bot
+<div align="center">
 
-![Python](https://img.shields.io/badge/Python-3.13+-blue)
-![Claude](https://img.shields.io/badge/AI-Claude_Opus_4.6-orange)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Account](https://img.shields.io/badge/account-demo_only-lightgrey)
+# 📈 Agent Trading
 
-Autonomous demo-account trading bot that looks for public buy disclosures from two places:
+### A transparent experiment in turning public disclosures into demo portfolio decisions
 
-- Corporate insider buys surfaced through [OpenInsider](https://openinsider.com), which aggregates SEC Form 4 filings
-- US House and Senate trade disclosures surfaced through [Capitol Trades](https://www.capitoltrades.com)
+**Corporate insider purchases and congressional trade disclosures become ranked signals,
+market context, AI allocations, demo orders, and an inspectable performance record.**
 
-The bot scores those signals, enriches them with market data, sends the final candidate set to Claude Opus, and places buy orders in a Trading 212 demo account on a schedule.
+![Python](https://img.shields.io/badge/Python-3.13+-3776AB?style=flat-square&logo=python&logoColor=white)
+![Claude](https://img.shields.io/badge/Decision_Engine-Claude_Opus-D97757?style=flat-square)
+![Broker](https://img.shields.io/badge/Broker-Trading_212_Demo-00AEEF?style=flat-square)
+![Automation](https://img.shields.io/badge/Mode-Scheduled-2EA44F?style=flat-square)
+![Account](https://img.shields.io/badge/Capital-Demo_Only-6B7280?style=flat-square)
 
-**Live dashboard:** [thecr7guy2.github.io/agent-trading](https://thecr7guy2.github.io/agent-trading/)
+</div>
 
-## What The Bot Actually Does
+![Public insider and congressional disclosures flowing through signal scoring, market analysis, AI allocation, demo execution, and a performance dashboard](assets/agent-trading-hero.png)
 
-On each run, the pipeline:
+<div align="center">
 
-1. Pulls recent corporate insider buys from OpenInsider.
-2. Pulls recent congressional buy disclosures from Capitol Trades.
-3. Groups each source by ticker and scores conviction.
-4. Merges overlapping tickers across both sources.
-5. Enriches each candidate with fundamentals, technicals, news, earnings, and insider history.
-6. Sends the enriched digest directly to Claude Opus.
-7. Places demo buy orders based on Claude's output.
-8. Writes a report and updates the dashboard.
+### [🔴 Open the live experiment dashboard](https://thecr7guy2.github.io/agent-trading/)
 
-This is not direct SEC scraping. The current implementation uses `OpenInsider` as the SEC-derived corporate insider source and `Capitol Trades` as the congressional disclosure source.
+</div>
 
-## Signal Sources
+---
 
-### 1. OpenInsider
+## 🧭 What Is This?
 
-Source file: [src/mcp_servers/market_data/insider.py](/Users/sai/Documents/Projects/trading-bot/src/mcp_servers/market_data/insider.py)
+Agent Trading is an autonomous **demo-account research experiment** built around a
+simple question:
 
-The bot scrapes recent open-market purchase transactions from OpenInsider and ignores non-purchase activity.
+> Can public buying disclosures become a repeatable, measurable investment signal when
+> they are scored consistently and evaluated with broader market context?
 
-What gets scored:
+Twice a week, the system looks for recent purchases disclosed by corporate insiders and
+members of the US Congress. It ranks those signals, enriches the strongest candidates
+with fundamentals, technical indicators, news, earnings, and trading history, then asks
+Claude to allocate a capped demo budget.
 
-- Stake increase percent (`delta_own_pct`)
-- Insider seniority
-- Recency of the trade
+Orders are sent only to a Trading 212 practice account. Every run is reported and the
+portfolio is published to a dashboard so the experiment can be evaluated instead of
+remembered selectively.
 
-Current conviction formula in code:
+---
 
-```text
-conviction_score = delta_own_pct * title_multiplier * exp(-0.2 * days_since_trade)
+## 🔍 The Two Signal Sources
+
+### 🏢 Corporate insider purchases
+
+[OpenInsider](https://openinsider.com) surfaces SEC Form 4 open-market purchases by
+executives, directors, and other company insiders.
+
+The system gives more weight to:
+
+- recent purchases
+- larger increases in the buyer's ownership
+- C-suite buyers such as a CEO, CFO, COO, president, chair, or CTO
+- several insiders buying the same company
+- large individual purchases
+
+OpenInsider is an intermediary for SEC-derived data; this project does not scrape SEC
+filings directly.
+
+### 🏛️ Congressional trade disclosures
+
+[Capitol Trades](https://www.capitoltrades.com) surfaces public House and Senate trading
+disclosures.
+
+The system:
+
+- estimates transaction value from the disclosed range midpoint
+- favors more recent transactions
+- groups multiple disclosures by ticker
+- filters pure congressional candidates above the configured market-cap ceiling
+- merges a ticker when both signal sources identify the same company
+
+Congressional reporting can be delayed, so these disclosures are treated as noisy
+experimental signals rather than timely privileged information.
+
+---
+
+## 🔄 From Disclosure to Demo Portfolio
+
+```mermaid
+flowchart LR
+    A["OpenInsider purchases"] --> C["Score and group by ticker"]
+    B["Congressional disclosures"] --> C
+    C --> D["Merge overlapping signals"]
+    D --> E["Add fundamentals, technicals, news, earnings, and history"]
+    E --> F["Claude portfolio decision"]
+    F --> G["Budget and exposure checks"]
+    G --> H["Trading 212 demo orders"]
+    H --> I["Report and public dashboard"]
 ```
 
-Current title weighting:
+### 1. Score conviction
 
-- C-suite and similar titles such as CEO, CFO, COO, President, Chairman, CTO: `3x`
-- Everyone else: `1x`
+Corporate insider transactions use ownership change, buyer seniority, and recency.
+Congressional transactions use estimated disclosed value and recency.
 
-An OpenInsider candidate qualifies if any of these are true:
+### 2. Add context
 
-- It is a cluster buy: 2 or more distinct insiders buying the same ticker
-- It is a solo C-suite buy with at least a 3% ownership increase
-- It is a solo buy of at least $200,000, regardless of title
+Each candidate is enriched with:
 
-Default settings:
+- company fundamentals and market capitalization
+- 1-month, 6-month, and 1-year price returns
+- RSI, MACD, Bollinger Bands, and moving averages
+- upcoming earnings information
+- recent headlines
+- historical insider-buy activity
 
-- Lookback: `5` days
-- Minimum raw transaction size scraped: `$25,000`
-- Top grouped candidates kept: `25`
+### 3. Make one portfolio decision
 
-### 2. Capitol Trades
+The active pipeline has one AI decision stage. Claude receives the enriched candidate
+set, current demo positions, and the budget for the run. It returns ranked buy picks,
+allocation percentages, reasoning, optional sell recommendations, confidence, and a
+short market summary.
 
-Source file: [src/mcp_servers/market_data/capitol_trades.py](/Users/sai/Documents/Projects/trading-bot/src/mcp_servers/market_data/capitol_trades.py)
+### 4. Apply deterministic controls
 
-The bot scrapes recent congressional buy disclosures from Capitol Trades, groups them by ticker, and scores them using estimated trade size and recency.
+Before execution, the system enforces practical limits:
 
-Current conviction formula in code:
+- demo account only
+- configurable budget per run
+- configurable maximum portfolio investment
+- maximum number of picks
+- existing-position exposure checks
+- a short recently-traded blacklist
+- fallback to the next candidate when an order cannot be placed
 
-```text
-conviction_score = amount_midpoint_usd * exp(-0.2 * days_since_trade_or_publication)
-```
+---
 
-Important details:
+## 📊 What the Dashboard Shows
 
-- Trade sizes are parsed from disclosure ranges such as `50K-100K`
-- The midpoint of the disclosed range is used
-- Pagination stops once rows are older than the configured lookback
+The [GitHub Pages dashboard](https://thecr7guy2.github.io/agent-trading/) makes the
+experiment observable:
 
-Default settings:
+- current demo holdings and position-level returns
+- invested capital, portfolio value, and unrealized P&L
+- portfolio history over time
+- comparison with the S&P 100
+- recent decision runs and selected stocks
+- the model's reasoning and confidence
 
-- Lookback: `3` days
-- Top grouped candidates kept: `10`
+### Snapshot
 
-## How The Two Sources Interact
+The committed dashboard data is automatically refreshed and will change over time. The
+snapshot dated **June 12, 2026** contained:
 
-Source file: [src/orchestrator/supervisor.py](/Users/sai/Documents/Projects/trading-bot/src/orchestrator/supervisor.py)
+| Signal | Value |
+|---|---:|
+| Recorded decision runs | **21** |
+| Portfolio history points | **70** |
+| Open demo positions | **89** |
+| Demo capital invested | **€46,220.33** |
+| Demo portfolio value | **€48,348.67** |
+| Unrealized demo return | **+4.60%** |
 
-The orchestrator fetches both sources in parallel, merges them by ticker, and enriches the merged set.
+This is a point-in-time demo result, not evidence of future returns or a validated
+investment strategy.
 
-If the same ticker appears in both sources:
+---
 
-- The entry is merged into one candidate
-- Insider and politician names are combined
-- Conviction scores are added together
-- Total disclosed value is added together
-- The merged source becomes `openinsider+capitol_trades`
+## ⏰ Default Rhythm
 
-After enrichment, the bot also applies two important filters:
+All times use `Europe/Berlin` by default and can be changed through environment
+variables.
 
-- Non-equity instruments such as ETFs, mutual funds, indices, futures, and currencies are removed
-- Pure Capitol Trades candidates above the configured market-cap ceiling are removed
+| Time | Days | Activity |
+|---|---|---|
+| `10:00` | Monday-Friday | Refresh portfolio prices and dashboard |
+| `15:30` | Monday-Friday | Refresh portfolio prices and dashboard |
+| `17:10` | Tuesday and Friday | Build signals, ask Claude, and place demo orders |
+| `17:35` | Tuesday and Friday | Capture end-of-day state, report, and publish dashboard |
 
-Default Capitol Trades market-cap ceiling:
+---
 
-- `$50B`
+## 🧩 System Pieces
 
-## Claude's Role
-
-Source files:
-
-- [src/agents/pipeline.py](/Users/sai/Documents/Projects/trading-bot/src/agents/pipeline.py)
-- [src/agents/trader_agent.py](/Users/sai/Documents/Projects/trading-bot/src/agents/trader_agent.py)
-- [src/agents/prompts/trader_aggressive.md](/Users/sai/Documents/Projects/trading-bot/src/agents/prompts/trader_aggressive.md)
-
-The current implementation has a single decision stage. There is no separate research model in the active pipeline.
-
-Claude Opus receives:
-
-- The fully enriched candidate digest
-- Current portfolio positions
-- The budget for the run
-
-Claude then returns:
-
-- Up to 5 buy picks
-- Allocation percentages
-- Reasoning for each pick
-- Optional sell recommendations
-- A run-level confidence score
-- A short market summary
-
-There is also a post-processing rule for congressional signals:
-
-- If Capitol Trades candidates exist but Claude picks none of them, the bot injects the top Capitol Trades candidate by replacing the weakest buy pick
-
-## Order Execution
-
-Orders are sent to a Trading 212 demo account.
-
-Current execution behavior:
-
-- Budget per run defaults to `EUR 1000`
-- Max picks per run defaults to `5`
-- Existing portfolio exposure is checked before buying
-- If one order fails, the executor can move on to the next pick
-
-This repo is configured for demo trading only.
-
-## Dashboard
-
-The dashboard lives in [docs/index.html](/Users/sai/Documents/Projects/trading-bot/docs/index.html) and [docs/data.json](/Users/sai/Documents/Projects/trading-bot/docs/data.json).
-
-It shows:
-
-- Total invested capital
-- Current portfolio value
-- Unrealized P&L in EUR and percent
-- Portfolio history
-- S&P 100 comparison
-- Open positions
-- Latest run details and picks
-
-## Default Schedule
-
-Source file: [src/config.py](/Users/sai/Documents/Projects/trading-bot/src/config.py)
-
-Default schedule:
-
-- Trade runs: Tuesday and Friday at `17:10` Europe/Berlin
-- End-of-day snapshot/report: Tuesday and Friday at `17:35` Europe/Berlin
-- Dashboard snapshot refresh: Monday to Friday at `10:00` and `15:30` Europe/Berlin
-
-## Stack
-
-- Python 3.13+
-- `asyncio`
-- `uv`
-- Anthropic Claude Opus
-- Trading 212 API
-- OpenInsider
-- Capitol Trades
-- yfinance
-- NewsAPI
-- APScheduler
-- GitHub Pages for the dashboard
-
-## Project Layout
+| Area | Responsibility |
+|---|---|
+| 🧾 **Market-data tools** | Public disclosures, prices, fundamentals, technicals, earnings, and news |
+| 🧠 **Agent pipeline** | Structured Claude decision from the fully enriched digest |
+| 🎛️ **Supervisor** | Signal merging, filtering, candidate selection, and cycle control |
+| 💶 **Trade executor** | Budget allocation, exposure checks, and order fallback |
+| ⏱️ **Scheduler** | Trade cycles, reports, and dashboard refreshes |
+| 📣 **Notifications** | Optional Telegram updates |
+| 📉 **Reporting** | Markdown reports, terminal summaries, and GitHub Pages data |
 
 ```text
-src/
-├── agents/             # Claude decision stage
-├── mcp_servers/
-│   ├── market_data/    # OpenInsider, Capitol Trades, yfinance, earnings, news
-│   └── trading/        # Trading 212 client and portfolio helpers
-├── orchestrator/       # Scheduling, candidate merge/enrichment, execution
-├── reporting/          # Daily report and dashboard data generation
-├── notifications/      # Telegram alerts
-├── utils/              # Recently traded blacklist
-└── config.py           # Environment-driven settings
-
-scripts/
-├── run_scheduler.py
-├── run_daily.py
-├── dry_run.py
-├── check_schedule.py
-└── report.py
+agent-trading/
+├── src/
+│   ├── agents/            Claude decision stage
+│   ├── mcp_servers/       market-data and demo-broker tools
+│   ├── orchestrator/      signal pipeline, controls, scheduling, and execution
+│   ├── notifications/     optional Telegram messages
+│   ├── reporting/         reports and dashboard generation
+│   └── config.py          environment-driven settings
+├── scripts/               scheduler, one-off run, dry run, report, schedule check
+├── docs/                  public dashboard and changing data snapshot
+└── tests/                 strategy plumbing and integration-contract tests
 ```
 
-## Setup
+---
 
-### 1. Install
+## 🚀 Explore It Safely
+
+<details>
+<summary><strong>1. Install the environment</strong></summary>
 
 ```bash
 git clone https://github.com/thecr7guy2/agent-trading.git
@@ -224,70 +215,79 @@ cd agent-trading
 uv sync
 ```
 
-### 2. Configure environment
+</details>
+
+<details>
+<summary><strong>2. Configure the demo services</strong></summary>
 
 ```bash
 cp .env.example .env
 ```
 
-Core variables:
-
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `ANTHROPIC_API_KEY` | Yes | Claude API key |
-| `T212_API_KEY` | Yes | Trading 212 demo API key |
-| `NEWS_API_KEY` | No | Optional news enrichment |
-| `FMP_API_KEY` | No | Optional fundamentals enrichment fallback |
-| `TELEGRAM_BOT_TOKEN` | No | Telegram notifications |
-| `TELEGRAM_CHAT_ID` | No | Telegram destination |
-
-Useful strategy and schedule settings:
-
-| Variable | Default |
-| --- | --- |
-| `BUDGET_PER_RUN_EUR` | `1000.0` |
-| `MAX_PICKS_PER_RUN` | `5` |
-| `MAX_DEMO_PORTFOLIO_INVESTED_EUR` | `46000.0` |
-| `INSIDER_LOOKBACK_DAYS` | `5` |
-| `MIN_INSIDER_TICKERS` | `10` |
-| `INSIDER_TOP_N` | `25` |
-| `RESEARCH_TOP_N` | `15` |
-| `CAPITOL_TRADES_ENABLED` | `true` |
-| `CAPITOL_TRADES_LOOKBACK_DAYS` | `3` |
-| `CAPITOL_TRADES_TOP_N` | `10` |
-| `CAPITOL_TRADES_RESERVED_SLOTS` | `3` |
-| `CAPITOL_TRADES_MAX_MARKET_CAP` | `50000000000` |
-| `SCHEDULER_TRADE_DAYS` | `tue,fri` |
-| `SCHEDULER_EXECUTE_TIME` | `17:10` |
-| `SCHEDULER_EOD_TIME` | `17:35` |
-| `SCHEDULER_SNAPSHOT_TIMES` | `10:00,15:30` |
-| `ORCHESTRATOR_TIMEZONE` | `Europe/Berlin` |
-
-### 3. Run it
+Required values:
 
 ```bash
-uv run python scripts/run_scheduler.py
+ANTHROPIC_API_KEY=...
+T212_API_KEY=...       # Trading 212 practice-account key
+T212_API_SECRET=...
 ```
 
-Useful commands:
+News, fundamentals fallback, Telegram, budget, portfolio cap, signal lookbacks, and
+schedule settings are optional or have defaults. See [`.env.example`](.env.example).
+
+</details>
+
+<details>
+<summary><strong>3. Run without placing orders</strong></summary>
 
 ```bash
 uv run python scripts/dry_run.py
 uv run python scripts/dry_run.py --budget 1500 --lookback 7
-uv run python scripts/run_daily.py
-uv run python scripts/check_schedule.py
-uv run python scripts/report.py
 ```
 
-## Limitations
+This runs signal collection, enrichment, and Claude selection but does not submit
+broker orders.
 
-- Uses public disclosures, not private information
-- Corporate insider data is sourced through OpenInsider, not scraped directly from the SEC
-- Congressional disclosures can be delayed by law
-- The strategy is buy-only in its current form
-- This is a demo-account experiment, not a production live-trading system
-- LLM output is non-deterministic and can vary run to run
+</details>
 
-## License
+<details>
+<summary><strong>4. Inspect or operate the scheduler</strong></summary>
 
-MIT
+```bash
+uv run python scripts/check_schedule.py
+uv run python scripts/report.py
+uv run python scripts/run_scheduler.py
+```
+
+`scripts/run_daily.py` can place demo orders. Read the code and configuration before
+using that command.
+
+</details>
+
+---
+
+## 🧪 Why This Is an Experiment
+
+- All inputs are public disclosures and public market data.
+- OpenInsider and Capitol Trades are third-party sources whose availability can change.
+- Corporate and congressional reports may arrive after the market has reacted.
+- Claude output is non-deterministic and can vary between runs.
+- The current strategy is primarily buy-oriented; exit logic is less developed.
+- A benchmark comparison does not control for risk, timing, concentration, or selection
+  bias.
+- Demo fills and execution conditions may differ from real-money trading.
+
+## ⚠️ Important Disclaimer
+
+This repository is an educational software experiment, not financial advice or an
+invitation to trade. It is configured for a demo account and should not be connected to
+real capital without independent review, testing, risk controls, and professional
+financial guidance.
+
+---
+
+<div align="center">
+
+### 🔬 Public signals in. Inspectable decisions out.
+
+</div>

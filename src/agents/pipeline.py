@@ -1,3 +1,5 @@
+"""Single-stage Claude pipeline for turning enriched signals into portfolio picks."""
+
 from __future__ import annotations
 
 import logging
@@ -14,11 +16,15 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PipelineOutput:
+    """Structured decision output retained for reporting and execution."""
+
     picks: PickReview
     research: ResearchReport | None = None
 
 
 class AgentPipeline:
+    """Run the active Claude Opus portfolio-decision stage."""
+
     def __init__(self):
         settings = get_settings()
 

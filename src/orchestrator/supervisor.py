@@ -1,3 +1,5 @@
+"""Coordinate signal collection, enrichment, AI decisions, demo execution, and reports."""
+
 import asyncio
 import logging
 from dataclasses import dataclass
@@ -36,12 +38,16 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PipelineResult:
+    """Decision-stage artifacts used by downstream reporting and execution."""
+
     picks: PickReview
     research: object
     portfolio: list[dict]
 
 
 class Supervisor:
+    """Own the end-to-end scheduled trading experiment lifecycle."""
+
     def __init__(
         self,
         settings: Settings | None = None,

@@ -1,8 +1,12 @@
+"""Environment-driven settings for signal collection, demo trading, and scheduling."""
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Validated runtime configuration loaded from environment variables and `.env`."""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # LLM APIs
@@ -69,4 +73,5 @@ class Settings(BaseSettings):
 
 
 def get_settings() -> Settings:
+    """Load and validate the current process configuration."""
     return Settings()
