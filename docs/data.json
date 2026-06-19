@@ -1,10 +1,10 @@
 {
-  "last_updated": "2026-06-19T13:30:00",
+  "last_updated": "2026-06-19T15:35:00",
   "portfolio": {
     "total_invested_eur": 46220.33,
-    "total_value_eur": 48249.95,
-    "unrealized_pnl_eur": 2029.62,
-    "unrealized_pnl_pct": 4.39,
+    "total_value_eur": 48244.05,
+    "unrealized_pnl_eur": 2023.72,
+    "unrealized_pnl_pct": 4.38,
     "positions": [
       {
         "ticker": "SCVL_US_EQ",
@@ -2457,8 +2457,8 @@
     {
       "date": "2026-06-19",
       "total_invested_eur": 46220.33,
-      "total_value_eur": 48249.95,
-      "unrealized_pnl_eur": 2029.62
+      "total_value_eur": 48244.05,
+      "unrealized_pnl_eur": 2023.72
     }
   ],
   "sp100_history": [
